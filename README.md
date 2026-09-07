@@ -3,8 +3,7 @@
 **A second look at one's own agency: post-decision evidence and confidence in control judgements.**
 
 Work Package 3 of the doctoral project *When Expectations Take the Wheel: Investigating
-Metacognitive Processes in Action Control* (Simon Knogler, LMU Munich; co-supervision
-Prof. Wen Wen).
+Metacognitive Processes in Action Control* 
 
 > **Status:** task built for lab (PsychoPy) and online (JavaScript), both bot-verified.
 > **No human data collected yet.** Design is fixed pending preregistration.
