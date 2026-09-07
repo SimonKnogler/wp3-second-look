@@ -26,7 +26,6 @@ The question is how confidence in the original judgement responds:
    directly (0°, a valid internal forward model applies) and rotated by 90° (the model
    fails; control must be inferred from correlation over time). Difficulty is equated by
    staircase, so the two differ only in *how* the judgement is computed.
-3. **Does it relate to delusional ideation?** PDI (Peters et al.), collected separately.
 
 The dependent variable throughout is **confidence in a judgement about one's own control**.
 Adapted from Rollwage, Dolan & Fleming (2018, *Current Biology*), using Wen Wen's Control
