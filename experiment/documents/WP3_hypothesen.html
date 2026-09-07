@@ -1,0 +1,1003 @@
+<meta charset="utf-8">
+<title>Widerstand gegen Widerlegung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,400;0,500;0,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root{
+  color-scheme: light;
+  --bg:#f1f1f4;
+  --surface:#fcfcfb;
+  --surface-2:#e8e8ee;
+  --ink:#15151b;
+  --ink-2:#54545f;
+  --ink-3:#83838f;
+  --rule:#d8d8e0;
+  --rule-strong:#b9b9c6;
+  --accent:#2a78d6;
+  --s-correct:#2a78d6;
+  --s-incorrect:#eb6834;
+  --s-ref:#8b8b98;
+  --grid:#e4e4ea;
+  --flag-bg:#e6ecf8;
+  --flag-ink:#1c5cab;
+  --warn-bg:#fbeade;
+  --warn-ink:#a03d13;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#111116;
+    --surface:#1a1a19;
+    --surface-2:#232329;
+    --ink:#f3f3f6;
+    --ink-2:#adadb9;
+    --ink-3:#7e7e8b;
+    --rule:#32323a;
+    --rule-strong:#4a4a55;
+    --accent:#3987e5;
+    --s-correct:#3987e5;
+    --s-incorrect:#d95926;
+    --s-ref:#83838f;
+    --grid:#2a2a31;
+    --flag-bg:#16233a;
+    --flag-ink:#8fbaf0;
+    --warn-bg:#33200f;
+    --warn-ink:#e79a69;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#111116;
+  --surface:#1a1a19;
+  --surface-2:#232329;
+  --ink:#f3f3f6;
+  --ink-2:#adadb9;
+  --ink-3:#7e7e8b;
+  --rule:#32323a;
+  --rule-strong:#4a4a55;
+  --accent:#3987e5;
+  --s-correct:#3987e5;
+  --s-incorrect:#d95926;
+  --s-ref:#83838f;
+  --grid:#2a2a31;
+  --flag-bg:#16233a;
+  --flag-ink:#8fbaf0;
+  --warn-bg:#33200f;
+  --warn-ink:#e79a69;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"Newsreader",Georgia,"Times New Roman",serif;
+  font-size:19px;
+  line-height:1.62;
+  font-weight:400;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px 120px}
+.col{max-width:660px;margin-left:max(0px,calc((100% - 1000px)/2));margin-right:auto}
+.wide{max-width:1000px;margin-inline:auto}
+
+/* ---------- masthead ---------- */
+header.mast{max-width:1000px;margin:0 auto;padding:64px 0 40px}
+.eyebrow{
+  font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:11.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-3);
+}
+h1{
+  font-size:clamp(2.6rem,6.2vw,4.3rem);
+  line-height:1.02;font-weight:500;letter-spacing:-.024em;
+  margin:.34em 0 0;text-wrap:balance;
+}
+.dek{
+  font-size:clamp(1.12rem,2.1vw,1.36rem);line-height:1.5;color:var(--ink-2);
+  max-width:34em;margin:1.1rem 0 0;font-weight:300;
+}
+.mast-meta{
+  display:flex;flex-wrap:wrap;gap:8px 28px;margin-top:34px;padding-top:20px;
+  border-top:1px solid var(--rule);
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;color:var(--ink-3);
+  letter-spacing:.02em;
+}
+.mast-meta b{color:var(--ink-2);font-weight:500}
+
+/* ---------- prose ---------- */
+h2{
+  font-size:clamp(1.6rem,3vw,2.05rem);line-height:1.14;font-weight:500;letter-spacing:-.018em;
+  margin:0 0 .5em;text-wrap:balance;
+}
+h3{font-size:1.2rem;font-weight:600;line-height:1.25;margin:0 0 .4em;letter-spacing:-.01em}
+section{margin-top:76px}
+section > .col > p{margin:0 0 1.05em}
+.sec-no{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;font-weight:500;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+  display:block;margin-bottom:.85em;
+}
+.lede{font-size:1.16rem;line-height:1.55;color:var(--ink-2);font-weight:300}
+.lede strong{color:var(--ink);font-weight:500}
+strong{font-weight:600}
+em{font-style:italic}
+a{color:var(--accent)}
+code{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.83em;
+  background:var(--surface-2);padding:.1em .38em;border-radius:3px;
+}
+
+/* ---------- figures ---------- */
+figure{margin:44px auto;max-width:1000px}
+.fig-head{display:flex;align-items:baseline;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.fig-no{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--accent);white-space:nowrap;
+}
+.fig-title{font-size:1.02rem;font-weight:600;letter-spacing:-.008em;line-height:1.3}
+.fig-body{
+  background:var(--surface);border:1px solid var(--rule);border-radius:6px;
+  padding:26px 22px 20px;overflow-x:auto;
+}
+figcaption{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:12.5px;line-height:1.6;color:var(--ink-2);margin-top:13px;max-width:76ch;
+}
+.tag{
+  display:inline-block;font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  padding:2.5px 7px;border-radius:3px;vertical-align:2px;
+}
+.tag.sim{background:var(--warn-bg);color:var(--warn-ink)}
+.tag.real{background:var(--flag-bg);color:var(--flag-ink)}
+
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:"IBM Plex Mono",ui-monospace,monospace}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px 22px;margin-bottom:16px}
+.lg{
+  display:flex;align-items:center;gap:7px;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;color:var(--ink-2);
+}
+.lg i{display:block;width:19px;height:0;border-top-width:2.5px;border-top-style:solid;flex:none}
+
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:720px){.panels{grid-template-columns:1fr}}
+.panel-label{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;font-weight:600;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);
+  margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--rule);
+}
+
+/* ---------- callouts ---------- */
+.note{
+  border-left:2.5px solid var(--accent);padding:2px 0 2px 20px;margin:32px 0;
+  color:var(--ink-2);font-size:1.02rem;
+}
+.note b{color:var(--ink)}
+.warnbox{
+  background:var(--warn-bg);border-radius:5px;padding:18px 22px;margin:32px 0;
+  font-size:1rem;line-height:1.55;
+}
+blockquote.pull{
+  margin:30px 0;padding:0 0 0 22px;border-left:2.5px solid var(--accent);
+}
+blockquote.pull p{
+  margin:0;font-size:1.22rem;line-height:1.45;font-weight:300;letter-spacing:-.01em;color:var(--ink);
+}
+blockquote.pull cite{
+  display:block;margin-top:10px;font-style:normal;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;color:var(--ink-3);
+}
+.warnbox .wl{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--warn-ink);display:block;margin-bottom:7px;
+}
+
+/* ---------- tables ---------- */
+details{margin-top:14px}
+summary{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;color:var(--ink-2);
+  cursor:pointer;padding:4px 0;
+}
+summary:hover{color:var(--accent)}
+table{
+  border-collapse:collapse;width:100%;margin-top:12px;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px;
+  font-variant-numeric:tabular-nums;
+}
+th,td{padding:7px 12px;text-align:right;border-bottom:1px solid var(--rule)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--ink-3);font-weight:500;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+
+.kv{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:1px;
+  background:var(--rule);border:1px solid var(--rule);border-radius:6px;overflow:hidden;margin:30px 0;
+}
+.kv > div{background:var(--surface);padding:16px 18px}
+.kv dt{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10.5px;font-weight:500;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;
+}
+.kv dd{margin:0;font-size:1.5rem;font-weight:500;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kv .u{font-size:.72rem;color:var(--ink-3);font-family:"IBM Plex Mono",monospace;margin-left:3px}
+
+ul.clean{list-style:none;padding:0;margin:0 0 1em}
+ul.clean li{padding-left:22px;position:relative;margin-bottom:.55em}
+ul.clean li::before{
+  content:"";position:absolute;left:2px;top:.62em;width:7px;height:7px;
+  border:1.5px solid var(--accent);border-radius:50%;
+}
+
+footer{
+  max-width:1000px;margin:100px auto 0;padding-top:26px;border-top:1px solid var(--rule);
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;line-height:1.75;color:var(--ink-3);
+}
+
+.tip{
+  position:fixed;pointer-events:none;z-index:50;opacity:0;transition:opacity .1s;
+  background:var(--ink);color:var(--bg);border-radius:4px;padding:7px 10px;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;line-height:1.5;
+  white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms !important;transition-duration:.001ms !important}
+}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <span class="eyebrow">WP3 · Belief Updating · Vorhergesagte Befunde</span>
+  <h1>Widerstand gegen Widerlegung</h1>
+  <p class="dek">Was passiert mit der Überzeugung, etwas gesteuert zu haben, wenn unmittelbar danach die Evidenz sagt, dass es nicht stimmt? Und hängt das davon ab, wie diese Überzeugung entstanden ist?</p>
+  <div class="mast-meta">
+    <span><b>Paradigma</b> Control Detection Task · Rollwage et al. 2018</span>
+    <span><b>Stichprobe</b> N ≈ 150, online</span>
+    <span><b>Status</b> gebaut, noch keine Humandaten</span>
+  </div>
+</header>
+
+<section style="margin-top:56px">
+  <div class="col">
+    <p class="lede">Confirmation Bias wird meist an Überzeugungen untersucht, bei denen etwas auf dem Spiel steht — Politik, Identität, Selbstbild. WP3 misst ihn dort, wo <strong>nichts</strong> auf dem Spiel steht: im Urteil darüber, welchen von zwei Punkten auf einem Bildschirm man gerade selbst mit der Maus bewegt hat. Findet sich die Asymmetrie auch dort, ist sie keine Eigenschaft von Überzeugungen, sondern von Inferenz-Architektur.</p>
+    <p>Dieses Dokument skizziert das Experiment und zeigt, <em>welche Datenmuster die Hypothese bestätigen würden</em>. Alle gezeigten Kurven stammen aus einem generativen Modell mit den echten Designparametern — sie sind Vorhersagen, keine Ergebnisse.</p>
+  </div>
+</section>
+
+<!-- ══════════ 1. DIE AUFGABE ══════════ -->
+<section>
+  <div class="col">
+    <span class="sec-no">§1 — Die Aufgabe</span>
+    <h2>Welche Form habe ich bewegt?</h2>
+    <p>Zwei schwarze Formen auf grauem Grund. Die Versuchsperson bewegt die Maus, beide Formen bewegen sich. Eine folgt der Maus teilweise — ihre Bewegung ist eine gewichtete Mischung aus der eigenen Mausbewegung und einer aufgezeichneten Trajektorie. Die andere ist reines Replay, ein Köder ohne jede Kopplung.</p>
+  </div>
+
+  <figure>
+    <div class="fig-head"><span class="fig-no">Abb. 1</span><span class="fig-title">Anatomie eines Trials</span></div>
+    <div class="fig-body"><div id="f-trial"></div></div>
+    <figcaption>Die Kontrollstärke <code>prop</code> bestimmt das Mischungsverhältnis. Eine 1-up-2-down-Staircase stellt sie so ein, dass die Person bei 70,7 % korrekt landet — dem Punkt maximaler Unsicherheit, an dem neue Evidenz das Urteil noch verschieben kann.</figcaption>
+  </figure>
+
+  <div class="col">
+    <h3>Zwei Verarbeitungsmodi</h3>
+    <p>Derselbe Reiz, eine geometrische Drehung Unterschied. Bei 0° folgt die Form der Maus direkt — das Urteil ist ein Abgleich mit dem internen Vorwärtsmodell, das man ohnehin mitbringt. Bei 90° ist dieses Modell ungültig; die Kopplung muss über die Zeit aus der Korrelation erschlossen werden.</p>
+  </div>
+
+  <figure>
+    <div class="fig-head"><span class="fig-no">Abb. 2</span><span class="fig-title">0° Prädiktion vs. 90° Regularität</span></div>
+    <div class="fig-body"><div id="f-angle"></div></div>
+    <figcaption>Die Winkelrotation zerstört die Vorhersagbarkeit, erhält aber die zeitliche Regularität: Start, Stopp und Geschwindigkeit bleiben an die Hand gekoppelt. Beide Modi werden per Staircase auf dieselbe Trefferquote kalibriert — objektive Schwierigkeit ist also gleich.</figcaption>
+  </figure>
+</section>
+
+<!-- ══════════ 2. ABLAUF ══════════ -->
+<section>
+  <div class="col">
+    <span class="sec-no">§2 — Ablauf</span>
+    <h2>Der Unterschied ist, <em>wann</em> gefragt wird</h2>
+    <p>Pro Winkelblock durchläuft die Person drei Phasen. Task 1 und Task 2 sind identisch aufgebaut — bis auf ein Zwischenstück von drei Sekunden.</p>
+  </div>
+
+  <figure>
+    <div class="fig-head"><span class="fig-no">Abb. 3</span><span class="fig-title">Blockstruktur und Trial-Zeitachse</span></div>
+    <div class="fig-body"><div id="f-flow"></div></div>
+    <figcaption>Zwei Blöcke (0°, 90°; Reihenfolge counterbalanced) ≈ 280 Trials, rund 50 Minuten. Keine Farbcues, keine easy/hard-Stufen — nur eine mittlere Schwierigkeit, wie bei Rollwage.</figcaption>
+  </figure>
+</section>
+
+<!-- ══════════ 3. KERNMECHANISMUS ══════════ -->
+<section>
+  <div class="col">
+    <span class="sec-no">§3 — Der Kernmechanismus</span>
+    <h2>Der eigene Fehler entscheidet, was die Evidenz bedeutet</h2>
+    <p>Das Replay zeigt <strong>immer die wahre Form</strong> — unabhängig davon, was die Person gewählt hat. Dadurch wird derselbe physikalische Reiz für die einen zur Bestätigung und für die anderen zur Widerlegung. Was ihn zu dem einen oder anderen macht, ist nicht der Reiz, sondern der eigene Fehler, und der wird bei 70,7 % Trefferquote im Wesentlichen durch internes Rauschen bestimmt.</p>
+    <p>Das ist die entscheidende Design-Eigenschaft: <strong>bestätigend und widerlegend sind nicht mit Reizeigenschaften konfundiert</strong>, und auf jedem einzelnen Trial ist die normativ korrekte Update-Richtung bekannt. Bei realen Überzeugungen ist beides prinzipiell unmöglich.</p>
+  </div>
+
+  <figure>
+    <div class="fig-head"><span class="fig-no">Abb. 4</span><span class="fig-title">Ein Reiz, zwei Bedeutungen</span></div>
+    <div class="fig-body"><div id="f-split"></div></div>
+    <figcaption>Die Evidenzstärke variiert zwischen zwei Stufen: <em>low</em> zeigt die Bewegung so klar wie vorher (ein frisches zweites Sample), <em>high</em> um 1,2 Logit klarer. „Low" ist also nicht „keine Information".</figcaption>
+  </figure>
+
+  <figure>
+    <div class="fig-head"><span class="fig-no">Abb. 5</span><span class="fig-title">Die Confidence-Skala</span></div>
+    <div class="fig-body"><div id="f-scale"></div></div>
+    <figcaption>Neun Punkte als subjektive Wahrscheinlichkeit, richtig gelegen zu haben. Unterhalb der Mitte drückt die Skala einen <em>Meinungswechsel</em> aus — eine Revision wird damit kontinuierlich erfasst, ohne dass eine zweite Entscheidung nötig wäre.</figcaption>
+  </figure>
+</section>
+
+<!-- ══════════ 4. MESSUNG ══════════ -->
+<section>
+  <div class="col">
+    <span class="sec-no">§4 — Die normative Vorhersage</span>
+    <h2>Erst die Norm, dann der Bias</h2>
+    <p>Von einer Verzerrung lässt sich nur sprechen, wenn feststeht, was richtig gewesen wäre. Genau das leistet die Konstruktion: Weil das Replay immer die wahre Form zeigt, ist auf jedem Trial bekannt, in welche Richtung sich die Überzeugung <em>bewegen sollte</em>. Rollwage formuliert die Erwartung so, dass zusätzliche Evidenz „<span lang="en">should normatively increase participants' confidence</span>" — nach korrekten Entscheidungen, durch Integration bestätigender Evidenz; nach inkorrekten entsprechend umgekehrt, durch Integration widerlegender Evidenz.</p>
+    <blockquote class="pull">
+      <p>Nach einer <b>richtigen</b> Wahl soll die Confidence <b>steigen</b>, nach einer <b>falschen</b> soll sie <b>fallen</b>. Beides ist normativ gefordert, nicht optional.</p>
+      <cite>nach Rollwage, Dolan &amp; Fleming (2018), S. 4016</cite>
+    </blockquote>
+    <p>Damit hat jede der beiden Trialklassen eine Sollrichtung — und ein Maß dafür, wie weit die Person dahinter zurückbleibt. Das ist der begriffliche Kern des ganzen Designs: Nicht die Bewegung der Confidence ist der Befund, sondern ihre <strong>Abweichung von der geforderten Bewegung</strong>.</p>
+  </div>
+
+  <figure>
+    <div class="fig-head"><span class="fig-no">Abb. 6</span><span class="fig-title">Sollrichtung, Messgröße, Abweichung</span></div>
+    <div class="fig-body"><div id="f-norm"></div></div>
+    <figcaption>Beide Sollrichtungen sind gleich zwingend. Ein rationaler Beobachter erfüllt beide gleich gut — Confirmation Bias heißt, die untere Zeile schlechter zu erfüllen als die obere.</figcaption>
+  </figure>
+
+  <div class="col">
+    <h3>Die Messgrößen</h3>
+    <p>Alle Trials beider Phasen werden nach Evidenzstärke sortiert — Task 1 ist die Nullstufe — und getrennt nach eigener Korrektheit in zwei Regressionen gegeben.</p>
+    <div class="kv">
+      <div><dt>Confirmatory β</dt><dd>↑<span class="u">korrekte Trials</span></dd></div>
+      <div><dt>Disconfirmatory β</dt><dd>↓<span class="u">inkorrekte Trials</span></dd></div>
+      <div><dt>Bias-Index</dt><dd>β<sub>c</sub> − β<sub>d</sub></dd></div>
+      <div><dt>meta-d′</dt><dd>Task 1<span class="u">only</span></dd></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ 5. ERGEBNISSE ══════════ -->
+<section>
+  <div class="col">
+    <span class="sec-no">§5 — Die Befunde, die die Hypothese stützen würden</span>
+    <h2>Das erwartete Muster</h2>
+    <p>Ab hier zeigen alle Grafiken <strong>simulierte Daten</strong> aus einem Beobachtermodell, das mit den echten Designparametern arbeitet: neunstufige Skala, Evidenzstufen 0 / 1,05 / 2,25 Logit (der Abstand entspricht exakt dem implementierten <code>CDT_WP3_BOOST</code> von 1,2), und einer höheren Ausgangsconfidence im prädiktiven Modus, wie sie die Dual-Mode-Theorie vorhersagt.</p>
+    <p>Die zentrale Grafik ist Rollwages Figur 4B, aufgeteilt nach Winkel.</p>
+  </div>
+
+  <figure>
+    <div class="fig-head">
+      <span class="fig-no">Abb. 7</span>
+      <span class="fig-title">Confidence über Evidenzstärke, getrennt nach Modus</span>
+      <span class="tag sim">simuliert</span>
+    </div>
+    <div class="fig-body">
+      <div class="legend">
+        <span class="lg"><i style="border-top-color:var(--s-correct)"></i>korrekt entschieden</span>
+        <span class="lg"><i style="border-top-color:var(--s-incorrect)"></i>inkorrekt entschieden</span>
+        <span class="lg"><i style="border-top-color:var(--s-ref);border-top-style:dashed"></i>Bayes-optimal</span>
+      </div>
+      <div class="panels">
+        <div><div class="panel-label">0° — Prädiktionsmodus</div><div id="f-main-0"></div></div>
+        <div><div class="panel-label">90° — Regularitätsmodus</div><div id="f-main-90"></div></div>
+      </div>
+      <details>
+        <summary>Werte als Tabelle anzeigen</summary>
+        <div id="f-main-table"></div>
+      </details>
+    </div>
+    <figcaption>Die gestrichelte Linie ist die Sollrichtung aus Abb. 6, quantifiziert: ein idealer Beobachter, der dieselbe Evidenz mit bekannter Stärke optimal integriert. <b>Der Befund liegt im Abstand zwischen durchgezogener und gestrichelter oranger Linie:</b> im 0°-Panel klafft er weit auf, im 90°-Panel liegen beide fast aufeinander. Abweichend von Rollwage nicht rot/grün codiert — dieses Paar ist für Rot-Grün-Blindheit die schlechtestmögliche Wahl.</figcaption>
+  </figure>
+
+  <div class="col">
+    <h3>Der vermeidbare Fehler</h3>
+    <p>Man wäre versucht, den Bias direkt als Differenz der beiden Steigungen abzulesen. Das geht schief — und zwar systematisch in die falsche Richtung.</p>
+  </div>
+
+  <figure>
+    <div class="fig-head">
+      <span class="fig-no">Abb. 8</span>
+      <span class="fig-title">Roher Bias-Index vs. Abweichung vom Optimum</span>
+      <span class="tag sim">simuliert</span>
+    </div>
+    <div class="fig-body"><div id="f-trap"></div></div>
+    <figcaption>Links: der naive Index aus den Rohsteigungen zeigt <em>mehr</em> Asymmetrie bei 90° — das Gegenteil der Hypothese. Rechts: die Untererfüllung gegenüber dem idealen Beobachter zeigt das erwartete Muster deutlich. Beide Grafiken beschreiben dieselben simulierten Daten.</figcaption>
+  </figure>
+
+  <div class="warnbox col">
+    <span class="wl">Warum das passiert</span>
+    Die höhere Ausgangsconfidence bei 0° drückt die Confidence näher an die Skalenobergrenze. Weil die Abbildung von Log-Odds auf eine begrenzte Skala sigmoid ist, erzeugt derselbe Evidenzbetrag dort eine <em>kleinere</em> Bewegung nach oben und eine <em>größere</em> nach unten. Ein perfekt rationaler Beobachter zeigt bei 0° also von sich aus ein kleines confirmatory β und ein großes disconfirmatory β — genau die Richtung, die den rohen Index verfälscht. <b>Ohne das Referenzmodell ist das Vorzeichen des Befunds nicht interpretierbar.</b>
+  </div>
+
+  <div class="col">
+    <h3>Der anschaulichste Einzelbefund</h3>
+    <p>Weil Werte unter 5 einen Meinungswechsel ausdrücken, lässt sich der Effekt auch ohne jede Regression zeigen: Wie oft wechselt jemand nach klarer Widerlegung tatsächlich die Seite?</p>
+  </div>
+
+  <figure>
+    <div class="fig-head">
+      <span class="fig-no">Abb. 9</span>
+      <span class="fig-title">Meinungswechsel nach widerlegender Evidenz</span>
+      <span class="tag sim">simuliert</span>
+    </div>
+    <div class="fig-body"><div id="f-mind"></div></div>
+    <figcaption>Anteil inkorrekter Trials mit starker Evidenz, auf denen die Confidence unter die Mitte fällt. Im prädiktiven Modus sieht die Person die Widerlegung — und bleibt trotzdem auf ihrer Seite.</figcaption>
+  </figure>
+
+  <div class="col">
+    <h3>Steigung oder Achsenabschnitt?</h3>
+    <p>Rollwages eigener Modellvergleich fiel nicht auf asymmetrische Gewichtung, sondern auf ein <em>Choice-Bias</em>-Modell: die Festlegung selbst addiert einen festen Betrag auf die gewählte Option, unabhängig von der Evidenzstärke. Beide Konten sagen „flachere Linie" voraus, aber auf verschiedene Weise — und die drei Evidenzstufen trennen sie.</p>
+  </div>
+
+  <figure>
+    <div class="fig-head">
+      <span class="fig-no">Abb. 10</span>
+      <span class="fig-title">Zwei Mechanismen, zwei Signaturen</span>
+      <span class="tag sim">schematisch</span>
+    </div>
+    <div class="fig-body"><div id="f-mech"></div></div>
+    <figcaption>Gewichtung wirkt auf die Steigung, Commitment auf den Achsenabschnitt. Mechanistisch ist die zweite Variante für den prädiktiven Modus sogar plausibler: eine Festlegung, die aus einem internen Modell stammt, wiegt schwerer als eine aus bloßer Datenbeobachtung.</figcaption>
+  </figure>
+
+  <div class="col">
+    <h3>Die klinische Achse</h3>
+    <p>Wahnneigung wird extern über den PDI erhoben. Theoretisch am nächsten liegt die <em>Conviction</em>-Subskala — Überzeugtheit ist begrifflich fast dasselbe wie Resistenz gegen Zweifel.</p>
+  </div>
+
+  <figure>
+    <div class="fig-head">
+      <span class="fig-no">Abb. 11</span>
+      <span class="fig-title">Wahnneigung und Revisionsbereitschaft</span>
+      <span class="tag sim">simuliert</span>
+    </div>
+    <div class="fig-body"><div id="f-pdi"></div></div>
+    <figcaption>N = 150 simulierte Teilnehmer. Die Hypothese sagt eine steilere negative Steigung im prädiktiven Modus voraus: höhere Wahnneigung geht dort mit geringerer Revision einher, während der Regularitätsmodus vergleichsweise unbeeindruckt bleibt.</figcaption>
+  </figure>
+</section>
+
+<!-- ══════════ 6. FALSIFIKATION ══════════ -->
+<section>
+  <div class="col">
+    <span class="sec-no">§6 — Was den Befund kippen würde</span>
+    <h2>Die Muster, die gegen die Hypothese sprächen</h2>
+  </div>
+
+  <figure>
+    <div class="fig-head">
+      <span class="fig-no">Abb. 12</span>
+      <span class="fig-title">Drei Alternativausgänge</span>
+      <span class="tag sim">schematisch</span>
+    </div>
+    <div class="fig-body"><div id="f-alt"></div></div>
+    <figcaption>Nur das erste Muster stützt die Kernhypothese. Das zweite wäre immer noch publizierbar — Confirmation Bias ohne Motivation im Agency-Urteil —, ließe aber die Dual-Mode-Frage offen. Das dritte stellt die Operationalisierung selbst in Frage.</figcaption>
+  </figure>
+
+  <div class="col">
+    <h3>Offene Punkte</h3>
+    <ul class="clean">
+      <li><b>Das Bayes-Referenzmodell ist noch nicht gebaut.</b> Wie Abb. 8 zeigt, entscheidet es über das Vorzeichen des Befunds, nicht nur über seine Präzision. Es sollte vor der Datenerhebung stehen, damit die Vorhersagen präregistrierbar sind.</li>
+      <li><b>Der Erwartungs-Moderator aus dem Antrag fehlt.</b> Die Cues wurden bewusst gestrichen; die Hypothese „besonders unter hohen Kontrollerwartungen" ist damit in dieser Version nicht prüfbar.</li>
+      <li><b>Baseline-Confidence gehört mitberichtet.</b> Sonst kommt die Skalenfrage aus Abb. 8 vom Reviewer statt von uns.</li>
+      <li><b>Einzelpersonen-Präzision ist begrenzt</b> — rund 26 inkorrekte Trials pro Winkel. Die Effekte sind auf Gruppenebene angelegt.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div>Rollwage, Dolan &amp; Fleming (2018). Metacognitive Failure as a Feature of Those Holding Radical Beliefs. <i>Current Biology</i> 28, 4014–4021.</div>
+  <div>Wen, Charles &amp; Haggard (2023). Metacognition and sense of agency. <i>Cognition</i> 241.</div>
+  <div>Peters, Joseph &amp; Garety (1999). Measurement of delusional ideation in the normal population. <i>Schizophrenia Bulletin</i> 25(3).</div>
+  <div style="margin-top:16px;color:var(--ink-3)">Alle Datengrafiken zeigen Modellvorhersagen, keine erhobenen Daten.</div>
+</footer>
+
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+(function(){
+"use strict";
+const NS="http://www.w3.org/2000/svg";
+const el=(n,a)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+const V=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+/* ---------- seeded RNG ---------- */
+function rng(s){return function(){s=(s*1664525+1013904223)>>>0;return s/4294967296;};}
+function gauss(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+/* ---------- the observer model ---------- */
+const LEV=[0,1.05,2.25];                       // log-odds of post-decision evidence
+const M={
+  "0":{pre:1.45,wc:0.95,wd:0.42,label:"0°"},
+  "90":{pre:0.95,wc:0.92,wd:0.88,label:"90°"}
+};
+const sig=x=>1/(1+Math.exp(-x));
+const conf=lo=>1+8*sig(lo);
+function curves(m){
+  const p=M[m];
+  return{
+    cor:LEV.map(e=>conf(p.pre+p.wc*e)),
+    inc:LEV.map(e=>conf(p.pre-p.wd*e)),
+    optCor:LEV.map(e=>conf(p.pre+e)),
+    optInc:LEV.map(e=>conf(p.pre-e))
+  };
+}
+function slope(ys){const my=(ys[0]+ys[1]+ys[2])/3;return((-1)*(ys[0]-my)+(ys[2]-my))/2;}
+
+/* ---------- tooltip ---------- */
+const tip=document.getElementById("tip");
+function hover(node,text){
+  node.style.cursor="crosshair";
+  node.addEventListener("pointerenter",e=>{tip.textContent=text;tip.style.opacity="1";});
+  node.addEventListener("pointermove",e=>{tip.style.left=(e.clientX+14)+"px";tip.style.top=(e.clientY-34)+"px";});
+  node.addEventListener("pointerleave",()=>{tip.style.opacity="0";});
+}
+
+/* ---------- generic line-panel ---------- */
+function linePanel(host,m){
+  const W=420,H=310,L=46,R=62,T=14,B=44;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const x=i=>L+i*(W-L-R)/2, y=c=>T+(9-c)/8*(H-T-B);
+  const c=curves(m);
+
+  for(let v=1;v<=9;v+=2){
+    s.appendChild(el("line",{x1:L,x2:W-R,y1:y(v),y2:y(v),stroke:V("--grid"),"stroke-width":1}));
+    const t=el("text",{x:L-9,y:y(v)+4,"text-anchor":"end","font-size":10,fill:V("--ink-3")});
+    t.textContent=v;s.appendChild(t);
+  }
+  // midpoint = change of mind threshold
+  s.appendChild(el("line",{x1:L,x2:W-R,y1:y(5),y2:y(5),stroke:V("--rule-strong"),"stroke-width":1,"stroke-dasharray":"1 3"}));
+  const mt=el("text",{x:L+5,y:y(5)-6,"font-size":9,fill:V("--ink-3")});mt.textContent="5 = geraten";s.appendChild(mt);
+
+  ["0","1","2"].forEach((lab,i)=>{
+    const t=el("text",{x:x(i),y:H-24,"text-anchor":"middle","font-size":10,fill:V("--ink-3")});
+    t.textContent=lab;s.appendChild(t);
+  });
+  const ax=el("text",{x:(L+W-R)/2,y:H-8,"text-anchor":"middle","font-size":9.5,fill:V("--ink-3"),"letter-spacing":"0.08em"});
+  ax.textContent="EVIDENZSTUFE";s.appendChild(ax);
+
+  const path=ys=>ys.map((v,i)=>(i?"L":"M")+x(i)+" "+y(v)).join(" ");
+  // optimal references first (recessive)
+  [["optCor",V("--s-ref")],["optInc",V("--s-ref")]].forEach(([k,col])=>{
+    s.appendChild(el("path",{d:path(c[k]),fill:"none",stroke:col,"stroke-width":1.5,"stroke-dasharray":"4 4",opacity:.75}));
+  });
+  [["cor",V("--s-correct"),"korrekt"],["inc",V("--s-incorrect"),"inkorrekt"]].forEach(([k,col,name])=>{
+    s.appendChild(el("path",{d:path(c[k]),fill:"none",stroke:col,"stroke-width":2.5,"stroke-linecap":"round"}));
+    c[k].forEach((v,i)=>{
+      s.appendChild(el("circle",{cx:x(i),cy:y(v),r:4.5,fill:col,stroke:V("--surface"),"stroke-width":2}));
+      const hit=el("circle",{cx:x(i),cy:y(v),r:14,fill:"transparent"});
+      hover(hit,`${name} · Stufe ${i} · Confidence ${v.toFixed(2)}`);
+      s.appendChild(hit);
+    });
+    const lb=el("text",{x:x(2)+9,y:y(c[k][2])+3.5,"font-size":10,"font-weight":600,fill:col});
+    lb.textContent=name==="korrekt"?"korrekt":"inkorr.";s.appendChild(lb);
+  });
+  // nudge the reference label clear of the observed one when the two curves converge
+  const near=Math.abs(y(c.optInc[2])-y(c.inc[2]))<15;
+  const ol=el("text",{x:x(2)+9,y:y(c.optInc[2])+(near?15:3.5),"font-size":9,fill:V("--s-ref")});
+  ol.textContent="optimal";s.appendChild(ol);
+
+  host.appendChild(s);
+}
+
+/* ---------- Abb. 1 trial anatomy ---------- */
+function trial(host){
+  const W=940,H=250;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const r=rng(7);
+  // a plausible mouse trajectory
+  let px=60,py=150,vx=2.4,vy=-1.1;const pts=[];
+  for(let i=0;i<70;i++){vx+=gauss(r)*.55;vy+=gauss(r)*.55;vx*=.93;vy*=.93;px+=vx*2.1;py+=vy*2.1;
+    py=Math.max(60,Math.min(210,py));pts.push([px,py]);}
+  const d=pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");
+
+  const box=el("rect",{x:24,y:34,width:300,height:190,rx:5,fill:"none",stroke:V("--rule"),"stroke-width":1});
+  s.appendChild(box);
+  const hd=el("text",{x:24,y:24,"font-size":10.5,fill:V("--ink-3"),"letter-spacing":".09em"});
+  hd.textContent="MAUSBEWEGUNG (3–5 s)";s.appendChild(hd);
+  s.appendChild(el("path",{d,fill:"none",stroke:V("--accent"),"stroke-width":1.8,"stroke-linecap":"round",opacity:.85,
+    "clip-path":"none"}));
+  s.appendChild(el("circle",{cx:pts[pts.length-1][0],cy:pts[pts.length-1][1],r:4,fill:V("--accent")}));
+
+  // arrow
+  s.appendChild(el("path",{d:"M338 129 L378 129",stroke:V("--ink-3"),"stroke-width":1.4}));
+  s.appendChild(el("path",{d:"M372 124 L379 129 L372 134",fill:"none",stroke:V("--ink-3"),"stroke-width":1.4}));
+
+  // target + distractor
+  const mk=(cx,label,sub,col,frac)=>{
+    const g=el("g",{});
+    g.appendChild(el("rect",{x:cx,y:34,width:250,height:190,rx:5,fill:"none",stroke:V("--rule"),"stroke-width":1}));
+    const t=el("text",{x:cx,y:24,"font-size":10.5,fill:col,"letter-spacing":".09em","font-weight":600});
+    t.textContent=label;g.appendChild(t);
+    // mini trajectory: blend of mouse + noise
+    const r2=rng(19);let qx=cx+40,qy=150,ax=1.4,ay=-.8;const q=[];
+    for(let i=0;i<70;i++){
+      const mdx=(pts[Math.min(i+1,69)][0]-pts[i][0]), mdy=(pts[Math.min(i+1,69)][1]-pts[i][1]);
+      ax+=gauss(r2)*.6;ay+=gauss(r2)*.6;ax*=.9;ay*=.9;
+      qx+=frac*mdx+(1-frac)*ax*2.0; qy+=frac*mdy+(1-frac)*ay*2.0;
+      qy=Math.max(58,Math.min(212,qy)); qx=Math.max(cx+12,Math.min(cx+238,qx)); q.push([qx,qy]);
+    }
+    g.appendChild(el("path",{d:q.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" "),
+      fill:"none",stroke:col,"stroke-width":1.8,opacity:.8,"stroke-linecap":"round"}));
+    if(label.startsWith("ZIEL")) g.appendChild(el("rect",{x:q[q.length-1][0]-7,y:q[q.length-1][1]-7,width:14,height:14,fill:col}));
+    else g.appendChild(el("circle",{cx:q[q.length-1][0],cy:q[q.length-1][1],r:7.5,fill:col}));
+    const st=el("text",{x:cx,y:242,"font-size":10.5,fill:V("--ink-2")});st.textContent=sub;g.appendChild(st);
+    return g;
+  };
+  s.appendChild(mk(392,"ZIEL — teilweise gesteuert","Mischung aus Maus + Trajektorie",V("--s-correct"),.55));
+  s.appendChild(mk(668,"KÖDER — reines Replay","keinerlei Kopplung",V("--s-incorrect"),0));
+  host.appendChild(s);
+}
+
+/* ---------- Abb. 2 angle ---------- */
+function angle(host){
+  const W=940,H=230;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const r=rng(23);let px=0,py=0,vx=2,vy=-1.2;const pts=[];
+  for(let i=0;i<58;i++){vx+=gauss(r)*.6;vy+=gauss(r)*.6;vx*=.92;vy*=.92;px+=vx*2.4;py+=vy*2.4;pts.push([px,py]);}
+  const draw=(ox,rot,title,note,col)=>{
+    const g=el("g",{});
+    g.appendChild(el("rect",{x:ox,y:38,width:400,height:150,rx:5,fill:"none",stroke:V("--rule")}));
+    const t=el("text",{x:ox,y:24,"font-size":11,"font-weight":600,fill:col,"letter-spacing":".08em"});
+    t.textContent=title;g.appendChild(t);
+    const rad=rot*Math.PI/180;
+    const p=pts.map(([x,y])=>[ox+70+ (x*Math.cos(rad)-y*Math.sin(rad))*.62, 113+(x*Math.sin(rad)+y*Math.cos(rad))*.62]);
+    // reference: the hand
+    const h=pts.map(([x,y])=>[ox+70+x*.62,113+y*.62]);
+    g.appendChild(el("path",{d:h.map((q,i)=>(i?"L":"M")+q[0].toFixed(1)+" "+q[1].toFixed(1)).join(" "),
+      fill:"none",stroke:V("--ink-3"),"stroke-width":1.2,"stroke-dasharray":"3 3",opacity:.55}));
+    g.appendChild(el("path",{d:p.map((q,i)=>(i?"L":"M")+q[0].toFixed(1)+" "+q[1].toFixed(1)).join(" "),
+      fill:"none",stroke:col,"stroke-width":2,"stroke-linecap":"round"}));
+    const n=el("text",{x:ox,y:206,"font-size":11,fill:V("--ink-2")});n.textContent=note;g.appendChild(n);
+    return g;
+  };
+  s.appendChild(draw(24,0,"0° — PRÄDIKTION","Form folgt der Hand direkt · festes internes Modell greift",V("--s-correct")));
+  s.appendChild(draw(516,90,"90° — REGULARITÄT","Modell versagt · Kopplung nur über Korrelation erschließbar",V("--s-incorrect")));
+  const lg=el("text",{x:24,y:224,"font-size":10,fill:V("--ink-3")});
+  lg.textContent="gestrichelt = tatsächliche Handbewegung";s.appendChild(lg);
+  host.appendChild(s);
+}
+
+/* ---------- Abb. 3 flow ---------- */
+function flow(host){
+  const W=940,H=290;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const blocks=[
+    ["KALIBRIERUNG","~50 Trials · mit Feedback","1u2d-Staircase → 70,7 %",V("--ink-3"),0,232],
+    ["TASK 1","30 Trials","Entscheidung → Confidence",V("--s-correct"),248,232],
+    ["TASK 2","60 Trials","Entscheidung → Replay → Confidence",V("--s-incorrect"),496,420]
+  ];
+  blocks.forEach(([t,n,d,col,x,w])=>{
+    const g=el("g",{});
+    g.appendChild(el("rect",{x:24+x,y:34,width:w,height:74,rx:4,fill:"none",stroke:col,"stroke-width":1.5}));
+    const a=el("text",{x:38+x,y:57,"font-size":11.5,"font-weight":600,fill:col,"letter-spacing":".07em"});a.textContent=t;g.appendChild(a);
+    const b=el("text",{x:38+x,y:75,"font-size":11,fill:V("--ink-2")});b.textContent=n;g.appendChild(b);
+    const c=el("text",{x:38+x,y:93,"font-size":10.5,fill:V("--ink-3")});c.textContent=d;g.appendChild(c);
+    s.appendChild(g);
+  });
+  [240,488].forEach(x=>{
+    s.appendChild(el("path",{d:`M${24+x} 71 L${40+x} 71`,stroke:V("--ink-3"),"stroke-width":1.3}));
+  });
+
+  // trial timeline for task 2
+  const ty=170, seg=[["Fixation","",90],["Bewegung 5 s","",170],["Entscheidung  a / s","",150],
+    ["REPLAY 3 s","wahre Form, klarer",180],["Confidence 1–9","",160]];
+  let cx=24;
+  const lab=el("text",{x:24,y:150,"font-size":10.5,fill:V("--ink-3"),"letter-spacing":".09em"});
+  lab.textContent="TASK-2-TRIAL IM DETAIL";s.appendChild(lab);
+  seg.forEach(([t,sub,w],i)=>{
+    const hot=i===3;
+    s.appendChild(el("rect",{x:cx,y:ty,width:w,height:hot?54:40,rx:3,
+      fill:hot?V("--warn-bg"):"none",stroke:hot?V("--s-incorrect"):V("--rule"),"stroke-width":hot?1.5:1}));
+    const a=el("text",{x:cx+12,y:ty+(hot?23:25),"font-size":11,"font-weight":hot?600:400,
+      fill:hot?V("--s-incorrect"):V("--ink-2")});a.textContent=t;s.appendChild(a);
+    if(sub){const b=el("text",{x:cx+12,y:ty+41,"font-size":10,fill:V("--ink-2")});b.textContent=sub;s.appendChild(b);}
+    cx+=w+8;
+  });
+  const nt=el("text",{x:24,y:262,"font-size":11,fill:V("--ink-2")});
+  nt.textContent="In Task 1 fehlt allein der markierte Abschnitt — sonst sind die Phasen identisch.";
+  s.appendChild(nt);
+  host.appendChild(s);
+}
+
+/* ---------- Abb. 4 split ---------- */
+function split(host){
+  const W=940,H=260;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  s.appendChild(el("rect",{x:24,y:96,width:210,height:64,rx:4,fill:"none",stroke:V("--rule-strong"),"stroke-width":1.5}));
+  const a=el("text",{x:36,y:122,"font-size":12,"font-weight":600,fill:V("--ink")});a.textContent="Replay zeigt";s.appendChild(a);
+  const a2=el("text",{x:36,y:142,"font-size":12,"font-weight":600,fill:V("--ink")});a2.textContent="die WAHRE Form";s.appendChild(a2);
+  const nt=el("text",{x:24,y:84,"font-size":10.5,fill:V("--ink-3"),"letter-spacing":".08em"});
+  nt.textContent="IDENTISCHER REIZ";s.appendChild(nt);
+
+  const branch=(y,col,who,what,eff)=>{
+    const g=el("g",{});
+    g.appendChild(el("path",{d:`M234 128 C 290 128, 290 ${y+32}, 330 ${y+32}`,fill:"none",stroke:col,"stroke-width":1.6}));
+    g.appendChild(el("path",{d:`M324 ${y+27} L331 ${y+32} L324 ${y+37}`,fill:"none",stroke:col,"stroke-width":1.6}));
+    g.appendChild(el("rect",{x:340,y:y,width:260,height:64,rx:4,fill:"none",stroke:col,"stroke-width":1.5}));
+    const t=el("text",{x:354,y:y+26,"font-size":11.5,"font-weight":600,fill:col});t.textContent=who;g.appendChild(t);
+    const t2=el("text",{x:354,y:y+46,"font-size":11,fill:V("--ink-2")});t2.textContent=what;g.appendChild(t2);
+    g.appendChild(el("path",{d:`M600 ${y+32} L636 ${y+32}`,stroke:col,"stroke-width":1.6}));
+    g.appendChild(el("path",{d:`M630 ${y+27} L637 ${y+32} L630 ${y+37}`,fill:"none",stroke:col,"stroke-width":1.6}));
+    const t3=el("text",{x:648,y:y+37,"font-size":13,"font-weight":600,fill:col});t3.textContent=eff;g.appendChild(t3);
+    return g;
+  };
+  s.appendChild(branch(30,V("--s-correct"),"… stimmt mit der Wahl überein","weil richtig entschieden wurde","BESTÄTIGUNG → Confidence ↑"));
+  s.appendChild(branch(164,V("--s-incorrect"),"… zeigt auf die andere Form","weil falsch entschieden wurde","WIDERLEGUNG → Confidence ↓"));
+  const f=el("text",{x:24,y:238,"font-size":11,fill:V("--ink-2")});
+  f.textContent="Die Zuordnung entsteht durch den eigenen Fehler — bei 70,7 % Trefferquote also durch internes Rauschen.";
+  s.appendChild(f);
+  host.appendChild(s);
+}
+
+/* ---------- Abb. 5 scale ---------- */
+function scale(host){
+  const W=940,H=150;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const x0=60,x1=880;
+  s.appendChild(el("line",{x1:x0,x2:x1,y1:56,y2:56,stroke:V("--rule-strong"),"stroke-width":1.5}));
+  for(let i=0;i<9;i++){
+    const x=x0+i*(x1-x0)/8;
+    const isMid=i===4;
+    const col=i<4?V("--s-incorrect"):i>4?V("--s-correct"):V("--ink-3");
+    s.appendChild(el("circle",{cx:x,cy:56,r:isMid?8:7,fill:col,opacity:isMid?.65:(.35+Math.abs(i-4)*.16)}));
+    const t=el("text",{x:x,y:36,"text-anchor":"middle","font-size":12,"font-weight":600,fill:V("--ink")});
+    t.textContent=i+1;s.appendChild(t);
+    const p=el("text",{x:x,y:80,"text-anchor":"middle","font-size":10,fill:V("--ink-3")});
+    p.textContent=(i/8*100).toFixed(0)+"%";s.appendChild(p);
+  }
+  const ann=(x,anchor,l1,l2,col)=>{
+    const t=el("text",{x:x,y:110,"text-anchor":anchor,"font-size":11.5,"font-weight":600,fill:col});t.textContent=l1;s.appendChild(t);
+    const t2=el("text",{x:x,y:128,"text-anchor":anchor,"font-size":11,fill:V("--ink-2")});t2.textContent=l2;s.appendChild(t2);
+  };
+  ann(x0,"start","MEINUNGSWECHSEL","sicher: es war die andere Form",V("--s-incorrect"));
+  ann((x0+x1)/2,"middle","geraten","keine Information",V("--ink-3"));
+  ann(x1,"end","BESTÄTIGUNG","sicher: meine Wahl war richtig",V("--s-correct"));
+  host.appendChild(s);
+}
+
+/* ---------- Abb. 6 normative prediction ---------- */
+function norm(host){
+  const W=940,H=272;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const heads=[["TRIALKLASSE",44],["SOLLRICHTUNG",300],["NORMATIV GEFORDERT",470],["MESSGRÖSSE",690]];
+  heads.forEach(([t,x])=>{
+    const h=el("text",{x:x,y:20,"font-size":10,fill:V("--ink-3"),"letter-spacing":".1em"});
+    h.textContent=t;s.appendChild(h);
+  });
+  const band=(y,who,sub,col,up,soll,mess,mnote)=>{
+    const g=el("g",{});
+    g.appendChild(el("rect",{x:24,y:y,width:892,height:84,rx:5,fill:"none",stroke:col,"stroke-width":1.4,opacity:.85}));
+    const a=el("text",{x:44,y:y+34,"font-size":13,"font-weight":600,fill:col});a.textContent=who;g.appendChild(a);
+    const b=el("text",{x:44,y:y+56,"font-size":11,fill:V("--ink-2")});b.textContent=sub;g.appendChild(b);
+    // normative mini-curve
+    const x0=300,x1=428,yt=y+24,yb=y+64;
+    const pts=up?[[x0,yb],[(x0+x1)/2,y+40],[x1,yt]]:[[x0,yt],[(x0+x1)/2,y+44],[x1,yb]];
+    g.appendChild(el("path",{d:pts.map((p,i)=>(i?"L":"M")+p[0]+" "+p[1]).join(" "),
+      fill:"none",stroke:col,"stroke-width":2.4,"stroke-linecap":"round"}));
+    pts.forEach(p=>g.appendChild(el("circle",{cx:p[0],cy:p[1],r:3.6,fill:col})));
+    const ev=el("text",{x:x0,y:y+78,"font-size":9,fill:V("--ink-3")});ev.textContent="Evidenzstufe 0 → 2";g.appendChild(ev);
+    // arrow + requirement
+    const ar=el("text",{x:470,y:y+46,"font-size":26,"font-weight":600,fill:col});ar.textContent=up?"↑":"↓";g.appendChild(ar);
+    const so=el("text",{x:500,y:y+42,"font-size":12.5,"font-weight":500,fill:V("--ink")});so.textContent=soll;g.appendChild(so);
+    const so2=el("text",{x:500,y:y+60,"font-size":10.5,fill:V("--ink-3")});so2.textContent="keine Option, sondern Norm";g.appendChild(so2);
+    // measure
+    const me=el("text",{x:690,y:y+38,"font-size":12.5,"font-weight":600,fill:col});me.textContent=mess;g.appendChild(me);
+    const mn=el("text",{x:690,y:y+58,"font-size":10.5,fill:V("--ink-2")});mn.textContent=mnote;g.appendChild(mn);
+    return g;
+  };
+  s.appendChild(band(32,"nach KORREKTER Wahl","Replay bestätigt die Entscheidung",V("--s-correct"),true,
+    "Confidence muss steigen","confirmatory β","Steigung auf korrekten Trials"));
+  s.appendChild(band(134,"nach INKORREKTER Wahl","Replay widerspricht der Entscheidung",V("--s-incorrect"),false,
+    "Confidence muss fallen","disconfirmatory β","Steigung auf inkorrekten Trials"));
+  // one flowing line: bold clause + normal clause, so the two can never collide
+  const f1=el("text",{x:24,y:246,"font-size":12,fill:V("--ink-2")});
+  const b1=el("tspan",{"font-weight":600,fill:V("--ink")});
+  b1.textContent="Rational = beide Zeilen gleich gut erfüllen.";
+  const b2=el("tspan",{dx:"8"});
+  b2.textContent="Confirmation Bias = die untere schlechter als die obere.";
+  f1.appendChild(b1);f1.appendChild(b2);s.appendChild(f1);
+  const f3=el("text",{x:24,y:264,"font-size":10.5,fill:V("--ink-3")});
+  f3.textContent="Der Befund ist nie die Bewegung selbst, sondern ihr Rückstand gegenüber der geforderten Bewegung.";
+  s.appendChild(f3);
+  host.appendChild(s);
+}
+
+/* ---------- Abb. 8 the trap ---------- */
+function trap(host){
+  const W=940,H=286;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const c0=curves("0"),c90=curves("90");
+  const naive=m=>{const c=curves(m);return slope(c.cor)-(-slope(c.inc));};
+  const shortfall=m=>{const c=curves(m);return c.inc[2]-c.optInc[2];};
+
+  const bars=(ox,title,unit,vals,note,goodIdx)=>{
+    const g=el("g",{}),bw=86,gap=46,MAXH=92;
+    const anyNeg=vals.some(v=>v[1]<0), base=anyNeg?132:200;
+    const maxv=Math.max(...vals.map(v=>Math.abs(v[1])))*1.15;
+    const t=el("text",{x:ox,y:22,"font-size":11.5,"font-weight":600,fill:V("--ink"),"letter-spacing":".04em"});
+    t.textContent=title;g.appendChild(t);
+    const n=el("text",{x:ox,y:40,"font-size":10.5,fill:V("--ink-3")});n.textContent=unit;g.appendChild(n);
+    g.appendChild(el("line",{x1:ox,x2:ox+2*(bw+gap),y1:base,y2:base,stroke:V("--rule-strong"),"stroke-width":1}));
+    vals.forEach(([lab,v],i)=>{
+      const h=Math.max(3,Math.abs(v)/maxv*MAXH), x=ox+i*(bw+gap), up=v>=0;
+      const col=i===goodIdx?V("--s-incorrect"):V("--s-ref");
+      g.appendChild(el("rect",{x:x,y:up?base-h:base,width:bw,height:h,rx:4,fill:col,opacity:i===goodIdx?1:.5}));
+      // value at the free end of the bar, category label on the baseline side
+      const vt=el("text",{x:x+bw/2,y:up?base-h-10:base+h+18,"text-anchor":"middle","font-size":12.5,"font-weight":600,fill:V("--ink")});
+      vt.textContent=(v>0?"+":"")+v.toFixed(2);g.appendChild(vt);
+      const lt=el("text",{x:x+bw/2,y:up?base+18:base-11,"text-anchor":"middle","font-size":11,"font-weight":600,fill:V("--ink-2")});
+      lt.textContent=lab;g.appendChild(lt);
+      const hit=el("rect",{x:x,y:base-MAXH-24,width:bw,height:2*MAXH+48,fill:"transparent"});
+      hover(hit,`${lab} · ${(v>0?"+":"")+v.toFixed(3)}`);g.appendChild(hit);
+    });
+    const nn=el("text",{x:ox,y:266,"font-size":11,fill:V("--ink-2")});nn.textContent=note;g.appendChild(nn);
+    return g;
+  };
+  s.appendChild(bars(24,"ROHER BIAS-INDEX  βc − βd","Confidence-Punkte pro Evidenzstufe",
+    [["0°",naive("0")],["90°",naive("90")]],"✗ zeigt in die falsche Richtung",1));
+  s.appendChild(el("line",{x1:470,x2:470,y1:14,y2:272,stroke:V("--rule")}));
+  s.appendChild(bars(516,"UNTERERFÜLLUNG GEGENÜBER OPTIMUM","Confidence-Punkte auf Evidenzstufe 2",
+    [["0°",shortfall("0")],["90°",shortfall("90")]],"✓ zeigt das erwartete Muster",0));
+  host.appendChild(s);
+}
+
+/* ---------- Abb. 9 change of mind ---------- */
+function mind(host){
+  const W=940,H=200;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  // P(confidence < 5) at level 2, incorrect trials — from model + trial noise sd
+  const sd=1.35;
+  const erf=x=>{const t=1/(1+.3275911*Math.abs(x));const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return x>=0?y:-y;};
+  const pbelow=mu=>0.5*(1+erf((5-mu)/(sd*Math.SQRT2)));
+  const rows=[["0°  Prädiktionsmodus",pbelow(curves("0").inc[2]),V("--s-incorrect")],
+              ["90° Regularitätsmodus",pbelow(curves("90").inc[2]),V("--s-correct")]];
+  const x0=280,xw=560;
+  const hd=el("text",{x:24,y:26,"font-size":11,fill:V("--ink-3"),"letter-spacing":".08em"});
+  hd.textContent="ANTEIL DER TRIALS MIT CONFIDENCE < 5 (INKORREKT, STARKE EVIDENZ)";s.appendChild(hd);
+  rows.forEach(([lab,v,col],i)=>{
+    const y=68+i*58;
+    const t=el("text",{x:24,y:y+5,"font-size":12.5,"font-weight":500,fill:V("--ink")});t.textContent=lab;s.appendChild(t);
+    s.appendChild(el("rect",{x:x0,y:y-13,width:xw,height:26,rx:4,fill:V("--surface-2")}));
+    s.appendChild(el("rect",{x:x0,y:y-13,width:xw*v,height:26,rx:4,fill:col}));
+    const vt=el("text",{x:x0+xw*v+12,y:y+5,"font-size":13,"font-weight":600,fill:V("--ink")});
+    vt.textContent=(v*100).toFixed(0)+" %";s.appendChild(vt);
+    const hit=el("rect",{x:x0,y:y-13,width:xw,height:26,fill:"transparent"});
+    hover(hit,`${lab} · ${(v*100).toFixed(1)} % Meinungswechsel`);s.appendChild(hit);
+  });
+  const f=el("text",{x:24,y:186,"font-size":11,fill:V("--ink-2")});
+  f.textContent="Im prädiktiven Modus bleibt die Mehrheit trotz eindeutiger Widerlegung auf der eigenen Seite.";
+  s.appendChild(f);
+  host.appendChild(s);
+}
+
+/* ---------- Abb. 10 mechanism ---------- */
+function mech(host){
+  const W=940,H=250;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const panel=(ox,title,sub,fn)=>{
+    const g=el("g",{}),L=ox+42,W2=292,T=44,B=200;
+    const t=el("text",{x:ox,y:22,"font-size":11.5,"font-weight":600,fill:V("--ink"),"letter-spacing":".05em"});
+    t.textContent=title;g.appendChild(t);
+    const st=el("text",{x:ox,y:38,"font-size":10.5,fill:V("--ink-3")});st.textContent=sub;g.appendChild(st);
+    const x=i=>L+i*W2/2, y=c=>T+(9-c)/8*(B-T);
+    g.appendChild(el("line",{x1:L,x2:L+W2,y1:y(5),y2:y(5),stroke:V("--rule"),"stroke-dasharray":"2 3"}));
+    const base=[7.4,5.7,3.4];
+    const alt=fn(base);
+    [[base,V("--s-ref"),"4 4","unverzerrt"],[alt,V("--s-incorrect"),"","verzerrt"]].forEach(([ys,col,dash,nm])=>{
+      const a={d:ys.map((v,i)=>(i?"L":"M")+x(i)+" "+y(v)).join(" "),fill:"none",stroke:col,"stroke-width":dash?1.6:2.4};
+      if(dash)a["stroke-dasharray"]=dash;
+      g.appendChild(el("path",a));
+      ys.forEach((v,i)=>g.appendChild(el("circle",{cx:x(i),cy:y(v),r:3.6,fill:col})));
+      const lb=el("text",{x:x(2)+8,y:y(ys[2])+4,"font-size":10,fill:col});lb.textContent=nm;g.appendChild(lb);
+    });
+    ["0","1","2"].forEach((l,i)=>{const tt=el("text",{x:x(i),y:B+16,"text-anchor":"middle","font-size":10,fill:V("--ink-3")});tt.textContent=l;g.appendChild(tt);});
+    const ax=el("text",{x:L,y:B+34,"font-size":9.5,fill:V("--ink-3"),"letter-spacing":".07em"});ax.textContent="EVIDENZSTUFE";g.appendChild(ax);
+    return g;
+  };
+  s.appendChild(panel(24,"A · ASYMMETRISCHE GEWICHTUNG","widerlegende Evidenz wird heruntergewichtet → flachere Steigung",
+    b=>[b[0],b[0]-(b[0]-b[1])*.42,b[0]-(b[0]-b[2])*.42]));
+  s.appendChild(el("line",{x1:470,x2:470,y1:14,y2:236,stroke:V("--rule")}));
+  s.appendChild(panel(516,"B · CHOICE BIAS","die Festlegung addiert einen festen Bonus → paralleler Versatz",
+    b=>b.map(v=>Math.min(8.9,v+2.1))));
+  host.appendChild(s);
+}
+
+/* ---------- Abb. 11 PDI ---------- */
+function pdi(host){
+  const W=940,H=330;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const L=64,R=W-30,T=30,B=250;
+  const xs=v=>L+(v/40)*(R-L), ys=v=>B-(v/1.6)*(B-T);
+  for(let g=0;g<=1.6001;g+=.4){
+    s.appendChild(el("line",{x1:L,x2:R,y1:ys(g),y2:ys(g),stroke:V("--grid")}));
+    const t=el("text",{x:L-10,y:ys(g)+4,"text-anchor":"end","font-size":10,fill:V("--ink-3")});t.textContent=g.toFixed(2);s.appendChild(t);
+  }
+  [0,10,20,30,40].forEach(v=>{const t=el("text",{x:xs(v),y:B+18,"text-anchor":"middle","font-size":10,fill:V("--ink-3")});t.textContent=v;s.appendChild(t);});
+  const xl=el("text",{x:(L+R)/2,y:B+38,"text-anchor":"middle","font-size":10,fill:V("--ink-3"),"letter-spacing":".07em"});
+  xl.textContent="PDI — CONVICTION-SUBSKALA";s.appendChild(xl);
+  const yl=el("text",{x:16,y:(T+B)/2,"font-size":10,fill:V("--ink-3"),"letter-spacing":".07em",transform:`rotate(-90 16 ${(T+B)/2})`,"text-anchor":"middle"});
+  yl.textContent="DISCONFIRMATORY GEWICHT w";s.appendChild(yl);
+
+  const r=rng(101);
+  [["0",V("--s-incorrect"),1.02,-0.0155,"0° — prädiktiv"],["90",V("--s-correct"),1.19,-0.0038,"90° — regularitätsbasiert"]]
+  .forEach(([m,col,b0,b1,nm])=>{
+    for(let i=0;i<75;i++){
+      const p=Math.max(1,Math.min(39,12+gauss(r)*8.5));
+      const w=Math.max(.05,Math.min(1.55,b0+b1*p+gauss(r)*.135));
+      const c=el("circle",{cx:xs(p),cy:ys(w),r:4,fill:col,opacity:.45,stroke:V("--surface"),"stroke-width":1});
+      hover(c,`${nm} · PDI ${p.toFixed(0)} · w = ${w.toFixed(2)}`);
+      s.appendChild(c);
+    }
+    s.appendChild(el("line",{x1:xs(1),y1:ys(b0+b1*1),x2:xs(39),y2:ys(b0+b1*39),stroke:col,"stroke-width":2.5}));
+    const lb=el("text",{x:xs(39)+0,y:ys(b0+b1*39)-12,"text-anchor":"end","font-size":11,"font-weight":600,fill:col});
+    lb.textContent=nm;s.appendChild(lb);
+  });
+  const f=el("text",{x:L,y:B+62,"font-size":11,fill:V("--ink-2")});
+  f.textContent="Vorhergesagt: signifikante Interaktion PDI × Modus — die Steigung ist bei 0° deutlich steiler negativ.";
+  s.appendChild(f);
+  host.appendChild(s);
+}
+
+/* ---------- Abb. 12 alternative outcomes ---------- */
+function alt(host){
+  const W=940,H=250;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const cases=[
+    ["① MODUS-SPEZIFISCH","stützt die Kernhypothese",[[7.4,6.9,6.1],[6.8,5.0,3.1]],V("--s-incorrect")],
+    ["② GENERELL, ABER GLEICH","Bias ohne Modus-Effekt",[[7.4,6.9,6.2],[6.8,6.3,5.6]],V("--ink-3")],
+    ["③ KEIN BIAS","optimale Revision in beiden Modi",[[7.4,5.8,3.5],[6.8,4.8,2.7]],V("--ink-3")]
+  ];
+  cases.forEach(([title,sub,series,col],k)=>{
+    const ox=24+k*306,L=ox+34,W2=214,T=64,B=196;
+    const t=el("text",{x:ox,y:24,"font-size":11.5,"font-weight":600,fill:col});t.textContent=title;s.appendChild(t);
+    const st=el("text",{x:ox,y:41,"font-size":10.5,fill:V("--ink-3")});st.textContent=sub;s.appendChild(st);
+    const x=i=>L+i*W2/2,y=c=>T+(9-c)/8*(B-T);
+    s.appendChild(el("line",{x1:L,x2:L+W2,y1:y(5),y2:y(5),stroke:V("--rule"),"stroke-dasharray":"2 3"}));
+    series.forEach((ys,i)=>{
+      const c2=i===0?V("--s-incorrect"):V("--s-correct");
+      s.appendChild(el("path",{d:ys.map((v,j)=>(j?"L":"M")+x(j)+" "+y(v)).join(" "),fill:"none",stroke:c2,"stroke-width":2.2}));
+      ys.forEach((v,j)=>s.appendChild(el("circle",{cx:x(j),cy:y(v),r:3.4,fill:c2})));
+      const lb=el("text",{x:x(2)+7,y:y(ys[2])+4,"font-size":9.5,fill:c2});lb.textContent=i===0?"0°":"90°";s.appendChild(lb);
+    });
+    const ax=el("text",{x:L,y:B+18,"font-size":9.5,fill:V("--ink-3")});ax.textContent="inkorrekte Trials";s.appendChild(ax);
+  });
+  const f=el("text",{x:24,y:238,"font-size":11,fill:V("--ink-2")});
+  f.textContent="Alle drei Kurvenpaare zeigen nur inkorrekte Trials — dort entscheidet sich der Befund.";
+  s.appendChild(f);
+  host.appendChild(s);
+}
+
+/* ---------- data table ---------- */
+function table(host){
+  const rows=[];
+  ["0","90"].forEach(m=>{
+    const c=curves(m);
+    [["korrekt","cor","optCor"],["inkorrekt","inc","optInc"]].forEach(([nm,k,ok])=>{
+      rows.push([M[m].label,nm,c[k][0].toFixed(2),c[k][1].toFixed(2),c[k][2].toFixed(2),c[ok][2].toFixed(2)]);
+    });
+  });
+  let h='<table><thead><tr><th>Modus</th><th>Trials</th><th>Stufe 0</th><th>Stufe 1</th><th>Stufe 2</th><th>opt. Stufe 2</th></tr></thead><tbody>';
+  rows.forEach(r=>{h+="<tr>"+r.map(v=>`<td>${v}</td>`).join("")+"</tr>";});
+  host.innerHTML=h+"</tbody></table>";
+}
+
+/* ---------- mount ---------- */
+function mount(){
+  const jobs=[["f-trial",trial],["f-angle",angle],["f-flow",flow],["f-split",split],["f-scale",scale],
+    ["f-norm",norm],["f-trap",trap],["f-mind",mind],["f-mech",mech],["f-pdi",pdi],["f-alt",alt],
+    ["f-main-table",table]];
+  jobs.forEach(([id,fn])=>{const n=document.getElementById(id);if(n){n.innerHTML="";fn(n);}});
+  ["0","90"].forEach(m=>{const n=document.getElementById("f-main-"+m);if(n){n.innerHTML="";linePanel(n,m);}});
+}
+mount();
+// repaint on theme change so SVG colours follow the tokens
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",mount);
+new MutationObserver(mount).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+})();
+</script>

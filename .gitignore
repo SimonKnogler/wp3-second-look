@@ -1,0 +1,30 @@
+# ── macOS / editors ───────────────────────────────────────────────────────────
+.DS_Store
+._*
+.claude/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# ── Participant data ──────────────────────────────────────────────────────────
+# Raw data is NOT versioned here. It goes to OSF (see data/README.md); git is a
+# poor fit for it and the kinematics files are megabytes per participant.
+# The folder structure is kept via .gitkeep so paths in the scripts just work.
+experiment/data/**/*.csv
+experiment/data/**/*.png
+!experiment/data/**/example_*.csv
+
+# Bot / simulation output — regenerate with CDT_BOT=1, never worth versioning
+experiment/data/simulated/
+
+# ── Copyrighted material ──────────────────────────────────────────────────────
+# Papers are not redistributed. See docs/references.md for DOIs.
+experiment/documents/*.pdf
+!experiment/documents/WP3_briefing.pdf
+
+# ── Build / scratch ───────────────────────────────────────────────────────────
+*.log
+.tmp/
+scratch/

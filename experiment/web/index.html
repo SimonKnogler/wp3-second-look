@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control Detection — WP3</title>
+<style>
+  html,body{margin:0;height:100%;background:#0e0f12;color:#eceae6;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+    overflow:hidden;user-select:none;-webkit-user-select:none;}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  canvas{display:block;background:#0e0f12;cursor:none;}
+  #screen{max-width:760px;padding:0 40px;text-align:center;line-height:1.6;}
+  #screen h1{font-size:2rem;font-weight:700;margin:0 0 18px;}
+  #screen p{font-size:1.18rem;color:#cfcdc8;margin:14px 0;}
+  #screen .go{margin-top:28px;font-size:.95rem;color:#8a8f98;letter-spacing:.04em;}
+  .kbd{display:inline-block;border:1px solid #3a3e46;border-radius:6px;padding:2px 9px;
+    font-weight:600;background:#191c22;margin:0 2px;}
+  .scale{display:flex;flex-direction:column;align-items:center;gap:18px;}
+  .track{display:flex;gap:0;align-items:flex-end;}
+  .pt{width:64px;text-align:center;}
+  .pt .n{font-size:1.5rem;font-weight:700;}
+  .pt .p{font-size:.85rem;color:#8a8f98;margin-top:6px;height:14px;}
+  .rule{height:2px;background:#3a3e46;width:100%;margin:2px 0 0;}
+  .anchors{display:flex;justify-content:space-between;width:600px;color:#8a8f98;font-size:.9rem;}
+  .anchors span{max-width:150px;}
+  .fb{font-size:2.2rem;font-weight:700;}
+  #err{position:fixed;bottom:8px;left:8px;color:#c0603a;font-size:12px;font-family:monospace;}
+</style>
+</head>
+<body>
+<div id="stage"><div id="screen"></div></div>
+<div id="err"></div>
+<script src="engine.js"></script>
+<script>
+"use strict";
+// ─────────────────────────────────────────────────────────────────────────────
+//  Config  (override any via URL, e.g. ?t1=6&t2=12&pid=99)
+// ─────────────────────────────────────────────────────────────────────────────
+const Q = new URLSearchParams(location.search);
+const CFG = {
+  participant: Q.get("pid") || String(Math.floor(Math.random()*1e6)),
+  T1_N: +(Q.get("t1") || 30),          // Task-1 trials per angle
+  T2_N: +(Q.get("t2") || 60),          // Task-2 trials per angle (half low / half high)
+  CAL_MIN: +(Q.get("calmin") || 40),   // staircase min / max trials
+  CAL_MAX: +(Q.get("calmax") || 80),
+  CAL_REVERSALS: 12,
+  BOOST_LOGIT: +(Q.get("boost") || 1.2),
+  MOTION_DUR: 5.0,
+  EV_DUR: +(Q.get("evdur") || 3.0),
+  ANGLES: [0, 90],
+  TRACK: (Q.get("track") || "1") === "1",   // keep the 1u2d running through Task 1 + 2
+  BONUS: +(Q.get("bonus") || 0),       // max confidence bonus (quadratic scoring rule); 0 = points only
+  BONUS_UNIT: Q.get("unit") || "£",
+  DATAPIPE_ID: "",                     // ← put your OSF DataPipe experiment ID here to auto-upload
+};
+const clampProp = p => Math.min(Math.max(p, 0.02), 0.90);
+const logit = x => { x = Math.min(Math.max(x,1e-6),1-1e-6); return Math.log(x/(1-x)); };
+const invLogit = z => 1/(1+Math.exp(-z));
+let RSEED = (+ (Q.get("seed")||Date.now())) & 0x7fffffff;
+const rnd = () => { RSEED = (RSEED*1103515245+12345)&0x7fffffff; return RSEED/0x7fffffff; };
+const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  1-up-2-down staircase (port of staircase.py TwoDownOneUpStaircase)
+// ─────────────────────────────────────────────────────────────────────────────
+class Staircase {
+  constructor(){ this.p=0.85; this.big=0.10; this.small=0.05; this.min=0.02; this.max=0.90;
+    this.nCorr=0; this.lastDir=0; this.rev=[]; }
+  get step(){ return this.rev.length>=3 ? this.small : this.big; }
+  next(){ return this.p; }
+  update(prop, correct){
+    let dir=0;
+    if(correct){ this.nCorr++; if(this.nCorr>=2){ this.p=Math.max(this.p-this.step,this.min); dir=-1; this.nCorr=0; } }
+    else { this.p=Math.min(this.p+this.step,this.max); dir=1; this.nCorr=0; }
+    if(dir!==0 && this.lastDir!==0 && dir!==this.lastDir) this.rev.push(this.p);
+    if(dir!==0) this.lastDir=dir;
+  }
+  threshold(){ if(!this.rev.length) return this.p; const t=this.rev.slice(-8); return t.reduce((a,b)=>a+b,0)/t.length; }
+  get nRev(){ return this.rev.length; }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Rendering + DOM screens
+// ─────────────────────────────────────────────────────────────────────────────
+const stage=document.getElementById("stage"), screenEl=document.getElementById("screen");
+let canvas=null, ctx=null, cx=0, cy=0;
+const mouse={x:0,y:0,moved:false};
+function makeCanvas(){
+  canvas=document.createElement("canvas"); ctx=canvas.getContext("2d");
+  resize(); window.addEventListener("resize",resize);
+  canvas.addEventListener("mousemove", e=>{
+    const r=canvas.getBoundingClientRect();
+    mouse.x=(e.clientX-r.left)-cx; mouse.y=-((e.clientY-r.top)-cy); mouse.moved=true;
+  });
+}
+function resize(){ if(!canvas)return; canvas.width=window.innerWidth; canvas.height=window.innerHeight; cx=canvas.width/2; cy=canvas.height/2; }
+function showCanvas(){ stage.innerHTML=""; stage.appendChild(canvas); }
+function showScreen(html){ stage.innerHTML=""; stage.appendChild(screenEl); screenEl.innerHTML=html; }
+const P=cxp=>[cx+cxp[0], cy-cxp[1]];   // centered(y up) -> canvas(y down)
+function drawShapes(sq,dot,squareCx,dotCx){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // confinement boxes (faint)
+  ctx.strokeStyle="#22262c"; ctx.lineWidth=1;
+  for(const bx of [squareCx,dotCx]){ const [x,y]=P([bx-Engine.BOX_HW, Engine.BOX_HH]); ctx.strokeRect(x,y,Engine.BOX_HW*2,Engine.BOX_HH*2); }
+  // Two IDENTICAL circles (matches PsychoPy, where both stimuli are Circle(20)).
+  // "square"/"dot" are internal labels only — the participant can tell them apart
+  // by side alone, which is why the evidence sample must keep the same side (§10b).
+  ctx.fillStyle="#eceae6";
+  for(const p of [sq,dot]){ const [x,y]=P(p); ctx.beginPath(); ctx.arc(x,y,20,0,2*Math.PI); ctx.fill(); }
+  // Marks the post-decision evidence sample. It draws FRESH trajectories and the
+  // participant moves anew — a second independent sample, not a replayed recording.
+  if(EVIDENCE_ON){ ctx.fillStyle="#eceae6"; ctx.font="600 22px system-ui, sans-serif"; ctx.textAlign="center";
+    ctx.fillText("EXTRA EVIDENCE  —  same circles, same sides  ·  keep moving, no response", cx, 48); }
+}
+let EVIDENCE_ON=false;
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+function waitKeys(keys){ return new Promise(res=>{ const h=e=>{ const k=e.key.toLowerCase(); if(keys.includes(k)){ window.removeEventListener("keydown",h); res(k); } }; window.addEventListener("keydown",h); }); }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Motion trial (decision) / evidence sample
+// ─────────────────────────────────────────────────────────────────────────────
+let POOL=null;
+const usedIdx=new Set();
+function pickPair(){
+  const avail=[]; for(let i=0;i<POOL.n;i++) if(!usedIdx.has(i)) avail.push(i);
+  const pool = avail.length>=2 ? avail : [...Array(POOL.n).keys()];   // recycle if exhausted
+  const ti=pool[Math.floor(rnd()*pool.length)]; let di=pool[Math.floor(rnd()*pool.length)];
+  let guard=0; while(di===ti && guard++<50) di=pool[Math.floor(rnd()*pool.length)];
+  usedIdx.add(ti); usedIdx.add(di); return [ti,di];
+}
+// returns {resp_shape, correct, rt, true_shape, timeout, sumEvidence}
+// forceLeft / forceApplied: the WP3 evidence sample MUST inherit the decision
+// trial's layout. Both objects are identical circles, so the participant
+// identifies them only by side; re-rolling the side (or the ±90° sign) would put
+// confirming evidence on the wrong side in ~50% of trials and invert the measure.
+function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forceTarget=null, forceLeft=null, forceApplied=null}={}){
+  return new Promise(res=>{
+    EVIDENCE_ON = !acceptResponse;
+    const [ti,di]=pickPair();
+    const target = forceTarget || (rnd()<0.5?"square":"dot");
+    const left = forceLeft || (rnd()<0.5?"square":"dot");
+    const applied = forceApplied!==null ? forceApplied : (angle===90 ? (rnd()<0.5?90:-90) : 0);
+    const eng=new Engine.TrialEngine(POOL,ti,di,prop,applied,target,left);
+    const squareCx = left==="square"?-Engine.OFFSET_X:Engine.OFFSET_X;
+    const dotCx = left==="square"?Engine.OFFSET_X:-Engine.OFFSET_X;
+    mouse.moved=false;
+    let started=false, t0=0, resp=null, rt=NaN, keyH=null;
+    if(acceptResponse){
+      keyH=e=>{ const k=e.key.toLowerCase(); if(k==="a"||k==="s"){ resp = k==="a"?left:(left==="square"?"dot":"square"); rt=(performance.now()-t0)/1000; } };
+      window.addEventListener("keydown",keyH);
+    }
+    function frame(now){
+      if(!started){ if(mouse.moved){ started=true; t0=performance.now(); } drawShapes(eng.squarePos,eng.dotPos,squareCx,dotCx); requestAnimationFrame(frame); return; }
+      const el=(performance.now()-t0)/1000;
+      const st=eng.step(mouse.x,mouse.y); drawShapes(st.square,st.dot,squareCx,dotCx);
+      if(resp!==null || el>=dur){
+        if(keyH) window.removeEventListener("keydown",keyH);
+        EVIDENCE_ON=false;
+        const timeout = acceptResponse && resp===null;
+        res({ resp_shape:timeout?"timeout":(acceptResponse?resp:"evidence"),
+              correct: (acceptResponse&&!timeout)?(resp===target?1:0):null,
+              rt, true_shape:target, timeout, sumEvidence:eng.sumEvidence,
+              left, applied });
+        return;
+      }
+      requestAnimationFrame(frame);
+    }
+    // brief fixation, then go
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="#8a8f98"; ctx.font="26px system-ui"; ctx.textAlign="center";
+    ctx.fillText("+",cx,cy);
+    setTimeout(()=>{ ctx.fillStyle="#8a8f98"; ctx.font="18px system-ui";
+      ctx.fillText(acceptResponse?"move the mouse — a = left, s = right":"watch — move the mouse",cx,cy+70);
+      requestAnimationFrame(frame); }, 500);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  9-point Rollwage confidence  (P that decision was correct; <50% = the other)
+// ─────────────────────────────────────────────────────────────────────────────
+function confidence(){
+  return new Promise(res=>{
+    let pts=""; for(let i=1;i<=9;i++){ const pc=i===1?"0%":i===5?"50%":i===9?"100%":"";
+      pts+=`<div class="pt"><div class="n">${i}</div><div class="p">${pc}</div></div>`; }
+    showScreen(`<div class="scale">
+      <p style="font-size:1.25rem;color:#eceae6">How likely is it that your choice was correct?</p>
+      <div class="track">${pts}</div><div class="rule" style="width:600px"></div>
+      <div class="anchors"><span>the OTHER circle<br>was the one I controlled</span>
+        <span style="text-align:center">pure guess</span>
+        <span style="text-align:right">MY choice<br>was correct</span></div>
+      <p class="go">press 1 – 9</p></div>`);
+    const t0=performance.now();
+    const h=e=>{ const n=parseInt(e.key,10); if(n>=1&&n<=9){ window.removeEventListener("keydown",h);
+      res({rating:n, prob:(n-1)/8*100, rt:(performance.now()-t0)/1000}); } };
+    window.addEventListener("keydown",h);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Confidence incentive: quadratic scoring rule (Rollwage 2018), both tasks,
+//  never shown per trial (it would reveal correctness), paid once at the end.
+// ─────────────────────────────────────────────────────────────────────────────
+const SCORES=[];
+function wp3Score(rating, correct){
+  if(rating===undefined||rating===null||isNaN(rating)) return 0;   // timeout: no rating, no points
+  const p=(rating-1)/8; return correct ? 1-(1-p)**2 : 1-p**2;
+}
+const bonusText=m => CFG.BONUS>0 ? `${CFG.BONUS_UNIT}${(CFG.BONUS*m).toFixed(2)} (of a possible ${CFG.BONUS_UNIT}${CFG.BONUS.toFixed(2)})`
+                                 : `${Math.round(100*m)} out of 100 points`;
+async function bonusInstructions(){
+  const stake = CFG.BONUS>0 ? `a bonus of up to <b>${CFG.BONUS_UNIT}${CFG.BONUS.toFixed(2)}</b>` : "<b>points</b> (up to 100)";
+  const explain = `<h1>How your confidence ratings earn ${stake}</h1>
+    <p>After each choice you rate how likely it is that you were <b>right</b> (1 = 0%, 5 = 50%, 9 = 100%).</p>
+    <p>What is rewarded is <b>knowing when you are right</b> — not performance.
+    Both of these earn the full amount:<br>
+    you were right <b>and</b> you rated <b>9</b> &nbsp;·&nbsp; you were wrong <b>and</b> you rated <b>1</b></p>
+    <p>So being wrong costs you nothing, as long as you notice it. It only costs you to be
+    wrong <b>and convinced</b> — or to be right and not trust yourself.</p>
+    <p>Always pressing 5 earns a middling amount. Random pressing earns little.
+    The best strategy is simple: <b>report honestly what you believe.</b><br>
+    You will <b>not</b> see your score during the task — only your total at the end.</p>
+    <p class="go">press SPACE for two quick questions</p>`;
+  // Answered on the 1–9 scale itself: an earlier version used 1/2/3 answer keys that
+  // described ratings 8–9 / 5 / 1–2, so the key was nearly the opposite of its meaning.
+  const quiz=[
+    [`<h1>Question 1 of 2</h1>
+      <p>You chose the <b>LEFT</b> circle.<br>The extra evidence then clearly showed the <b>RIGHT</b> one was yours.</p>
+      <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r<=2],
+    [`<h1>Question 2 of 2</h1>
+      <p>You chose the <b>LEFT</b> circle.<br>The extra evidence then clearly confirmed it <b>was</b> yours.</p>
+      <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r>=8],
+  ];
+  let attempts=0;
+  for(;;){
+    attempts++;
+    showScreen(explain); await waitKeys([" "]);
+    let ok=true;
+    for(const [q,accept] of quiz){
+      showScreen(q); const k=parseInt(await waitKeys(["1","2","3","4","5","6","7","8","9"]),10);
+      if(!accept(k)){ ok=false;
+        showScreen(`<p>Not quite. The most is earned when your rating <b>matches what really happened</b>:
+          a <b>high</b> rating when you were right, a <b>low</b> rating when you were wrong.</p>
+          <p class="go">press SPACE to read the explanation again</p>`);
+        await waitKeys([" "]); break; }
+    }
+    if(ok) break;
+  }
+  META.bonus_quiz_attempts=attempts;
+}
+async function motivationCheck(){   // before the reveal, so the amount cannot bias it
+  showScreen(`<h1>One last question</h1><p>How much did the bonus rule affect how carefully you chose your confidence ratings?</p>
+    <p><span class="kbd">1</span> not at all &nbsp; <span class="kbd">2</span> a little &nbsp; <span class="kbd">3</span> somewhat &nbsp; <span class="kbd">4</span> quite a bit &nbsp; <span class="kbd">5</span> very much</p>`);
+  META.bonus_motivation_1to5 = parseInt(await waitKeys(["1","2","3","4","5"]),10);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Data
+// ─────────────────────────────────────────────────────────────────────────────
+const rows=[];
+const META={};   // participant-level fields, written on every row
+function log(o){ const r=Object.assign({participant:CFG.participant, session:1}, o);
+  // every decision trial is scored; a timeout has no rating and scores 0 (same as PsychoPy)
+  r.wp3_score=wp3Score(o.wp3_confidence, o.accuracy===true||o.accuracy===1); SCORES.push(r.wp3_score);
+  rows.push(r); }
+function toCSV(){
+  rows.forEach(r=>Object.assign(r, META));
+  const cols=["participant","session","phase","wp3_task","evidence_level","angle_bias",
+    "prop_used","prop_post","accuracy","true_shape","resp_shape","rt_choice","is_timeout",
+    "wp3_confidence","wp3_prob","wp3_conf_rt","wp3_score","prop_high_clipped","med_live",
+    "bonus_quiz_attempts","bonus_motivation_1to5","wp3_mean_score","wp3_bonus"];
+  const esc=v=>v===undefined||v===null||(typeof v==="number"&&isNaN(v))?"":String(v);
+  return cols.join(",")+"\n"+rows.map(r=>cols.map(c=>esc(r[c])).join(",")).join("\n");
+}
+async function saveData(){
+  const csv=toCSV(), name=`CDT_wp3_${CFG.participant}.csv`;
+  // 1) always offer a local download (works on any host, good for piloting)
+  const blob=new Blob([csv],{type:"text/csv"}); const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=name; a.click();
+  // 2) optional: OSF DataPipe (host-agnostic, works on Pavlovia/Netlify/etc.)
+  if(CFG.DATAPIPE_ID){
+    try{ await fetch("https://pipe.jspsych.org/api/data/",{method:"POST",
+      headers:{"Content-Type":"application/json","Accept":"*/*"},
+      body:JSON.stringify({experimentID:CFG.DATAPIPE_ID,filename:name,data:csv})}); }
+    catch(err){ document.getElementById("err").textContent="DataPipe upload failed: "+err.message; }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Flow
+// ─────────────────────────────────────────────────────────────────────────────
+async function calibration(angle){
+  const sc=new Staircase(); let n=0;
+  showScreen(`<h1>Calibration</h1><p>Move the mouse. Decide which circle you control (a = left, s = right).</p>
+    <p><span class="kbd">a</span> left &nbsp; <span class="kbd">s</span> right. You will get feedback.</p>
+    <p class="go">press SPACE to start</p>`); await waitKeys([" "]); showCanvas();
+  while(n<CFG.CAL_MAX && !(sc.nRev>=CFG.CAL_REVERSALS && n>=CFG.CAL_MIN)){
+    const p=sc.next();
+    const r=await motionTrial(p,angle,{});
+    if(!r.timeout){ sc.update(p, r.correct); n++;
+      showScreen(`<div class="fb" style="color:${r.correct?'#67c091':'#e0713a'}">${r.correct?'Right':'Wrong'}</div>`);
+      await wait(600); showCanvas();
+    } else { showScreen(`<p style="color:#e0713a">Too slow — keep moving</p>`); await wait(900); showCanvas(); }
+  }
+  return sc;   // the staircase itself: it keeps running through both tasks (design §10e)
+}
+
+async function block(angle, blockIdx){
+  showScreen(`<h1>Block ${blockIdx} of 2</h1><p>A short calibration, then the main task.</p>
+    <p class="go">press SPACE</p>`); await waitKeys([" "]);
+  const sc = await calibration(angle);
+  const med0 = clampProp(sc.threshold());   // seed; also the fixed prop when tracking is off
+  // Props for one decision trial: the live staircase value plus the boosted evidence
+  // strength derived from it (exactly +BOOST_LOGIT apart, per trial). With tracking on,
+  // the 1u2d that calibrated this block keeps running through BOTH tasks, so practice
+  // or fatigue cannot shift accuracy between the phases the slopes run over.
+  const nextProps = () => { const p = CFG.TRACK ? clampProp(sc.next()) : med0;
+    return [p, clampProp(invLogit(logit(p)+CFG.BOOST_LOGIT))]; };
+  // decision trials only — the evidence sample never feeds the staircase
+  const track = (r,used) => { if(CFG.TRACK && !r.timeout) sc.update(used, r.correct); };
+
+  // Task 1
+  showScreen(`<h1>Part A</h1><p>Choose the circle you control (a = left, s = right), then rate your confidence.</p>
+    <p>No feedback from here on.</p><p class="go">press SPACE</p>`); await waitKeys([" "]); showCanvas();
+  for(let i=0;i<CFG.T1_N;i++){
+    const [pDec,pHigh]=nextProps();
+    const r=await motionTrial(pDec,angle,{}); let c={};
+    track(r,pDec);
+    if(!r.timeout){ c=await confidence(); }
+    log({phase:"wp3_task1",wp3_task:1,evidence_level:0,angle_bias:angle,prop_used:pDec,
+      accuracy:r.correct,true_shape:r.true_shape,resp_shape:r.resp_shape,rt_choice:r.rt,
+      is_timeout:r.timeout,wp3_confidence:c.rating,wp3_prob:c.prob,wp3_conf_rt:c.rt,
+      prop_high_clipped:pHigh>=0.899, med_live:clampProp(sc.threshold())});
+    showCanvas();
+  }
+
+  // Task 2
+  showScreen(`<h1>Part B</h1><p>Each trial now has two parts.</p>
+    <p>1) Move, then choose the circle you controlled (a = left, s = right) — as before.</p>
+    <p>2) You then get <b>extra evidence</b> about that same trial: the same two circles, on the
+    same sides, and the same one is still truly yours — but a <b>new</b> stretch of movement.
+    Keep moving and watch. This second sample is as clear as the first, or <b>clearer</b>.
+    It is bonus information — no response during it.</p>
+    <p>Then rate how likely it is that your <b>first</b> choice was correct.</p><p class="go">press SPACE</p>`);
+  await waitKeys([" "]); showCanvas();
+  const levels=shuffle([...Array(Math.floor(CFG.T2_N/2)).fill("low"),...Array(CFG.T2_N-Math.floor(CFG.T2_N/2)).fill("high")]);
+  for(const lev of levels){
+    const [pDec,pHigh]=nextProps();
+    const r=await motionTrial(pDec,angle,{}); let c={}, postProp=NaN;
+    track(r,pDec);
+    if(!r.timeout){
+      // low = exactly this trial's own decision strength; high = that + BOOST_LOGIT
+      postProp = lev==="low"?pDec:pHigh;
+      await motionTrial(postProp,angle,{acceptResponse:false,dur:CFG.EV_DUR,forceTarget:r.true_shape,
+                                        forceLeft:r.left,forceApplied:r.applied});
+      c=await confidence();
+    }
+    log({phase:"wp3_task2",wp3_task:2,evidence_level:lev==="low"?1:2,angle_bias:angle,
+      prop_used:pDec,prop_post:postProp,accuracy:r.correct,true_shape:r.true_shape,
+      resp_shape:r.resp_shape,rt_choice:r.rt,is_timeout:r.timeout,
+      wp3_confidence:c.rating,wp3_prob:c.prob,wp3_conf_rt:c.rt,
+      prop_high_clipped:pHigh>=0.899, med_live:clampProp(sc.threshold())});
+    showCanvas();
+  }
+}
+
+async function main(){
+  showScreen(`<h1>Control Detection Task</h1>
+    <p>You will see two identical circles, one on the <b>left</b> and one on the <b>right</b>.
+    One follows your mouse; the other does not. Move the mouse, then judge which one you controlled
+    (<b>a</b> = left, <b>s</b> = right).</p>
+    <p>Please use a <b>mouse</b> (not a trackpad) and stay in fullscreen.</p>
+    <p class="go">click to begin (fullscreen)</p>`);
+  await new Promise(r=>{ const h=()=>{ stage.removeEventListener("click",h); r(); }; stage.addEventListener("click",h); });
+  try{ await document.documentElement.requestFullscreen(); }catch(e){}
+  makeCanvas();
+  await bonusInstructions();     // once, before any rated trial; covers Task 1 AND Task 2
+  const order=shuffle([...CFG.ANGLES]);
+  for(let b=0;b<order.length;b++){ await block(order[b], b+1); }
+  const meanScore = SCORES.length ? SCORES.reduce((a,b)=>a+b,0)/SCORES.length : 0;
+  META.wp3_mean_score=+meanScore.toFixed(4); META.wp3_bonus=+(CFG.BONUS*meanScore).toFixed(2);
+  await motivationCheck();
+  await saveData();
+  showScreen(`<h1>Done — thank you!</h1><p>Your confidence bonus: <b>${bonusText(meanScore)}</b></p>
+    <p>Your data file has downloaded${CFG.DATAPIPE_ID?" and uploaded":""}.</p>
+    <p class="go">you may close this window</p>`);
+}
+
+// boot: load the motion pool, then run
+(async()=>{
+  try{
+    const meta=await (await fetch("motion_pool.json")).json();
+    const buf=await (await fetch("motion_pool.bin")).arrayBuffer();
+    POOL={data:new Float32Array(buf), F:meta.frames, n:meta.n};
+    main();
+  }catch(e){ showScreen(`<h1>Load error</h1><p>Could not load the motion pool.<br><code>${e.message}</code></p>`);
+    document.getElementById("err").textContent=e.stack||e.message; }
+})();
+</script>
+</body>
+</html>

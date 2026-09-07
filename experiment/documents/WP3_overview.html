@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WP3 — Belief Updating: Experiment-Skizze</title>
+<style>
+  :root {
+    --ink: #1a1a2e; --muted: #667; --bg: #f7f7fa; --card: #fff;
+    --blue: #2563eb; --green: #16a34a; --red: #dc2626; --amber: #d97706;
+    --line: #e2e2ea;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); line-height: 1.55; padding: 2rem 1rem 4rem; }
+  main { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 1.7rem; margin-bottom: .3rem; }
+  .sub { color: var(--muted); margin-bottom: 2rem; }
+  h2 { font-size: 1.15rem; margin: 2.2rem 0 .8rem; border-bottom: 2px solid var(--line); padding-bottom: .3rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+  .flow { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .8rem; font-size: .88rem; text-align: center; flex: 1 1 120px; }
+  .step b { display: block; font-size: .95rem; }
+  .arrow { color: var(--muted); font-size: 1.2rem; flex: 0 0 auto; }
+  .tag { display: inline-block; font-size: .75rem; padding: .1rem .5rem; border-radius: 99px; font-weight: 600; }
+  .tag.blue { background: #dbeafe; color: var(--blue); }
+  .tag.green { background: #dcfce7; color: var(--green); }
+  .tag.red { background: #fee2e2; color: var(--red); }
+  .tag.amber { background: #fef3c7; color: var(--amber); }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { padding: .45rem .6rem; text-align: left; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+  .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 640px) { .twocol { grid-template-columns: 1fr; } }
+  .scale { display: flex; gap: 3px; margin: .6rem 0 .3rem; }
+  .scale div { flex: 1; text-align: center; padding: .4rem 0; border-radius: 6px; font-weight: 700; font-size: .9rem; color: #fff; }
+  .legend { display: flex; justify-content: space-between; font-size: .78rem; color: var(--muted); }
+  .note { font-size: .85rem; color: var(--muted); margin-top: .5rem; }
+  .key { border-left: 4px solid var(--blue); }
+  svg text { font-family: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <h1>WP3 — Belief Updating</h1>
+  <p class="sub">Adaption von Rollwage, Dolan &amp; Fleming (2018) auf die Control Detection Task (CDT) · Online-Studie, N ≈ 150 (Prolific/Pavlovia)</p>
+
+  <h2>Die Grundfrage</h2>
+  <div class="card key">
+    <p><b>Wenn Menschen <em>nach</em> einer Entscheidung neue Evidenz bekommen — revidieren sie ihre Überzeugung rational, oder gewichten sie widersprechende Evidenz systematisch schwächer (Confirmation Bias)?</b></p>
+    <p class="note">Und: Ist dieser Bias stärker, wenn das Urteil auf einem festen internen Vorhersagemodell beruht (0°) als wenn es flexibel aus Regelmäßigkeiten erschlossen wird (90°)?</p>
+  </div>
+
+  <h2>Die Basisaufgabe: Control Detection Task</h2>
+  <div class="card">
+    <svg viewBox="0 0 700 180" style="width:100%; height:auto;">
+      <rect x="40" y="20" width="280" height="140" rx="8" fill="#eef2ff" stroke="#c7d2fe"/>
+      <text x="180" y="45" text-anchor="middle" font-size="13" fill="#334">Bildschirm</text>
+      <rect x="110" y="70" width="26" height="26" fill="#2563eb"/>
+      <circle cx="245" cy="83" r="14" fill="#d97706"/>
+      <text x="123" y="120" text-anchor="middle" font-size="11" fill="#667">Quadrat</text>
+      <text x="245" y="120" text-anchor="middle" font-size="11" fill="#667">Punkt</text>
+      <text x="180" y="150" text-anchor="middle" font-size="11" fill="#667">eine Form folgt (teilweise) der Maus, die andere ist ein Köder</text>
+      <path d="M 340 90 L 390 90" stroke="#667" stroke-width="2" marker-end="url(#arr)"/>
+      <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#667"/></marker></defs>
+      <rect x="400" y="40" width="260" height="100" rx="8" fill="#fff" stroke="#e2e2ea"/>
+      <text x="530" y="80" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a1a2e">„Welche Form hast du</text>
+      <text x="530" y="100" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a1a2e">gesteuert?"</text>
+      <text x="530" y="125" text-anchor="middle" font-size="11" fill="#667">nach ~3–5 s Bewegung</text>
+    </svg>
+    <p class="note">Schwierigkeit = Kontrollanteil <code>prop</code>. Eine 1-up-2-down-Staircase kalibriert auf <b>70,7 % korrekt</b> — der Punkt maximaler Unsicherheit, an dem neue Evidenz das Urteil noch verschieben kann.</p>
+  </div>
+
+  <h2>Zwei Verarbeitungsmodi (geblockt, Reihenfolge counterbalanced)</h2>
+  <div class="twocol">
+    <div class="card">
+      <span class="tag blue">0° — Prädiktion</span>
+      <p style="margin-top:.5rem">Die Form folgt der Maus <b>direkt</b>. Man vergleicht die Bewegung mit dem eigenen festen internen Vorhersagemodell.</p>
+    </div>
+    <div class="card">
+      <span class="tag amber">90° — Regularität</span>
+      <p style="margin-top:.5rem">Die Bewegung ist um 90° <b>rotiert</b> — das Vorhersagemodell versagt, man muss das Muster flexibel entdecken.</p>
+    </div>
+  </div>
+
+  <h2>Ablauf pro Winkel-Block</h2>
+  <div class="flow">
+    <div class="step"><b>Kalibrierung</b>~50 Trials<br>Staircase → 70,7 %</div>
+    <div class="arrow">→</div>
+    <div class="step"><b>Task 1</b>30 Trials<br>Entscheidung → Confidence<br><span class="tag green">Evidenz-Level 0</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>Task 2</b>60 Trials<br>Entscheidung → <b>Evidenz-Sample</b> → Confidence<br><span class="tag blue">Level 1 / 2</span></div>
+  </div>
+  <p class="note">Das Ganze × 2 Winkel ≈ 280 Trials, ~50–55 min. Der einzige Unterschied zwischen Task 1 und 2: <em>wann</em> Confidence abgefragt wird.</p>
+
+  <h2>Der Kernmechanismus: das Post-Decision-Evidence-Sample</h2>
+  <div class="card key">
+    <p>In Task 2 wird nach der Entscheidung die Bewegung <b>noch einmal 3 s gezeigt</b> (keine Antwort möglich) — und zwar immer mit dem <b>wahren</b> Target, unabhängig von der Wahl.</p>
+    <div class="twocol" style="margin-top:.8rem">
+      <div class="card" style="border-color:#bbf7d0">
+        <span class="tag green">Richtig entschieden</span>
+        <p style="margin-top:.4rem">Sample <b>bestätigt</b> die Wahl → Confidence sollte steigen.</p>
+      </div>
+      <div class="card" style="border-color:#fecaca">
+        <span class="tag red">Falsch entschieden</span>
+        <p style="margin-top:.4rem">Sample zeigt auf die <b>andere</b> Form → <b>widerlegt</b> → Confidence sollte sinken.</p>
+      </div>
+    </div>
+    <p class="note">⚠️ Wichtig: Die Proposal-Formulierung „for the object they have chosen" wäre wörtlich genommen ein Designfehler — dann wäre jedes Sample bestätigend. Korrekt (wie bei Rollwage): Evidenz zeigt immer auf die <b>Wahrheit</b>.</p>
+  </div>
+
+  <h2>Drei Evidenz-Stärken (die x-Achse der Analyse)</h2>
+  <div class="card">
+    <table>
+      <tr><th>Level</th><th>Quelle</th><th>Stärke</th></tr>
+      <tr><td><b>0</b></td><td>Task 1</td><td>kein Sample</td></tr>
+      <tr><td><b>1</b> (low)</td><td>Task 2</td><td>gleiche Klarheit wie die Entscheidung (frisches 2. Sample)</td></tr>
+      <tr><td><b>2</b> (high)</td><td>Task 2</td><td>+1,2 Logit geboostet (~0,26 → ~0,54)</td></tr>
+    </table>
+  </div>
+
+  <h2>Confidence-Skala (exakt Rollwage)</h2>
+  <div class="card">
+    <p>9 Punkte = subjektive Wahrscheinlichkeit, dass die eigene Entscheidung korrekt war:</p>
+    <div class="scale">
+      <div style="background:#dc2626">1</div><div style="background:#e4593d">2</div><div style="background:#e88a4a">3</div><div style="background:#dfae55">4</div><div style="background:#9ca3af">5</div><div style="background:#86c06a">6</div><div style="background:#4fae56">7</div><div style="background:#2c9e48">8</div><div style="background:#16a34a">9</div>
+    </div>
+    <div class="legend"><span>1 = 0 % „sicher die <b>andere</b> Form"</span><span>5 = 50 % geraten</span><span>9 = 100 % sicher</span></div>
+    <p class="note">Werte unter der Mitte drücken einen <b>Meinungswechsel</b> aus — eine Revision wird kontinuierlich erfasst, ohne zweite Entscheidung.</p>
+  </div>
+
+  <h2>Was gemessen wird</h2>
+  <div class="card">
+    <table>
+      <tr><th>Maß</th><th>Bedeutung</th></tr>
+      <tr><td><b>Confirmatory β</b></td><td>Anstieg der Confidence über Evidenz-Level auf <b>korrekten</b> Trials</td></tr>
+      <tr><td><b>Disconfirmatory β</b></td><td>Abfall auf <b>inkorrekten</b> Trials (vorzeichengedreht) — wie stark revidiert wird</td></tr>
+      <tr><td><b>meta-d′</b></td><td>Metakognitive Sensitivität, aus Task 1</td></tr>
+    </table>
+    <p class="note"><b>Confirmation Bias</b> = disconfirmatory β &lt; confirmatory β. Kein Trial-Pairing über Phasen — jeder Trial geht als eigener Datenpunkt in eine gepoolte Regression <code>confidence ~ level</code> ein.</p>
+  </div>
+
+  <h2>Hypothesen</h2>
+  <div class="card">
+    <ol style="padding-left:1.2rem">
+      <li><b>Asymmetrie:</b> Bestätigende Evidenz wird stärker gewichtet als widerlegende.</li>
+      <li><b>Modus-Effekt (Kernhypothese):</b> Der Bias ist im Prädiktionsmodus (0°) stärker als im Regularitätsmodus (90°).</li>
+      <li><b>Klinische Brücke:</b> Höhere Delusional Ideation (PDI, extern erhoben) → mehr Resistenz gegen widerlegende Evidenz, v. a. bei 0°.</li>
+    </ol>
+  </div>
+
+  <h2>Stand der Implementierung</h2>
+  <div class="card">
+    <table>
+      <tr><th>Komponente</th><th>Status</th></tr>
+      <tr><td>Web-Version (<code>experiment/web/</code>, hand-codiertes JS, primäre Plattform)</td><td><span class="tag green">gebaut, Node-verifiziert</span></td></tr>
+      <tr><td>Python/PsychoPy-Laborversion (<code>CDT_WP3=1</code>)</td><td><span class="tag green">gebaut, Bot-verifiziert</span></td></tr>
+      <tr><td>Analyse-Pipeline (<code>analyze_wp3.py</code>, Rollwage-treue Exclusions)</td><td><span class="tag green">gebaut, selbst-getestet</span></td></tr>
+      <tr><td>Consent/Instruktionen/Demografie-Screens</td><td><span class="tag amber">offen</span></td></tr>
+      <tr><td>Browser-Feel-Test mit Menschen</td><td><span class="tag amber">offen</span></td></tr>
+      <tr><td>Bayes-optimales Referenzmodell + Modellvergleich</td><td><span class="tag amber">offen</span></td></tr>
+      <tr><td>Hosting Pavlovia + Prolific + OSF DataPipe</td><td><span class="tag amber">geplant</span></td></tr>
+    </table>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,406 @@
+<meta charset="utf-8">
+<title>Belief Updating Mechanisms</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root{
+  color-scheme: light;
+  --bg:#f1f1f4; --surface:#fcfcfb; --surface-2:#e6e6ec;
+  --ink:#15151b; --ink-2:#4e4e5a; --ink-3:#83838f;
+  --rule:#d5d5de; --rule-strong:#b3b3c0;
+  --accent:#2a78d6; --s-correct:#2a78d6; --s-incorrect:#eb6834; --s-ref:#8b8b98;
+  --grid:#e2e2e8; --flag-bg:#e4ecf9; --flag-ink:#1c5cab; --warn-bg:#fbeade; --warn-ink:#a03d13;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#111116; --surface:#1a1a19; --surface-2:#242430;
+    --ink:#f3f3f6; --ink-2:#b4b4bf; --ink-3:#82828f;
+    --rule:#32323a; --rule-strong:#4b4b58;
+    --accent:#3987e5; --s-correct:#3987e5; --s-incorrect:#d95926; --s-ref:#83838f;
+    --grid:#2a2a31; --flag-bg:#16233a; --flag-ink:#8fbaf0; --warn-bg:#33200f; --warn-ink:#e79a69;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#111116; --surface:#1a1a19; --surface-2:#242430;
+  --ink:#f3f3f6; --ink-2:#b4b4bf; --ink-3:#82828f;
+  --rule:#32323a; --rule-strong:#4b4b58;
+  --accent:#3987e5; --s-correct:#3987e5; --s-incorrect:#d95926; --s-ref:#83838f;
+  --grid:#2a2a31; --flag-bg:#16233a; --flag-ink:#8fbaf0; --warn-bg:#33200f; --warn-ink:#e79a69;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",-apple-system,"Segoe UI",sans-serif;
+  font-size:clamp(16px,1.55vw,24px);line-height:1.45;overflow:hidden;-webkit-font-smoothing:antialiased}
+
+/* ---------- deck ---------- */
+#deck{position:fixed;inset:0}
+.slide{position:absolute;inset:0;display:none;padding:5vh 6vw 8vh;flex-direction:column;background:var(--bg)}
+.slide.active{display:flex}
+.slide > header{margin-bottom:2.2vh}
+.eyebrow{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.62em;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:500;display:block;margin-bottom:.5em}
+h1{font-family:"Newsreader",Georgia,serif;font-weight:500;letter-spacing:-.02em;line-height:1.06;margin:0;font-size:2.15em;text-wrap:balance}
+h2{font-family:"Newsreader",Georgia,serif;font-weight:500;letter-spacing:-.015em;line-height:1.1;margin:0;font-size:1.75em;text-wrap:balance}
+.body{flex:1;min-height:0;display:flex;flex-direction:column;gap:1.6vh}
+p{margin:0}
+.lede{font-size:1.12em;color:var(--ink-2);max-width:32em;font-weight:400}
+.lede b{color:var(--ink);font-weight:600}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:3vw;flex:1;min-height:0;align-items:start}
+.cols.w2{grid-template-columns:1.15fr 1fr}
+.cols.w3{grid-template-columns:1fr 1fr 1fr}
+ul.clean{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.55em}
+ul.clean li{padding-left:1.25em;position:relative}
+ul.clean li::before{content:"";position:absolute;left:.1em;top:.55em;width:.42em;height:.42em;border:2px solid var(--accent);border-radius:50%}
+ul.clean b{font-weight:600}
+.fig{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:1.2vh 1vw .8vh;min-height:0;display:flex;flex-direction:column}
+.fig svg{width:100%;height:auto;max-height:100%;display:block}
+svg text{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.cap{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.6em;color:var(--ink-3);margin-top:.6vh;line-height:1.5}
+.tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.55em;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:.2em .6em;border-radius:3px;vertical-align:.25em;margin-left:.5em}
+.tag.sim{background:var(--warn-bg);color:var(--warn-ink)}
+.tag.ok{background:var(--flag-bg);color:var(--flag-ink)}
+.note{border-left:3px solid var(--accent);padding:.15em 0 .15em 1em;color:var(--ink-2)}
+.note b{color:var(--ink)}
+.warn{background:var(--warn-bg);border-radius:6px;padding:.8em 1.1em;font-size:.92em}
+.warn .wl{font-family:"IBM Plex Mono",monospace;font-size:.62em;letter-spacing:.12em;text-transform:uppercase;color:var(--warn-ink);font-weight:600;display:block;margin-bottom:.3em}
+table{border-collapse:collapse;width:100%;font-size:.82em;font-variant-numeric:tabular-nums}
+th,td{padding:.42em .7em;text-align:right;border-bottom:1px solid var(--rule)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--ink-3);font-family:"IBM Plex Mono",monospace;font-weight:500;font-size:.72em;letter-spacing:.06em;text-transform:uppercase}
+td b{font-weight:600}
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+.kv>div{background:var(--surface);padding:.9em 1em}
+.kv dt{font-family:"IBM Plex Mono",monospace;font-size:.58em;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:.4em}
+.kv dd{margin:0;font-family:"Newsreader",serif;font-size:1.35em;font-weight:500;letter-spacing:-.01em}
+.kv .u{font-size:.5em;color:var(--ink-3);font-family:"IBM Plex Mono",monospace;margin-left:.3em}
+.legend{display:flex;gap:1.4em;font-family:"IBM Plex Mono",monospace;font-size:.62em;color:var(--ink-2);margin-bottom:.6vh}
+.legend i{display:inline-block;width:1.4em;border-top:3px solid;vertical-align:middle;margin-right:.4em}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:1.2vw;flex:1;min-height:0}
+.plabel{font-family:"IBM Plex Mono",monospace;font-size:.62em;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);border-bottom:1px solid var(--rule);padding-bottom:.3em;margin-bottom:.4em}
+.big{font-family:"Newsreader",serif;font-size:1.55em;line-height:1.2;font-weight:400;letter-spacing:-.01em;max-width:26em}
+.big b{font-weight:600}
+.quote{font-family:"Newsreader",serif;font-style:italic;font-size:1.25em;line-height:1.35;color:var(--ink-2);max-width:30em;border-left:3px solid var(--accent);padding-left:1em}
+.quote cite{display:block;font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:.55em;color:var(--ink-3);margin-top:.6em}
+.steps{display:flex;gap:.6vw;align-items:stretch}
+.step{flex:1;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:.9em 1em;font-size:.88em}
+.step b{display:block;font-family:"IBM Plex Mono",monospace;font-size:.68em;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:.35em}
+.step.hot{border-color:var(--s-incorrect);background:var(--warn-bg)}
+.step.hot b{color:var(--s-incorrect)}
+.arrow{align-self:center;color:var(--ink-3);font-size:1.2em}
+/* title slide */
+.title{justify-content:center}
+.title h1{font-size:3.6em}
+.title .sub{font-size:1.25em;color:var(--ink-2);max-width:30em;margin-top:.7em;font-weight:400}
+.title .meta{margin-top:5vh;font-family:"IBM Plex Mono",monospace;font-size:.68em;color:var(--ink-3);line-height:1.9}
+.title .meta b{color:var(--ink-2);font-weight:500}
+/* chrome */
+#bar{position:fixed;left:0;bottom:0;height:3px;background:var(--accent);width:0;transition:width .2s}
+#num{position:fixed;right:1.6vw;bottom:1.4vh;font-family:"IBM Plex Mono",monospace;font-size:.6em;color:var(--ink-3)}
+#foot{position:fixed;left:6vw;bottom:1.4vh;font-family:"IBM Plex Mono",monospace;font-size:.6em;color:var(--ink-3);letter-spacing:.06em}
+#help{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:1.2em 1.6em;font-size:.85em;box-shadow:0 20px 60px rgba(0,0,0,.25);display:none;z-index:9}
+#help.show{display:block}
+#help kbd{font-family:"IBM Plex Mono",monospace;background:var(--surface-2);padding:.1em .45em;border-radius:3px;font-size:.9em}
+@media print{
+  body{overflow:visible;font-size:14px}
+  .slide{display:flex !important;position:relative;height:100vh;page-break-after:always;padding:6vh 6vw}
+  #bar,#num,#foot,#help{display:none !important}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+
+<div id="deck">
+
+<!-- 1 ─ title -->
+<section class="slide title">
+  <span class="eyebrow">Lab talk · Work Package 3</span>
+  <h1>Belief Updating Mechanisms</h1>
+  <p class="sub">From expectations to evidence integration: how do we revise confidence in a control judgement once new evidence arrives?</p>
+  <div class="meta">
+    <b>Simon Knogler</b> · LMU Munich<br>
+    Adapts Rollwage, Dolan &amp; Fleming (2018, <i>Current Biology</i>) · Task: Wen et al.<br>
+    Status: built &amp; bot-verified · pre-data · design fixed for preregistration
+  </div>
+</section>
+
+<!-- 2 ─ the frame -->
+<section class="slide">
+  <header><span class="eyebrow">Background</span><h2>The dissertation in one sentence</h2></header>
+  <div class="body">
+    <p class="big">How do <b>beliefs about the precision of our own control</b> shape the sense of agency and the confidence we place in it — and does that depend on whether the system runs in a <b>prediction-based</b> or a <b>regularity-based</b> mode?</p>
+    <div class="cols" style="flex:0 0 auto;margin-top:2vh">
+      <div class="note"><b>Prediction mode (0°).</b> A well-learned forward model. Judgement = match/mismatch against a model you already trust. Precise prior; sharp sensitivity to prediction error; sensory attenuation.</div>
+      <div class="note"><b>Regularity mode (90°).</b> The model is invalid; control is inferred from the ongoing correlation between hand and object. Weak prior; confidence "seldom reaches maximum"; by definition an <i>updating</i> mode.</div>
+    </div>
+    <p class="cap">Dual-mode theory of control: Wen et al. 2021–2024 · precision weighting: Friston 2009; Yon &amp; Frith 2021. WP1 (behaviour) and WP2 (EEG) manipulate expectations <i>before</i> the decision; WP3 manipulates evidence <i>after</i> it.</p>
+  </div>
+</section>
+
+<!-- 3 ─ the question -->
+<section class="slide">
+  <header><span class="eyebrow">Aim</span><h2>The question WP3 asks</h2></header>
+  <div class="body">
+    <p class="big">How do individuals <b>update their confidence after an initial control judgement</b> — and what is the <b>relative impact of confirmatory versus disconfirmatory</b> post-decision evidence?</p>
+    <div class="cols w2" style="flex:0 0 auto;margin-top:2.2vh">
+      <div>
+        <p class="lede" style="font-size:1.02em">Is that updating process modulated by …</p>
+        <ul class="clean" style="margin-top:1.2vh">
+          <li><b>expectations of control precision</b> <span style="color:var(--ink-3)">— the WP1 manipulation</span></li>
+          <li>the active <b>processing mode</b> (prediction- vs. regularity-based)</li>
+          <li>individual differences in <b>delusional ideation</b></li>
+        </ul>
+      </div>
+      <div class="quote">…ultimately illuminating how <b>strong prior beliefs can foster confirmation biases</b> or hinder adaptive revisions of confidence.<cite>proposal, §Research Objectives — WP3</cite></div>
+    </div>
+    <p class="cap" style="margin-top:1.5vh">Metacognitive sensitivity is linked to evidence integration <i>after</i> a decision — the latitude that allows an incorrect choice to be recognised and reversed. WP3 tests for that post-decisional processing directly, by inserting a sample of evidence between commitment and confidence report.</p>
+  </div>
+</section>
+
+<!-- 4 ─ Rollwage -->
+<section class="slide">
+  <header><span class="eyebrow">Template</span><h2>Rollwage, Dolan &amp; Fleming (2018)</h2></header>
+  <div class="body">
+    <div class="cols">
+      <ul class="clean">
+        <li><b>Task 1.</b> Dot-number discrimination → confidence (9-point, as subjective P(correct), 0–100 %).</li>
+        <li><b>Task 2.</b> Decision → a <b>new</b> sample of dots that always points to the <b>true</b> answer (same or ×1.3 strength) → confidence in the <i>initial</i> decision.</li>
+        <li><b>Measure.</b> Per subject: slope of confidence over evidence level on correct trials (confirmatory) and on incorrect trials (disconfirmatory).</li>
+        <li><b>Finding.</b> Radicals lower confidence <b>less</b> when new evidence shows they were wrong — reduced disconfirmatory integration; confirmatory integration unchanged.</li>
+        <li><b>Model.</b> A <i>choice-bias</i> model (a fixed boost for the chosen option) explained individual differences best.</li>
+      </ul>
+      <div>
+        <div class="note"><b>What WP3 keeps:</b> the two-task structure, the 9-point probabilistic scale, evidence that always points to the truth, the quadratic scoring rule, the exclusion criteria.</div>
+        <div class="note" style="margin-top:1.5vh"><b>What WP3 changes:</b> the belief is an <b>agency</b> judgement; the evidence is <b>self-generated</b> (you move again); the contrast is <b>within-subject</b> (0° vs 90°) instead of between radicals and moderates.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 ─ the task -->
+<section class="slide">
+  <header><span class="eyebrow">Paradigm</span><h2>The Control Detection Task</h2></header>
+  <div class="body">
+    <div class="fig" style="flex:1"><div id="f-trial"></div></div>
+    <p class="cap">Two identical black circles. One blends the participant's mouse movement with a pre-recorded trajectory at control proportion <code>prop</code>; the other replays an unrelated trajectory. After ~5 s: <i>which one did you control?</i> (a = left, s = right). A 1-up-2-down staircase holds accuracy at <b>70.7 %</b> — the point of maximal uncertainty, where evidence has room to move the judgement.</p>
+  </div>
+</section>
+
+<!-- 6 ─ two modes -->
+<section class="slide">
+  <header><span class="eyebrow">Paradigm</span><h2>Same stimulus, one rotation apart</h2></header>
+  <div class="body">
+    <div class="fig" style="flex:1"><div id="f-angle"></div></div>
+    <p class="cap">At 0° the circle follows the hand directly — the forward model applies. At 90° the motion is rotated: prediction fails, but the temporal regularity (onset, offset, speed) is preserved, so control can still be <i>detected</i> from correlation. Both modes are staircased to the same accuracy → objective difficulty is matched.</p>
+  </div>
+</section>
+
+<!-- 7 ─ block structure -->
+<section class="slide">
+  <header><span class="eyebrow">Design</span><h2>Per angle block: calibrate → Task 1 → Task 2</h2></header>
+  <div class="body">
+    <div class="steps">
+      <div class="step"><b>Calibration</b>~50 trials, with feedback<br>1u2d → 70.7 %</div><div class="arrow">→</div>
+      <div class="step"><b>Task 1 · 30 trials</b>decision → confidence<br><span class="tag ok" style="margin:0">evidence level 0</span></div><div class="arrow">→</div>
+      <div class="step hot"><b>Task 2 · 60 trials</b>decision → <b style="display:inline;color:inherit;text-transform:none;letter-spacing:0;font-size:1em">extra evidence</b> → confidence<br><span class="tag sim" style="margin:0">levels 1 / 2</span></div>
+    </div>
+    <div class="cols" style="margin-top:2vh">
+      <ul class="clean">
+        <li>Two blocks (0°, 90°), order counterbalanced · ≈ 280 trials · ≈ 55 min · <b>online, N ≈ 150</b> (Pavlovia + Prolific).</li>
+        <li>The only difference between Task 1 and Task 2 is a 3-second insert before the confidence probe.</li>
+        <li>The staircase <b>keeps running</b> through both tasks (updates from the decision only) — see safeguards.</li>
+      </ul>
+      <div class="fig"><div id="f-timeline"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 ─ key mechanic -->
+<section class="slide">
+  <header><span class="eyebrow">The key mechanic</span><h2>The participant's own error decides what the evidence means</h2></header>
+  <div class="body">
+    <div class="fig" style="flex:1"><div id="f-split"></div></div>
+    <div class="cols" style="flex:0 0 auto">
+      <div class="note"><b>Not confounded with the stimulus.</b> Confirming and disconfirming samples come from the same distribution; what makes one or the other is whether the participant happened to be right — at 70.7 %, largely internal noise.</div>
+      <div class="note"><b>Ground truth on every trial.</b> The normatively correct direction of the update is known — something impossible for real-world beliefs. “Bias” can be defined as a <i>shortfall</i>, not just a difference.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 ─ measures -->
+<section class="slide">
+  <header><span class="eyebrow">Measurement</span><h2>Three evidence levels, one scale, two slopes</h2></header>
+  <div class="body">
+    <div class="cols w2">
+      <div>
+        <table>
+          <tr><th>Level</th><th>Phase</th><th>Evidence</th></tr>
+          <tr><td><b>0</b></td><td>Task 1</td><td>none — baseline</td></tr>
+          <tr><td><b>1</b> low</td><td>Task 2</td><td>a <b>fresh</b> sample at the same control strength as this trial's decision</td></tr>
+          <tr><td><b>2</b> high</td><td>Task 2</td><td>fresh sample, <b>+1.2 logit</b> control strength</td></tr>
+        </table>
+        <p class="cap">“Low” is not “no information” — it is a second independent draw at the same clarity. Level 1 → 2 tests whether the update scales with evidence strength (the rationality check).</p>
+        <div class="fig" style="margin-top:1.5vh"><div id="f-scale"></div></div>
+      </div>
+      <div>
+        <div class="kv" style="grid-template-columns:1fr 1fr">
+          <div><dt>Confirmatory β</dt><dd>↑<span class="u">correct trials</span></dd></div>
+          <div><dt>Disconfirmatory β</dt><dd>↓<span class="u">incorrect, sign-flipped</span></dd></div>
+          <div><dt>Bias index</dt><dd>β<sub>c</sub> − β<sub>d</sub></dd></div>
+          <div><dt>meta-d′</dt><dd>Task 1<span class="u">only</span></dd></div>
+        </div>
+        <ul class="clean" style="margin-top:1.8vh">
+          <li>Confidence = 9-point subjective P(correct): 1 = 0 % (“the <i>other</i> circle”), 5 = guess, 9 = 100 %. <b>Below 5 is a change of mind</b> — captured continuously, no second decision.</li>
+          <li>Trials pooled across phases as data points at their level; no trial pairing.</li>
+          <li>Incentivised with the <b>quadratic scoring rule</b> (both tasks, silent, one payout).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 ─ hypotheses -->
+<section class="slide">
+  <header><span class="eyebrow">Hypotheses</span><h2>An interaction between evidence and processing mode</h2></header>
+  <div class="body">
+    <div class="cols w2">
+      <ul class="clean" style="font-size:1.02em">
+        <li><b>Prediction mode (0°).</b> Correct decisions are reinforced by confirmatory evidence → a clear rise in confidence. But after incorrect decisions, <b>reduced sensitivity to disconfirmatory evidence</b> → smaller drops than expected. This asymmetry is a confirmation bias <i>tied to strong prior beliefs</i>.</li>
+        <li><b>Regularity mode (90°).</b> Moderate rises after correct decisions, and a <b>significant fall</b> after disconfirmatory evidence — flexible, evidence-driven updating.</li>
+        <li><b>Hence the core prediction:</b> the effect of post-decision evidence <b>depends on the activated processing mode</b>.</li>
+        <li><b>Delusional ideation.</b> Higher PDI → greater resistance to disconfirmatory evidence, particularly in the prediction mode.</li>
+        <li><b>Secondary.</b> Task-1 meta-d′ predicts sensitivity to post-decision evidence.</li>
+      </ul>
+      <div>
+        <div class="warn"><span class="wl">The counter-prediction</span>The same dual-mode theory calls the prediction mode <i>hyper-sensitive</i> to prediction errors — read literally, 0° should react <b>more</b> to refutation. The resolution is the level: online error sensitivity <i>during</i> control (first-order) vs. revision of a <b>committed</b> belief afterwards (second-order). We bet on the second; the design decides, and the reverse is a finding, not a failure.</div>
+        <p class="cap" style="margin-top:1.4vh"><b>Scope note.</b> The proposal lists <i>expectations of control</i> as a third moderator. The current implementation drops the expectation cues (WP1 machinery), so that term is not tested here — it needs learned, not merely instructed, expectations. The mode contrast and PDI are unaffected.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+<div id="bar"></div>
+<div id="num"></div>
+<div id="foot">WP3 · Belief updating mechanisms</div>
+<div id="help"><b>Keys</b><br><kbd>→</kbd> <kbd>space</kbd> next · <kbd>←</kbd> back · <kbd>Home</kbd>/<kbd>End</kbd> · <kbd>F</kbd> fullscreen · <kbd>D</kbd> dark/light · <kbd>?</kbd> this</div>
+
+<script>
+(function(){
+"use strict";
+/* ---------- deck navigation ---------- */
+const slides=[...document.querySelectorAll(".slide")], bar=document.getElementById("bar"), num=document.getElementById("num"), help=document.getElementById("help");
+let i=Math.max(0,Math.min(slides.length-1,(parseInt(location.hash.slice(1),10)||1)-1));
+function show(n){ i=Math.max(0,Math.min(slides.length-1,n)); slides.forEach((s,k)=>s.classList.toggle("active",k===i));
+  bar.style.width=((i+1)/slides.length*100)+"%"; num.textContent=(i+1)+" / "+slides.length; history.replaceState(null,"","#"+(i+1)); mount(); }
+addEventListener("keydown",e=>{
+  if(["ArrowRight","ArrowDown","PageDown"," "].includes(e.key)){e.preventDefault();show(i+1);}
+  else if(["ArrowLeft","ArrowUp","PageUp"].includes(e.key)){e.preventDefault();show(i-1);}
+  else if(e.key==="Home")show(0); else if(e.key==="End")show(slides.length-1);
+  else if(e.key==="f"||e.key==="F"){ document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen(); }
+  else if(e.key==="d"||e.key==="D"){ const r=document.documentElement; const dark=matchMedia("(prefers-color-scheme: dark)").matches;
+    const cur=r.getAttribute("data-theme")||(dark?"dark":"light"); r.setAttribute("data-theme",cur==="dark"?"light":"dark"); }
+  else if(e.key==="?"){ help.classList.toggle("show"); }
+});
+addEventListener("click",e=>{ if(help.classList.contains("show")){help.classList.remove("show");return;} if(e.clientX>innerWidth*0.85)show(i+1); else if(e.clientX<innerWidth*0.15)show(i-1); });
+addEventListener("hashchange",()=>{ const n=(parseInt(location.hash.slice(1),10)||1)-1; if(n!==i)show(n); });
+
+/* ---------- helpers ---------- */
+const NS="http://www.w3.org/2000/svg";
+const el=(n,a)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+const V=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function rng(s){return function(){s=(s*1664525+1013904223)>>>0;return s/4294967296;};}
+function gauss(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+const T=(s,a,txt)=>{const t=el("text",a);t.textContent=txt;s.appendChild(t);return t;};
+
+
+/* ---------- renderers ---------- */
+function trial(host){
+  const W=940,H=240; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"}); const r=rng(7);
+  let px=60,py=140,vx=2.4,vy=-1.1; const pts=[];
+  for(let i=0;i<70;i++){vx+=gauss(r)*.55;vy+=gauss(r)*.55;vx*=.93;vy*=.93;px+=vx*2.1;py+=vy*2.1;py=Math.max(55,Math.min(205,py));pts.push([px,py]);}
+  s.appendChild(el("rect",{x:24,y:30,width:300,height:190,rx:5,fill:"none",stroke:V("--rule")}));
+  T(s,{x:24,y:20,"font-size":10.5,fill:V("--ink-3"),"letter-spacing":".09em"},"HAND (mouse, ~5 s)");
+  s.appendChild(el("path",{d:pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" "),fill:"none",stroke:V("--accent"),"stroke-width":1.8,"stroke-linecap":"round",opacity:.85}));
+  s.appendChild(el("circle",{cx:pts[69][0],cy:pts[69][1],r:4,fill:V("--accent")}));
+  s.appendChild(el("path",{d:"M338 125 L378 125",stroke:V("--ink-3"),"stroke-width":1.4})); s.appendChild(el("path",{d:"M372 120 L379 125 L372 130",fill:"none",stroke:V("--ink-3"),"stroke-width":1.4}));
+  const mk=(cx,label,sub,col,frac,seed)=>{
+    s.appendChild(el("rect",{x:cx,y:30,width:250,height:190,rx:5,fill:"none",stroke:V("--rule")}));
+    T(s,{x:cx,y:20,"font-size":10.5,fill:col,"letter-spacing":".09em","font-weight":600},label);
+    const r2=rng(seed); let qx=cx+40,qy=140,ax=1.4,ay=-.8; const q=[];
+    for(let i=0;i<70;i++){const mdx=pts[Math.min(i+1,69)][0]-pts[i][0],mdy=pts[Math.min(i+1,69)][1]-pts[i][1];ax+=gauss(r2)*.6;ay+=gauss(r2)*.6;ax*=.9;ay*=.9;
+      qx+=frac*mdx+(1-frac)*ax*2;qy+=frac*mdy+(1-frac)*ay*2;qy=Math.max(53,Math.min(207,qy));qx=Math.max(cx+12,Math.min(cx+238,qx));q.push([qx,qy]);}
+    s.appendChild(el("path",{d:q.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" "),fill:"none",stroke:col,"stroke-width":1.8,opacity:.8,"stroke-linecap":"round"}));
+    s.appendChild(el("circle",{cx:q[69][0],cy:q[69][1],r:8,fill:V("--ink")}));
+    T(s,{x:cx,y:236,"font-size":10.5,fill:V("--ink-2")},sub);
+  };
+  mk(392,"TARGET — partly controlled","hand × pre-recorded, mixed at prop",V("--s-correct"),.55,19);
+  mk(668,"DECOY — pure replay","no coupling to the hand",V("--s-incorrect"),0,23);
+  host.appendChild(s);
+}
+function angle(host){
+  const W=940,H=225; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"}); const r=rng(23);
+  let px=0,py=0,vx=2,vy=-1.2; const pts=[]; for(let i=0;i<58;i++){vx+=gauss(r)*.6;vy+=gauss(r)*.6;vx*=.92;vy*=.92;px+=vx*2.4;py+=vy*2.4;pts.push([px,py]);}
+  const draw=(ox,rot,title,note,col)=>{
+    s.appendChild(el("rect",{x:ox,y:34,width:400,height:150,rx:5,fill:"none",stroke:V("--rule")}));
+    T(s,{x:ox,y:22,"font-size":11,"font-weight":600,fill:col,"letter-spacing":".08em"},title);
+    const rad=rot*Math.PI/180; const p=pts.map(([x,y])=>[ox+70+(x*Math.cos(rad)-y*Math.sin(rad))*.62,109+(x*Math.sin(rad)+y*Math.cos(rad))*.62]);
+    const h=pts.map(([x,y])=>[ox+70+x*.62,109+y*.62]);
+    s.appendChild(el("path",{d:h.map((q,i)=>(i?"L":"M")+q[0].toFixed(1)+" "+q[1].toFixed(1)).join(" "),fill:"none",stroke:V("--ink-3"),"stroke-width":1.2,"stroke-dasharray":"3 3",opacity:.55}));
+    s.appendChild(el("path",{d:p.map((q,i)=>(i?"L":"M")+q[0].toFixed(1)+" "+q[1].toFixed(1)).join(" "),fill:"none",stroke:col,"stroke-width":2,"stroke-linecap":"round"}));
+    T(s,{x:ox,y:203,"font-size":11,fill:V("--ink-2")},note);
+  };
+  draw(24,0,"0° — PREDICTION","object follows the hand · the forward model applies",V("--s-correct"));
+  draw(516,90,"90° — REGULARITY","model fails · coupling inferred from correlation over time",V("--s-incorrect"));
+  T(s,{x:24,y:220,"font-size":10,fill:V("--ink-3")},"dashed = the actual hand movement");
+  host.appendChild(s);
+}
+function timeline(host){
+  const W=560,H=120; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  T(s,{x:8,y:16,"font-size":10,fill:V("--ink-3"),"letter-spacing":".09em"},"ONE TASK-2 TRIAL");
+  const seg=[["fixation",60],["movement 5 s",120],["choice a / s",100],["EXTRA EVIDENCE 3 s",140],["confidence 1–9",108]]; let cx=8;
+  seg.forEach(([t,w],k)=>{ const hot=k===3;
+    s.appendChild(el("rect",{x:cx,y:32,width:w,height:hot?50:38,rx:3,fill:hot?V("--warn-bg"):"none",stroke:hot?V("--s-incorrect"):V("--rule"),"stroke-width":hot?1.5:1}));
+    T(s,{x:cx+8,y:hot?55:56,"font-size":10.5,"font-weight":hot?600:400,fill:hot?V("--s-incorrect"):V("--ink-2")},t); cx+=w+6; });
+  T(s,{x:8,y:104,"font-size":10.5,fill:V("--ink-2")},"Task 1 is identical minus the highlighted insert.");
+  host.appendChild(s);
+}
+function split(host){
+  const W=940,H=250; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  s.appendChild(el("rect",{x:24,y:92,width:210,height:64,rx:4,fill:"none",stroke:V("--rule-strong"),"stroke-width":1.5}));
+  T(s,{x:36,y:118,"font-size":12.5,"font-weight":600,fill:V("--ink")},"Extra evidence shows"); T(s,{x:36,y:138,"font-size":12.5,"font-weight":600,fill:V("--ink")},"the TRUE circle");
+  T(s,{x:24,y:80,"font-size":10.5,fill:V("--ink-3"),"letter-spacing":".08em"},"SAME STIMULUS DISTRIBUTION");
+  const branch=(y,col,who,what,eff)=>{
+    s.appendChild(el("path",{d:`M234 124 C 290 124, 290 ${y+32}, 330 ${y+32}`,fill:"none",stroke:col,"stroke-width":1.6}));
+    s.appendChild(el("path",{d:`M324 ${y+27} L331 ${y+32} L324 ${y+37}`,fill:"none",stroke:col,"stroke-width":1.6}));
+    s.appendChild(el("rect",{x:340,y:y,width:262,height:64,rx:4,fill:"none",stroke:col,"stroke-width":1.5}));
+    T(s,{x:354,y:y+26,"font-size":12,"font-weight":600,fill:col},who); T(s,{x:354,y:y+46,"font-size":11,fill:V("--ink-2")},what);
+    s.appendChild(el("path",{d:`M602 ${y+32} L638 ${y+32}`,stroke:col,"stroke-width":1.6})); s.appendChild(el("path",{d:`M632 ${y+27} L639 ${y+32} L632 ${y+37}`,fill:"none",stroke:col,"stroke-width":1.6}));
+    T(s,{x:650,y:y+37,"font-size":13.5,"font-weight":600,fill:col},eff);
+  };
+  branch(28,V("--s-correct"),"… agrees with the choice","because the decision was correct","CONFIRMS → confidence ↑");
+  branch(158,V("--s-incorrect"),"… points to the other circle","because the decision was wrong","REFUTES → confidence ↓");
+  T(s,{x:24,y:240,"font-size":11,fill:V("--ink-2")},"The split is produced by the participant's own error — at 70.7 %, essentially internal noise: a randomisation by mistake.");
+  host.appendChild(s);
+}
+function scale(host){
+  const W=560,H=118; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"}); const x0=36,x1=524;
+  s.appendChild(el("line",{x1:x0,x2:x1,y1:44,y2:44,stroke:V("--rule-strong"),"stroke-width":1.5}));
+  for(let i=0;i<9;i++){ const x=x0+i*(x1-x0)/8, mid=i===4, col=i<4?V("--s-incorrect"):i>4?V("--s-correct"):V("--ink-3");
+    s.appendChild(el("circle",{cx:x,cy:44,r:mid?7:6,fill:col,opacity:mid?.65:(.35+Math.abs(i-4)*.16)}));
+    T(s,{x:x,y:26,"text-anchor":"middle","font-size":11.5,"font-weight":600,fill:V("--ink")},i+1);
+    T(s,{x:x,y:66,"text-anchor":"middle","font-size":9.5,fill:V("--ink-3")},(i/8*100).toFixed(0)+"%"); }
+  T(s,{x:x0,y:92,"font-size":10.5,"font-weight":600,fill:V("--s-incorrect")},"CHANGE OF MIND"); T(s,{x:x0,y:107,"font-size":9.5,fill:V("--ink-2")},"sure it was the other circle");
+  T(s,{x:(x0+x1)/2,y:92,"text-anchor":"middle","font-size":10.5,"font-weight":600,fill:V("--ink-3")},"guess");
+  T(s,{x:x1,y:92,"text-anchor":"end","font-size":10.5,"font-weight":600,fill:V("--s-correct")},"CONFIRMED"); T(s,{x:x1,y:107,"text-anchor":"end","font-size":9.5,fill:V("--ink-2")},"sure my choice was right");
+  host.appendChild(s);
+}
+/* ---------- mount on demand (per slide, so theme changes repaint) ---------- */
+const jobs={"f-trial":trial,"f-angle":angle,"f-timeline":timeline,"f-split":split,"f-scale":scale};
+function mount(){ const s=slides[i]; s.querySelectorAll("[id^=f-]").forEach(n=>{ n.innerHTML=""; const f=jobs[n.id]; if(f)f(n); }); }
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",mount);
+new MutationObserver(mount).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+show(i);
+})();
+</script>

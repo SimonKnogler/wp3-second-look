@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>WP3 — Belief Updating Mechanisms · Project Briefing</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#ffffff; --surface:#fbfbfd; --surface-2:#eeeef4;
+  --ink:#14141a; --ink-2:#43434f; --ink-3:#78788a;
+  --rule:#d8d8e2; --rule-strong:#b0b0c0; --grid:#e6e6ec;
+  --accent:#2a78d6; --s-correct:#2a78d6; --s-incorrect:#d1541f; --s-ref:#7d7d8c;
+  --warn-bg:#fbf0e6; --warn-ink:#8f3a12; --flag-bg:#e8eefb; --flag-ink:#1c5cab;
+}
+@page{ size:A4; margin:18mm 16mm 16mm; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Newsreader",Georgia,serif;font-size:10.6pt;line-height:1.62;
+  -webkit-font-smoothing:antialiased;}
+main{max-width:170mm;margin:0 auto}
+p{margin:0 0 .85em;text-align:justify;hyphens:auto}
+b,strong{font-weight:600}
+code,kbd{font-family:"IBM Plex Mono",monospace;font-size:.86em;background:var(--surface-2);padding:.06em .32em;border-radius:2px}
+h1{font-size:26pt;font-weight:500;line-height:1.08;letter-spacing:-.02em;margin:.15em 0 0}
+h2{font-family:"IBM Plex Sans",sans-serif;font-size:12.5pt;font-weight:600;letter-spacing:-.005em;
+  margin:1.9em 0 .7em;padding-bottom:.3em;border-bottom:1px solid var(--rule);break-after:avoid}
+h2+p,h2+div,h2+figure,h2+table{break-before:avoid}
+/* cover */
+.cover{margin-bottom:2.2em}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:7.6pt;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);font-weight:500;display:block}
+.cover .sub{font-size:13pt;line-height:1.4;color:var(--ink-2);margin:.55em 0 0;max-width:34em;text-align:left}
+.cover .meta{font-family:"IBM Plex Mono",monospace;font-size:8pt;line-height:1.85;color:var(--ink-3);margin-top:1.5em}
+.cover .meta b{color:var(--ink-2);font-weight:500}
+.abstract{margin-top:1.6em;padding:1em 1.2em;background:var(--surface);border:1px solid var(--rule);border-radius:4px;font-size:10pt;line-height:1.55}
+.abstract p{margin:0}
+/* blocks */
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:.9em;margin:1.1em 0}
+.box{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:.75em .95em;font-size:9.6pt;line-height:1.5}
+.callout{margin:1.2em 0;padding:.9em 1.1em;background:var(--warn-bg);border-radius:4px;font-size:9.9pt;line-height:1.55;break-inside:avoid}
+.callout.scope{background:var(--flag-bg)}
+.callout .wl{display:block;font-family:"IBM Plex Mono",monospace;font-size:7.6pt;font-weight:600;letter-spacing:.11em;text-transform:uppercase;color:var(--warn-ink);margin-bottom:.35em}
+.callout.scope .wl{color:var(--flag-ink)}
+/* figures */
+figure{margin:1.4em 0;break-inside:avoid}
+.fig{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:.7em .8em .5em}
+.fig.narrow{max-width:120mm;margin:0 auto}
+.fig svg{display:block;width:100%;height:auto}
+svg text{font-family:"IBM Plex Mono",monospace}
+figcaption{font-family:"IBM Plex Sans",sans-serif;font-size:8.4pt;line-height:1.5;color:var(--ink-2);margin-top:.55em;text-align:left}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:.7em}
+.plabel{font-family:"IBM Plex Mono",monospace;font-size:7.6pt;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);border-bottom:1px solid var(--rule);padding-bottom:.25em;margin-bottom:.35em}
+.legend{display:flex;gap:1.3em;font-family:"IBM Plex Mono",monospace;font-size:8pt;color:var(--ink-2);margin-bottom:.5em}
+.legend i{display:inline-block;width:1.5em;border-top:2.5px solid;vertical-align:middle;margin-right:.35em}
+.legend i.c{border-color:var(--s-correct)} .legend i.i{border-color:var(--s-incorrect)} .legend i.r{border-color:var(--s-ref);border-top-style:dashed}
+/* tables */
+table{border-collapse:collapse;width:100%;font-family:"IBM Plex Sans",sans-serif;font-size:8.9pt;margin:1em 0;break-inside:avoid}
+th,td{padding:.5em .65em;text-align:left;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-family:"IBM Plex Mono",monospace;font-size:7.4pt;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+table.tight td,table.tight th{padding:.34em .5em;text-align:right}
+table.tight td:first-child,table.tight th:first-child{text-align:left}
+.lab{font-family:"IBM Plex Mono",monospace;font-size:7.8pt;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);margin:0 0 .3em}
+ul.refs{font-family:"IBM Plex Sans",sans-serif;font-size:8.9pt;line-height:1.55;padding-left:1.1em;margin:.8em 0}
+ul.refs li{margin-bottom:.4em}
+.endnote{font-family:"IBM Plex Sans",sans-serif;font-size:8.4pt;color:var(--ink-3);border-top:1px solid var(--rule);padding-top:.7em;margin-top:1.8em;text-align:left}
+</style></head><body><main>
+<header class="cover">
+  <span class="eyebrow">Project briefing · Work Package 3 of the doctoral project “When Expectations Take the Wheel”</span>
+  <h1>Belief Updating Mechanisms</h1>
+  <p class="sub">From expectations to evidence integration: how people revise confidence in a judgement about their own control, once new evidence arrives.</p>
+  <div class="meta">
+    <b>Simon Knogler</b> · LMU Munich · Co-supervision: Prof. Wen Wen<br>
+    Paradigm: Control Detection Task (Wen et al.) · Adapts Rollwage, Dolan &amp; Fleming (2018, <i>Current Biology</i>)<br>
+    Status: task built for lab (PsychoPy) and online (JS), bot-verified · no human data yet · design fixed for preregistration<br>
+    Target sample: N ≈ 150 online (Prolific / Pavlovia)
+  </div>
+  <div class="abstract">
+    <b>Purpose of this document.</b> A self-contained description of the experiment — rationale, paradigm, design, measures, hypotheses, predicted data patterns, safeguards, power and status — written as continuous prose with the figures used in the lab talk. It is intended as source material from which a presentation can be generated: every section is written to stand on its own, and every figure carries a caption that explains what it shows without reference to the surrounding text.
+  </div>
+</header>
+
+<h2>1 · Context: what the doctoral project is about</h2>
+
+<p>The doctoral project asks how <b>beliefs about the precision of our own control</b> shape the sense of agency and the confidence we place in it. The framework is Bayesian precision weighting: the brain does not merely weight incoming signals by their reliability, it also forms <i>expectations</i> about how reliable those signals will be, and those expectations can come apart from reality. That decoupling is adaptive — it enables endogenous attention and flexible action — but it also gives a computational account of clinical phenomena, most notably the overly precise priors proposed to underlie delusions.</p>
+
+<p>Onto this the project layers a second idea, Wen Wen's <b>dual-mode theory of control</b>. The claim is that agency judgements are not computed by one mechanism but by two, and that the brain switches between them depending on prior beliefs and task demands.</p>
+
+<div class="twocol">
+  <div class="box">
+    <b>Prediction-based mode.</b> A well-learned internal forward model predicts the sensory consequences of action. When prediction and feedback match, sensory attenuation follows and the pre-reflective sense of agency is strong. The mode is sharply sensitive to prediction errors: any discrepancy cuts the felt sense of control, especially where high control was expected. This is the classical comparator model.
+  </div>
+  <div class="box">
+    <b>Regularity-based mode.</b> No valid forward model is available, so control must be inferred from the ongoing correlation between one's actions and what happens on screen — retrospective, dependent on short-term memory, and open to the possibility that some other agent produced the same events. Confidence in this mode seldom reaches maximum, and internal models stay open to revision.
+  </div>
+</div>
+
+<p>Three work packages test this. <b>WP1</b> (lab, behavioural, N = 30) manipulates expected control precision with probabilistic colour cues and measures confidence, agency ratings and metacognitive sensitivity across the two modes. <b>WP2</b> (lab, EEG, N = 35) repeats that design with neural markers — N1 amplitude, midfrontal theta, feedback-related positivity. <b>WP3</b>, described here, is the online work package: it moves the manipulation from <i>before</i> the decision to <i>after</i> it.</p>
+
+<h2>2 · The question WP3 asks</h2>
+
+<p>The aim of WP3, in the proposal's own words, is <b>to determine how individuals update their confidence after making an initial control judgement, by examining the relative impact of confirmatory versus disconfirmatory post-decision evidence.</b> By combining behavioural and modelling approaches, it seeks to clarify whether this belief-updating process is modulated by expectations of control, by the active processing mode, and by individual differences in delusional ideation — ultimately illuminating <i>how strong prior beliefs can foster confirmation biases or hinder adaptive revisions of confidence</i>.</p>
+
+<p>The motivation runs through metacognition. Metacognitive sensitivity is linked to the integration of evidence <i>following</i> a decision — the latitude that allows an incorrect choice to be recognised and, in principle, reversed. WP3 aims to demonstrate that post-decisional processing directly, by inserting an additional sample of evidence after participants have committed to a choice but <i>before</i> they rate their confidence.</p>
+
+<p>There is a second reason the paradigm is interesting, which is worth stating for an audience outside the immediate field. Confirmation bias and belief perseverance are usually explained by motivation: identity, ego protection, cognitive dissonance. None of those apply to the judgement used here — <i>which of two identical circles did I just move with my mouse?</i> There is nothing to defend, no audience, no valence. If the asymmetry between confirming and disconfirming evidence appears even there, it is a property of the inference architecture rather than of what the belief happens to be about. And the belief in question is about the self as a cause, which is arguably the most basic self-model there is.</p>
+
+<h2>3 · The template: Rollwage, Dolan &amp; Fleming (2018)</h2>
+
+<p>WP3 adapts a paradigm from <i>Current Biology</i>. In the original, participants judged which of two squares contained more dots, with difficulty calibrated by staircase to about 71 % correct. In a first task they made the judgement and rated confidence on a nine-point scale as the subjective probability that the decision was correct. In a second task, after the decision, they saw a <b>new</b> sample of dots that always pointed to the <b>true</b> answer, at either the same strength or 1.3× the log strength, and only then rated their confidence in the initial decision. Per participant, the slope of confidence over evidence strength on correct trials gives confirmatory integration; the slope on incorrect trials, sign-reversed, gives disconfirmatory integration.</p>
+
+<p>The finding was an asymmetry tied to a personality dimension: politically radical participants lowered their confidence <b>less</b> when new evidence indicated they had been wrong, while their confirmatory integration was essentially unchanged. A model comparison favoured a <b>choice-bias</b> account — commitment to an option adds a fixed amount of subjective probability to it, regardless of how strong the subsequent evidence is — over an account in which disconfirming evidence is simply down-weighted.</p>
+
+<p>WP3 keeps the two-task structure, the probabilistic nine-point scale, the principle that post-decision evidence always points to the truth, the quadratic scoring rule that incentivises honest confidence, and the exclusion criteria. It changes three things: the belief is an <b>agency</b> judgement rather than a perceptual one; the evidence is <b>self-generated</b>, because the participant moves the mouse again while it is presented; and the critical contrast is <b>within-subject</b> — two processing modes in the same person — rather than a between-subject comparison of radicals and moderates.</p>
+
+<h2>4 · The paradigm: the Control Detection Task</h2>
+
+<p>On each trial two identical black circles appear, one left and one right. The participant moves the mouse freely; both circles move. One of them — the target — moves according to a blend of the participant's own mouse movement and a pre-recorded trajectory drawn from a library of over a thousand human movements; the mixing weight is the control proportion <code>prop</code>. The other circle — the decoy — replays an unrelated pre-recorded trajectory with no coupling to the hand at all. After roughly five seconds the participant reports which circle they controlled, pressing <kbd>a</kbd> for left or <kbd>s</kbd> for right.</p>
+
+<figure>
+  <div class="fig"><div id="f-trial"></div></div>
+  <figcaption><b>Figure 1 · Anatomy of a trial.</b> The participant's hand movement (left) is blended with a pre-recorded trajectory to produce the target's motion (middle); the decoy (right) is pure replay with no coupling to the hand. Both objects are visually identical, so they can only be told apart by side — a fact that turns out to matter a great deal for the design.</figcaption>
+</figure>
+
+<p>Difficulty is set individually. A one-up-two-down staircase converges the control proportion so that the participant is correct about <b>70.7 %</b> of the time — the point of maximal uncertainty, and the only regime in which post-decision evidence has room to move the judgement. If the task were easy, confidence would sit at ceiling and nothing could be learned about revision; if it were at chance, there would be no belief to revise.</p>
+
+<h2>5 · Two processing modes, one rotation apart</h2>
+
+<p>The dual-mode contrast is implemented as a geometric manipulation of the target's motion, blocked by angle and counterbalanced in order. At <b>0°</b> the circle follows the hand directly, so the participant's forward model applies and the judgement is essentially a match-versus-mismatch test against a model they already carry. At <b>90°</b> the mapping is rotated: prediction fails, but the temporal regularity — onset, offset, speed, the moment-to-moment coupling of movement and motion — is preserved, so control can still be <i>detected</i>, just by a different route. This is an online recalibration of agency: more retrospective than predictive, and dependent on short-term memory.</p>
+
+<figure>
+  <div class="fig"><div id="f-angle"></div></div>
+  <figcaption><b>Figure 2 · Prediction versus regularity.</b> Dashed line: the actual hand movement. Solid line: the resulting motion of the controlled circle. At 0° the two coincide and the forward model applies directly. At 90° the trajectory is rotated, so the model's prediction is wrong at every instant, yet the correlation in time between hand and object remains intact. Crucially, both modes are staircased to the <i>same</i> accuracy, so objective difficulty is matched and any difference between them cannot be attributed to one being harder.</figcaption>
+</figure>
+
+<h2>6 · Design: calibration, Task 1, Task 2</h2>
+
+<p>Each angle block runs three phases. First a <b>calibration</b> of roughly fifty trials with trial-by-trial feedback, which converges the staircase on the 70.7 % point. Then <b>Task 1</b>, thirty trials without feedback, in which the participant decides and immediately rates confidence — this is the baseline, evidence level 0, and it is also the phase from which metacognitive sensitivity (meta-d′) is estimated, independently of anything that happens later. Then <b>Task 2</b>, sixty trials, in which an additional sample of evidence is inserted between the decision and the confidence rating. Two blocks, roughly 280 trials in total, about 55 minutes.</p>
+
+<figure>
+  <div class="fig narrow"><div id="f-timeline"></div></div>
+  <figcaption><b>Figure 3 · The Task-2 trial.</b> Fixation, five seconds of movement, the choice, then the highlighted insert — three seconds of additional evidence during which no response is possible — and finally the confidence rating. A Task-1 trial is identical minus the insert. The entire difference between the two phases is <i>when</i> confidence is asked.</figcaption>
+</figure>
+
+<p>One design decision deserves emphasis because it departs from the original. The staircase does not freeze after calibration: it <b>keeps running through both tasks</b>, updating only from the decision and never from the evidence sample. The reason is that the three evidence levels are <i>time-ordered</i> — level 0 is all of Task 1, levels 1 and 2 are all of Task 2 — so anything that drifts over the session enters the confidence slope disguised as an evidence effect. Earlier runs of this paradigm showed strong learning effects; a pilot in WP1 showed the opposite, with the same control proportion yielding 69 % during calibration but 57 % in the unfeedbacked test phase. Either direction would contaminate the comparison. Keeping the staircase live equates accuracy across the phases; the trial index remains a covariate in the models, because tracking absorbs learning into difficulty rather than removing it.</p>
+
+<h2>7 · The key mechanic: the participant's own error decides what the evidence means</h2>
+
+<p>The additional evidence sample re-runs the same trial situation — the same two circles, on the same sides, with the same one truly under the participant's control — but with a <b>freshly drawn</b> pair of trajectories, and with the participant moving the mouse anew. It is a second independent sample, not a recording played back. That distinction matters: a literal repetition would carry no new information at all, and could not move a belief. Rollwage's evidence sample was likewise a new draw.</p>
+
+<p>Because the sample always shows the <b>true</b> target, its meaning depends entirely on what the participant chose. If they were right, it confirms them. If they were wrong, it points at the other circle and refutes them.</p>
+
+<figure>
+  <div class="fig"><div id="f-split"></div></div>
+  <figcaption><b>Figure 4 · One stimulus, two meanings.</b> The evidence sample is drawn from the same distribution regardless of what the participant answered; what makes it confirming or disconfirming is only whether they happened to be correct. At 70.7 % accuracy that is essentially determined by internal noise — a randomisation by mistake.</figcaption>
+</figure>
+
+<p>Two properties follow, and together they are the reason the paradigm can say anything about rationality at all. First, <b>confirming and disconfirming evidence are not confounded with stimulus properties</b> — they are matched in every physical respect, and separated only by the participant's own error. Second, <b>the normatively correct direction of the update is known on every single trial</b>, because the experimenter knows the truth by construction. For real-world beliefs neither condition can be met.</p>
+
+<h2>8 · The confidence scale and the normative prediction</h2>
+
+<p>Confidence is reported on Rollwage's nine-point scale, instructed explicitly as a <b>subjective probability that the decision was correct</b>: 1 means 0 %, and therefore certainty that it was the <i>other</i> circle; 5 means 50 %, a pure guess; 9 means 100 %. The important feature is that values below the midpoint express a <b>change of mind</b> — a reversal is captured continuously, on the same scale, without requiring a second decision. An earlier version of the scale ran from “guessing” to “certain” and could not express “I was wrong”; that would have compressed the disconfirmatory measure to nothing.</p>
+
+<figure>
+  <div class="fig narrow"><div id="f-scale"></div></div>
+  <figcaption><b>Figure 5 · The nine-point scale.</b> Anchored at 0 %, 50 % and 100 %, with the lower half of the scale meaning that the other circle was in fact the controlled one. Below the midpoint <i>is</i> the change of mind.</figcaption>
+</figure>
+
+<p>Because the truth is known, each trial class carries an obligation. Following correct choices, additional evidence should normatively <b>increase</b> confidence, through the integration of confirmatory evidence; following incorrect choices, it should lead to a <b>decrease</b>, through the integration of disconfirmatory evidence. Both directions are equally mandatory. This is the conceptual core of the whole design: the finding is never the movement of confidence as such, but its <b>shortfall against the movement that was required</b>.</p>
+
+<figure>
+  <div class="fig"><div id="f-norm"></div></div>
+  <figcaption><b>Figure 6 · Target direction, measure, deviation.</b> Each trial class has a normatively required direction and a corresponding measured slope. A rational observer satisfies both equally well; confirmation bias means satisfying the lower row less well than the upper one.</figcaption>
+</figure>
+
+<p>To keep the ratings meaningful, confidence is incentivised with the <b>quadratic scoring rule</b>, as in the original study. With <i>p</i> = (rating − 1)/8, a trial scores 1 − (1 − <i>p</i>)² when the decision was correct and 1 − <i>p</i>² when it was wrong. This is a proper scoring rule: reporting one's true belief maximises the expected payout, and both “certain and right” and “certain I was wrong, and wrong” earn the maximum. What is rewarded is calibration rather than performance — being wrong costs nothing provided one notices. That property is specifically valuable here, because it removes the only <i>motivational</i> reason to defend a refuted choice while leaving the belief-side mechanisms untouched. The score is computed silently and paid once at the end; showing it per trial would reveal accuracy and destroy the feedback-free design.</p>
+
+<h2>9 · What is measured</h2>
+
+<p>All trials from both phases are sorted by evidence strength and entered, separately by the participant's own correctness, into trial-by-trial linear models. Level 0 is Task 1, with no post-decision sample. Level 1 is a Task-2 trial whose sample has the same control strength as that trial's own decision — a fresh second draw at the same clarity, which is emphatically not the same as “no information”. Level 2 is a Task-2 trial whose sample is boosted by <b>1.2 logit</b>. Because the staircase runs live, the boost is computed from each trial's own difficulty, so the two levels remain exactly one boost apart throughout.</p>
+
+<div class="twocol">
+  <div class="box"><b>Confirmatory β</b> — the slope of confidence over evidence level on <i>correct</i> trials. Expected to be positive.</div>
+  <div class="box"><b>Disconfirmatory β</b> — the same slope on <i>incorrect</i> trials, sign-reversed, so that higher values mean more revision after contradiction.</div>
+  <div class="box"><b>Bias index</b> — the gap between the two. Descriptive, robust, but see §11: on the raw scale it is not interpretable on its own.</div>
+  <div class="box"><b>meta-d′</b> — metacognitive sensitivity, estimated from Task 1 only, so that it is statistically independent of the post-decision phase.</div>
+</div>
+
+<p>There is no pairing of trials across phases. Task 1 provides the level-0 anchor; each trial is classified by its own decision and enters a pooled regression as a data point at its evidence level. The “update” is the slope relative to that baseline within each correctness class, not a within-trial difference.</p>
+
+<h2>10 · Hypotheses</h2>
+
+<p>In the <b>prediction-based mode (0°)</b>, correct decisions should be reinforced by confirmatory post-decision evidence, producing a clear rise in confidence. But when participants are incorrect, they should show <b>reduced sensitivity to disconfirmatory evidence</b>, so that confidence falls less than it ought to. That asymmetry would constitute a confirmation bias tied to strong prior beliefs. In the <b>regularity-based mode (90°)</b>, by contrast, participants should show moderate increases after correct decisions and a <b>significant decrease</b> when the evidence contradicts them — responsiveness indicating flexible, evidence-driven updating. The core prediction is therefore an <b>interaction</b>: the effect of post-decision evidence depends on the activated processing mode.</p>
+
+<p>Individually, participants scoring higher on <b>delusional ideation</b> should show greater resistance to disconfirmatory evidence, particularly in the prediction-based mode. As a secondary question, Task-1 meta-d′ should predict sensitivity to post-decision evidence, as it did in the original study.</p>
+
+<div class="callout">
+  <b class="wl">The counter-prediction, stated honestly</b>
+  The same dual-mode theory describes the prediction mode as <i>hyper-sensitive</i> to prediction errors: read literally, it says 0° should react <b>more</b> strongly to refutation, not less. The two readings can be reconciled by distinguishing levels. Online error sensitivity operates first-order, during control, on the felt sense of agency; belief revision operates second-order, after commitment, on the judgement about that experience. One can have a strong error signal that nonetheless fails to enter the committed judgement. The hypothesis bets on the second level. But the theory licenses both directions, the design decides between them, and the reverse outcome is a finding — evidence for the online-sensitivity reading — rather than a failure.
+</div>
+
+<div class="callout scope">
+  <b class="wl">Scope note</b>
+  The proposal lists <b>expectations of control precision</b> as a third moderator, alongside processing mode and delusional ideation. The current implementation deliberately drops the expectation cues, which are WP1 machinery, so that term is not tested in this version. Instructed block-wise expectations were considered and rejected: a one-shot instruction against ninety trials of contradicting experience is a weak prior with an extinction problem, and a null result would be uninterpretable. Reopening the question requires genuinely <i>learned</i> expectations. The mode contrast and the PDI relationship are unaffected.
+</div>
+
+<h2>11 · What the predicted data look like — and one trap</h2>
+
+<p>The figures in this section come from a generative observer model built with the real design parameters: the nine-point scale, evidence at 0 / 1.05 / 2.25 logit (the spacing corresponds exactly to the implemented 1.2-logit boost), and a higher baseline confidence in the prediction mode, as the dual-mode theory predicts. They are <b>predictions, not results</b> — no human data exist yet.</p>
+
+<figure>
+  <div class="legend"><span><i class="c"></i>correct decisions</span><span><i class="i"></i>incorrect decisions</span><span><i class="r"></i>Bayes-optimal observer</span></div>
+  <div class="panels">
+    <div class="fig"><div class="plabel">0° — prediction mode</div><div id="f-main-0"></div></div>
+    <div class="fig"><div class="plabel">90° — regularity mode</div><div id="f-main-90"></div></div>
+  </div>
+  <figcaption><b>Figure 7 · The predicted pattern, by mode.</b> Rollwage's Figure 4B, split by processing mode. The dashed line is an ideal observer integrating the same evidence, whose strength is known by construction. The finding lives in the gap between the solid and dashed <i>orange</i> lines: wide at 0°, nearly closed at 90°. Colours deviate from Rollwage's red/green, which is the worst possible pair for red-green colour blindness; blue/orange is validated as colourblind-safe.</figcaption>
+</figure>
+
+<p>Now the trap, which is the single most important methodological point in the project. One would naturally read the bias off the difference between the two raw slopes. That fails, and it fails systematically in the wrong direction.</p>
+
+<figure>
+  <div class="fig"><div id="f-trap"></div></div>
+  <figcaption><b>Figure 8 · Raw index versus shortfall against the optimum.</b> Both panels describe the <i>same</i> simulated data, in which a strong bias is built into the prediction mode by construction (disconfirmatory weight 0.42 versus 0.88). Left: the naive index β<sub>c</sub> − β<sub>d</sub> comes out at −0.09 at 0° and −0.90 at 90° — apparently <i>more</i> asymmetry in the regularity mode, the exact reverse of the hypothesis. Right: the shortfall against the ideal observer shows the expected pattern clearly, at +2.51 versus +0.39 confidence points.</figcaption>
+</figure>
+
+<p>The cause is a scale effect. Higher baseline confidence in the prediction mode sits closer to the ceiling of the response scale, and the mapping from log-odds to a bounded nine-point scale is sigmoid. The same amount of evidence therefore produces a <i>smaller</i> upward movement and a <i>larger</i> downward one. A perfectly rational observer at 0° will show a small confirmatory slope and a large disconfirmatory slope entirely by itself, with no bias whatsoever. The consequence is not subtle: <b>without the Bayes-optimal reference model, the sign of the result is not interpretable</b>. Building that model is therefore not a refinement to be added later but a precondition, and it must be specified before the data arrive so the predictions can be preregistered.</p>
+
+<p>A third prediction is worth stating because it can be shown without any regression at all. Since values below the midpoint express a change of mind, one can simply count how often participants cross it after clear refutation.</p>
+
+<figure>
+  <div class="fig narrow"><div id="f-mind"></div></div>
+  <figcaption><b>Figure 9 · Changes of mind after refuting evidence.</b> The proportion of incorrect, strongly refuted trials on which confidence falls below the midpoint. In the prediction mode the majority sees the refutation and stays on their side — belief perseverance as a countable event rather than a regression coefficient.</figcaption>
+</figure>
+
+<h2>12 · Mechanism: is it the slope or the intercept?</h2>
+
+<p>Rollwage's own model comparison did not favour asymmetric weighting; it favoured <b>choice bias</b>, in which the act of committing adds a fixed amount of subjective probability to the chosen option irrespective of the strength of the subsequent evidence. The two accounts both predict a “flatter” line, but by different routes, and three evidence levels are enough to tell them apart: weighting changes the <b>slope</b>, commitment shifts the <b>intercept</b>.</p>
+
+<figure>
+  <div class="fig"><div id="f-mech"></div></div>
+  <figcaption><b>Figure 10 · Two mechanisms, two signatures.</b> Left, asymmetric weighting: disconfirming evidence is down-weighted, flattening the slope. Right, choice bias: commitment adds a constant, shifting the whole curve upward in parallel. For the prediction mode the second is arguably the sharper hypothesis — a commitment derived from a trusted internal model should weigh more than one assembled from observation.</figcaption>
+</figure>
+
+<p>Both accounts are also separable from a mere <i>reporting</i> bias, and this is where the scoring rule earns its place. A proper scoring rule aligns the report with the belief; it cannot align the belief with reality. If a participant genuinely still believes they were probably right, reporting that belief is exactly what the rule rewards. What the rule removes is the unpaid social pressure not to admit an error — which would otherwise be an alternative explanation for a small disconfirmatory slope, and precisely the one a reviewer would raise. Rollwage found his effect <i>with</i> the scoring rule in place, which is the empirical answer to the worry that incentivising honesty might eliminate the phenomenon.</p>
+
+<h2>13 · The clinical bridge</h2>
+
+<p>Delusional ideation is assessed with the <b>Peters et al. Delusions Inventory</b>, administered outside the task. The PDI measures delusion-like beliefs in the general population on the assumption that such ideation is continuously distributed rather than categorically present or absent; endorsed items are followed by ratings of distress, preoccupation and <i>conviction</i>. Conviction is the theoretically closest subscale, since conviction simply <i>is</i> resistance to doubt, and it is designated the primary predictor, with the total score and the remaining subscales exploratory.</p>
+
+<figure>
+  <div class="fig narrow"><div id="f-pdi"></div></div>
+  <figcaption><b>Figure 11 · Predicted PDI × mode interaction.</b> Simulated, N = 150. Higher delusional ideation is expected to go with a lower disconfirmatory weight, with a markedly steeper slope in the prediction mode than in the regularity mode.</figcaption>
+</figure>
+
+<p>The theoretical stake here is larger than a correlation. Delusions of control are simultaneously an <b>agency disturbance</b> and a <b>belief that resists refutation</b>. The influential two-factor theory keeps these apart: one factor generates the anomalous experience, a separate factor impairs the evaluation of the resulting belief. WP3's disconfirmatory β is in effect a measure of that second factor, but obtained <i>inside the domain</i> of the first. If it scales with delusional ideation there, that is evidence the two factors may not be two — that a single inference failure produces both the anomalous experience and its imperviousness to correction, which is the unification proposed by Fletcher and Frith.</p>
+
+<h2>14 · What would count against the hypothesis</h2>
+
+<figure>
+  <div class="fig"><div id="f-alt"></div></div>
+  <figcaption><b>Figure 12 · Three alternative outcomes,</b> shown for incorrect trials only, where the result is decided. ① supports the core hypothesis. ② — a general bias with no mode difference — remains publishable as confirmation bias without motivation in an agency judgement, but leaves the dual-mode question open. ③ — optimal revision in both modes — would raise a question about the paradigm's sensitivity rather than settle the theory.</figcaption>
+</figure>
+
+<p>To these should be added the reversal described in §10: if the prediction mode revises <i>more</i>, the finding supports the online-sensitivity reading of dual-mode theory. That outcome is anticipated, not feared.</p>
+
+<h2>15 · Design safeguards learned in piloting</h2>
+
+<p>Several defects surfaced during construction and pilot runs, each of which would have silently damaged the core measure. They are listed here because they belong in any honest account of the design, and because two of them are instructive about the paradigm itself.</p>
+
+<table>
+  <tr><th>Problem</th><th>What it did</th><th>Resolution</th></tr>
+  <tr>
+    <td><b>Side re-randomised in the evidence sample</b></td>
+    <td>Both objects are identical circles, so participants identify them only by side and answer spatially. The code re-rolled which object stood left on every trial, including the evidence sample, so in roughly half of trials the confirming evidence appeared on the <i>opposite</i> side from a correct answer. In a pilot run, 14 of 14 correct trials were followed by confidence ratings that collapsed from 8 to 1–3: confirmation was experienced as refutation.</td>
+    <td>The sample now inherits the decision trial's side <i>and</i> its ±90° sign. A regression checker verifies the invariant on every run and treats “no matched trials found” as a failure rather than a pass.</td>
+  </tr>
+  <tr>
+    <td><b>The sample read as a new trial</b></td>
+    <td>Rollwage's post-decision evidence appeared passively, for 350 ms, and needed no marking. Ours re-uses the full active trial — fixation, wait for movement, three seconds of motion — so without a marker it simply looked like the next trial.</td>
+    <td>Marked as <b>EXTRA EVIDENCE — same circles, same sides, new movement</b>, with the two-part trial spelled out in the Part-B instructions. Deliberately <i>not</i> called a “replay”: it draws fresh trajectories, which is exactly why it carries information.</td>
+  </tr>
+  <tr>
+    <td><b>Time-ordered evidence levels</b></td>
+    <td>Level 0 is all of Task 1, so learning or fatigue would enter the confidence slope disguised as an evidence effect.</td>
+    <td>The staircase keeps running through both tasks, updating from decisions only; the boost is computed per trial; trial index enters the models as a covariate.</td>
+  </tr>
+  <tr>
+    <td><b>Careless confidence ratings</b></td>
+    <td>Compressed or random use of the scale produces noise that no sample size can repair — and the first pilot showed exactly that pattern.</td>
+    <td>Quadratic scoring rule across both tasks, silent, paid once; a two-item comprehension quiz answered on the 1–9 scale itself; a manipulation check asked before the bonus is revealed.</td>
+  </tr>
+  <tr>
+    <td><b>Boost ceiling</b></td>
+    <td>The control proportion is capped at 0.90, so a participant whose medium converges above about 0.72 has their “high” evidence clipped — high becomes low and the manipulation collapses for that block, invisibly.</td>
+    <td>Flagged per trial in the data; affected blocks are excluded. Accuracy-based exclusions do not catch this, because it is a proportion-level problem.</td>
+  </tr>
+</table>
+
+<h2>16 · Statistical power</h2>
+
+<p>Power was estimated by Monte Carlo simulation over the complete design and the actual two-stage analysis, rather than analytically, because with roughly 26 incorrect trials per angle the per-participant slopes are noisy, and that measurement noise attenuates the observable effect in a way an analytic calculation would miss.</p>
+
+<div class="twocol">
+  <div>
+    <p class="lab">Mode contrast, power at various N</p>
+    <table class="tight">
+      <tr><th>True effect</th><th>Heterogeneity</th><th>N=60</th><th>N=100</th><th>N=150</th></tr>
+      <tr><td>small (0.15)</td><td>moderate</td><td>.95</td><td>.99</td><td><b>1.00</b></td></tr>
+      <tr><td>small (0.15)</td><td>high</td><td>.62</td><td>.86</td><td><b>.96</b></td></tr>
+      <tr><td>small (0.15)</td><td>very high</td><td>.35</td><td>.53</td><td>.70</td></tr>
+      <tr><td>medium (0.25)</td><td>high</td><td>.95</td><td>.99</td><td><b>1.00</b></td></tr>
+    </table>
+  </div>
+  <div>
+    <p class="lab">PDI correlation — the bottleneck</p>
+    <table class="tight">
+      <tr><th>True r</th><th>Observable r</th><th>N for 90 % power</th></tr>
+      <tr><td>.20</td><td>.16</td><td>~416 — out of reach</td></tr>
+      <tr><td>.30</td><td>.24</td><td><b>~185</b> (N=150 gives ~84 %)</td></tr>
+      <tr><td>.40</td><td>.32</td><td>~101</td></tr>
+    </table>
+  </div>
+</div>
+
+<p>Two conclusions follow. The within-subject mode contrast is comfortably powered at N = 150, holding above 96 % even for a small effect under high between-person heterogeneity; only the combination of a very small effect with extreme heterogeneity falls short, and in that regime the effect is of little interest anyway. The PDI correlation is the binding constraint: per-participant slopes recover the true underlying weight with a reliability of about .79, which attenuates any correlation, so a true r of .30 becomes an observable .24 and needs roughly 185 participants for 90 % power.</p>
+
+<p>Notably, <b>adding trials does not help the mode contrast</b> — its power is limited by variance between people, not by measurement noise within them — while it helps the PDI correlation only marginally and at a worse cost in participant-minutes than simply recruiting more people. The scoring rule, by reducing careless responding, raises the reliability toward .86 and is worth an estimated 30 to 60 participants on its own. The plan is therefore <b>150 analysable participants, recruiting around 175</b> to absorb 10–15 % exclusions, or about 215 if the PDI question is to reach 90 % power in its own right.</p>
+
+<h2>17 · Status and next steps</h2>
+
+<p>Both implementations exist and are verified by automated runs: a PsychoPy version for the lab and a hand-coded JavaScript port for online use, both built on the same trial engine as WP1 so that the two work packages remain directly comparable. The analysis pipeline implements the two-stage approach with Rollwage's exclusion criteria and meta-d′ estimation, and is self-tested. A regression checker, a bot harness and the power simulation script accompany them.</p>
+
+<p>Four things remain before data collection. The <b>Bayes-optimal reference model</b> and the accompanying model comparison — choice bias against asymmetric weighting — must be built, since as §11 shows they determine the sign of the primary result. A <b>human feel-test</b> is needed for the confidence scale, the evidence marker and the scoring-rule instructions, none of which a bot can evaluate. A <b>pilot</b> should establish what accuracy the 1.2-logit boost actually induces, as Rollwage did with interleaved trials, where it produced 81 % correct. And the <b>hosting chain</b> — Pavlovia, Prolific, OSF DataPipe — plus the preregistration itself.</p>
+
+<p>Beyond WP3, one follow-up is sketched. The post-decision evidence in this design is <b>self-generated</b>: the participant moves the mouse again while it is presented. Replacing that with a passive playback of the participant's own recorded cursor would match the visual stimulus exactly while removing agency over the evidence itself. That manipulation would localise the resistance measured here — whether it sits in the <b>evidence channel</b>, where self-generated input is subject to sensory attenuation, or on the <b>belief side</b>, as commitment. It is deliberately held back as a separate study: it shifts the research question from belief revision to evidence weighting, and folding it in would halve the already scarce incorrect-trial cells.</p>
+
+<h2>References</h2>
+<ul class="refs">
+  <li>Rollwage, M., Dolan, R. J., &amp; Fleming, S. M. (2018). Metacognitive failure as a feature of those holding radical beliefs. <i>Current Biology, 28</i>(24), 4014–4021.</li>
+  <li>Rollwage, M., et al. (2020). Confidence drives a neural confirmation bias. <i>Nature Communications, 11</i>.</li>
+  <li>Talluri, B. C., Urai, A. E., Tsetsos, K., Usher, M., &amp; Donner, T. H. (2018). Confirmation bias through selective overweighting of choice-consistent evidence. <i>Current Biology, 28</i>(19).</li>
+  <li>Wen, W., Charles, L., &amp; Haggard, P. (2023). Metacognition and sense of agency. <i>Cognition, 241</i>.</li>
+  <li>Wen, W., Chang, A. Y.-C., &amp; Imamizu, H. (2024). The sensitivity and criterion of sense of agency. <i>Trends in Cognitive Sciences, 28</i>(5), 397–399.</li>
+  <li>Fletcher, P. C., &amp; Frith, C. D. (2009). Perceiving is believing: a Bayesian approach to explaining the positive symptoms of schizophrenia. <i>Nature Reviews Neuroscience, 10</i>(1), 48–58.</li>
+  <li>Adams, R. A., Stephan, K. E., Brown, H. R., Frith, C. D., &amp; Friston, K. J. (2013). The computational anatomy of psychosis. <i>Frontiers in Psychiatry, 4</i>, 47.</li>
+  <li>Peters, E. R., Joseph, S. A., &amp; Garety, P. A. (1999). Measurement of delusional ideation in the normal population: introducing the PDI. <i>Schizophrenia Bulletin, 25</i>(3), 553–576.</li>
+  <li>Maniscalco, B., &amp; Lau, H. (2012). A signal detection theoretic approach for estimating metacognitive sensitivity from confidence ratings. <i>Consciousness and Cognition, 21</i>(1), 422–430.</li>
+  <li>Yon, D., &amp; Frith, C. D. (2021). Precision and the Bayesian brain. <i>Current Biology, 31</i>(17), R1026–R1032.</li>
+</ul>
+
+<p class="endnote">All data figures in this document show <b>model predictions from simulated data</b>, generated with the experiment's real design parameters. No human data have been collected. Figures 1–6 are schematic illustrations of the paradigm.</p>
+</main>
+<script>
+(function(){
+"use strict";
+// helpers (NS, el, V, rng, gauss, T) come with the shared renderer block below
+/* ---------- helpers ---------- */
+const NS="http://www.w3.org/2000/svg";
+const el=(n,a)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+const V=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function rng(s){return function(){s=(s*1664525+1013904223)>>>0;return s/4294967296;};}
+function gauss(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+const T=(s,a,txt)=>{const t=el("text",a);t.textContent=txt;s.appendChild(t);return t;};
+
+/* ---------- observer model (identical to the hypotheses page) ---------- */
+const LEV=[0,1.05,2.25];
+const M={"0":{pre:1.45,wc:0.95,wd:0.42},"90":{pre:0.95,wc:0.92,wd:0.88}};
+const sig=x=>1/(1+Math.exp(-x)), conf=lo=>1+8*sig(lo);
+function curves(m){const p=M[m];return{cor:LEV.map(e=>conf(p.pre+p.wc*e)),inc:LEV.map(e=>conf(p.pre-p.wd*e)),optCor:LEV.map(e=>conf(p.pre+e)),optInc:LEV.map(e=>conf(p.pre-e))};}
+function slope(ys){const my=(ys[0]+ys[1]+ys[2])/3;return((-1)*(ys[0]-my)+(ys[2]-my))/2;}
+
+/* ---------- renderers ---------- */
+function linePanel(host,m){
+  const W=460,H=300,L=46,R=82,Tp=14,B=44; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const x=i=>L+i*(W-L-R)/2, y=c=>Tp+(9-c)/8*(H-Tp-B), c=curves(m);
+  for(let v=1;v<=9;v+=2){ s.appendChild(el("line",{x1:L,x2:W-R,y1:y(v),y2:y(v),stroke:V("--grid")})); T(s,{x:L-9,y:y(v)+4,"text-anchor":"end","font-size":11,fill:V("--ink-3")},v); }
+  s.appendChild(el("line",{x1:L,x2:W-R,y1:y(5),y2:y(5),stroke:V("--rule-strong"),"stroke-dasharray":"1 3"}));
+  T(s,{x:L+5,y:y(5)-6,"font-size":9.5,fill:V("--ink-3")},"5 = guess");
+  ["0","1","2"].forEach((l,i)=>T(s,{x:x(i),y:H-24,"text-anchor":"middle","font-size":11,fill:V("--ink-3")},l));
+  T(s,{x:(L+W-R)/2,y:H-8,"text-anchor":"middle","font-size":10,fill:V("--ink-3"),"letter-spacing":".08em"},"EVIDENCE LEVEL");
+  const path=ys=>ys.map((v,i)=>(i?"L":"M")+x(i)+" "+y(v)).join(" ");
+  ["optCor","optInc"].forEach(k=>s.appendChild(el("path",{d:path(c[k]),fill:"none",stroke:V("--s-ref"),"stroke-width":1.6,"stroke-dasharray":"4 4",opacity:.8})));
+  [["cor",V("--s-correct"),"correct"],["inc",V("--s-incorrect"),"incorrect"]].forEach(([k,col,nm])=>{
+    s.appendChild(el("path",{d:path(c[k]),fill:"none",stroke:col,"stroke-width":2.6,"stroke-linecap":"round"}));
+    c[k].forEach((v,i)=>s.appendChild(el("circle",{cx:x(i),cy:y(v),r:4.5,fill:col,stroke:V("--surface"),"stroke-width":2})));
+    T(s,{x:x(2)+9,y:y(c[k][2])+3.5,"font-size":11,"font-weight":600,fill:col},nm);
+  });
+  const near=Math.abs(y(c.optInc[2])-y(c.inc[2]))<15;
+  T(s,{x:x(2)+9,y:y(c.optInc[2])+(near?15:3.5),"font-size":10,fill:V("--s-ref")},"optimal");
+  host.appendChild(s);
+}
+function trial(host){
+  const W=940,H=240; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"}); const r=rng(7);
+  let px=60,py=140,vx=2.4,vy=-1.1; const pts=[];
+  for(let i=0;i<70;i++){vx+=gauss(r)*.55;vy+=gauss(r)*.55;vx*=.93;vy*=.93;px+=vx*2.1;py+=vy*2.1;py=Math.max(55,Math.min(205,py));pts.push([px,py]);}
+  s.appendChild(el("rect",{x:24,y:30,width:300,height:190,rx:5,fill:"none",stroke:V("--rule")}));
+  T(s,{x:24,y:20,"font-size":10.5,fill:V("--ink-3"),"letter-spacing":".09em"},"HAND (mouse, ~5 s)");
+  s.appendChild(el("path",{d:pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" "),fill:"none",stroke:V("--accent"),"stroke-width":1.8,"stroke-linecap":"round",opacity:.85}));
+  s.appendChild(el("circle",{cx:pts[69][0],cy:pts[69][1],r:4,fill:V("--accent")}));
+  s.appendChild(el("path",{d:"M338 125 L378 125",stroke:V("--ink-3"),"stroke-width":1.4})); s.appendChild(el("path",{d:"M372 120 L379 125 L372 130",fill:"none",stroke:V("--ink-3"),"stroke-width":1.4}));
+  const mk=(cx,label,sub,col,frac,seed)=>{
+    s.appendChild(el("rect",{x:cx,y:30,width:250,height:190,rx:5,fill:"none",stroke:V("--rule")}));
+    T(s,{x:cx,y:20,"font-size":10.5,fill:col,"letter-spacing":".09em","font-weight":600},label);
+    const r2=rng(seed); let qx=cx+40,qy=140,ax=1.4,ay=-.8; const q=[];
+    for(let i=0;i<70;i++){const mdx=pts[Math.min(i+1,69)][0]-pts[i][0],mdy=pts[Math.min(i+1,69)][1]-pts[i][1];ax+=gauss(r2)*.6;ay+=gauss(r2)*.6;ax*=.9;ay*=.9;
+      qx+=frac*mdx+(1-frac)*ax*2;qy+=frac*mdy+(1-frac)*ay*2;qy=Math.max(53,Math.min(207,qy));qx=Math.max(cx+12,Math.min(cx+238,qx));q.push([qx,qy]);}
+    s.appendChild(el("path",{d:q.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" "),fill:"none",stroke:col,"stroke-width":1.8,opacity:.8,"stroke-linecap":"round"}));
+    s.appendChild(el("circle",{cx:q[69][0],cy:q[69][1],r:8,fill:V("--ink")}));
+    T(s,{x:cx,y:236,"font-size":10.5,fill:V("--ink-2")},sub);
+  };
+  mk(392,"TARGET — partly controlled","hand × pre-recorded, mixed at prop",V("--s-correct"),.55,19);
+  mk(668,"DECOY — pure replay","no coupling to the hand",V("--s-incorrect"),0,23);
+  host.appendChild(s);
+}
+function angle(host){
+  const W=940,H=225; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"}); const r=rng(23);
+  let px=0,py=0,vx=2,vy=-1.2; const pts=[]; for(let i=0;i<58;i++){vx+=gauss(r)*.6;vy+=gauss(r)*.6;vx*=.92;vy*=.92;px+=vx*2.4;py+=vy*2.4;pts.push([px,py]);}
+  const draw=(ox,rot,title,note,col)=>{
+    s.appendChild(el("rect",{x:ox,y:34,width:400,height:150,rx:5,fill:"none",stroke:V("--rule")}));
+    T(s,{x:ox,y:22,"font-size":11,"font-weight":600,fill:col,"letter-spacing":".08em"},title);
+    const rad=rot*Math.PI/180; const p=pts.map(([x,y])=>[ox+70+(x*Math.cos(rad)-y*Math.sin(rad))*.62,109+(x*Math.sin(rad)+y*Math.cos(rad))*.62]);
+    const h=pts.map(([x,y])=>[ox+70+x*.62,109+y*.62]);
+    s.appendChild(el("path",{d:h.map((q,i)=>(i?"L":"M")+q[0].toFixed(1)+" "+q[1].toFixed(1)).join(" "),fill:"none",stroke:V("--ink-3"),"stroke-width":1.2,"stroke-dasharray":"3 3",opacity:.55}));
+    s.appendChild(el("path",{d:p.map((q,i)=>(i?"L":"M")+q[0].toFixed(1)+" "+q[1].toFixed(1)).join(" "),fill:"none",stroke:col,"stroke-width":2,"stroke-linecap":"round"}));
+    T(s,{x:ox,y:203,"font-size":11,fill:V("--ink-2")},note);
+  };
+  draw(24,0,"0° — PREDICTION","object follows the hand · the forward model applies",V("--s-correct"));
+  draw(516,90,"90° — REGULARITY","model fails · coupling inferred from correlation over time",V("--s-incorrect"));
+  T(s,{x:24,y:220,"font-size":10,fill:V("--ink-3")},"dashed = the actual hand movement");
+  host.appendChild(s);
+}
+function timeline(host){
+  const W=560,H=120; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  T(s,{x:8,y:16,"font-size":10,fill:V("--ink-3"),"letter-spacing":".09em"},"ONE TASK-2 TRIAL");
+  const seg=[["fixation",60],["movement 5 s",120],["choice a / s",100],["EXTRA EVIDENCE 3 s",140],["confidence 1–9",108]]; let cx=8;
+  seg.forEach(([t,w],k)=>{ const hot=k===3;
+    s.appendChild(el("rect",{x:cx,y:32,width:w,height:hot?50:38,rx:3,fill:hot?V("--warn-bg"):"none",stroke:hot?V("--s-incorrect"):V("--rule"),"stroke-width":hot?1.5:1}));
+    T(s,{x:cx+8,y:hot?55:56,"font-size":10.5,"font-weight":hot?600:400,fill:hot?V("--s-incorrect"):V("--ink-2")},t); cx+=w+6; });
+  T(s,{x:8,y:104,"font-size":10.5,fill:V("--ink-2")},"Task 1 is identical minus the highlighted insert.");
+  host.appendChild(s);
+}
+function split(host){
+  const W=940,H=250; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  s.appendChild(el("rect",{x:24,y:92,width:210,height:64,rx:4,fill:"none",stroke:V("--rule-strong"),"stroke-width":1.5}));
+  T(s,{x:36,y:118,"font-size":12.5,"font-weight":600,fill:V("--ink")},"Extra evidence shows"); T(s,{x:36,y:138,"font-size":12.5,"font-weight":600,fill:V("--ink")},"the TRUE circle");
+  T(s,{x:24,y:80,"font-size":10.5,fill:V("--ink-3"),"letter-spacing":".08em"},"SAME STIMULUS DISTRIBUTION");
+  const branch=(y,col,who,what,eff)=>{
+    s.appendChild(el("path",{d:`M234 124 C 290 124, 290 ${y+32}, 330 ${y+32}`,fill:"none",stroke:col,"stroke-width":1.6}));
+    s.appendChild(el("path",{d:`M324 ${y+27} L331 ${y+32} L324 ${y+37}`,fill:"none",stroke:col,"stroke-width":1.6}));
+    s.appendChild(el("rect",{x:340,y:y,width:262,height:64,rx:4,fill:"none",stroke:col,"stroke-width":1.5}));
+    T(s,{x:354,y:y+26,"font-size":12,"font-weight":600,fill:col},who); T(s,{x:354,y:y+46,"font-size":11,fill:V("--ink-2")},what);
+    s.appendChild(el("path",{d:`M602 ${y+32} L638 ${y+32}`,stroke:col,"stroke-width":1.6})); s.appendChild(el("path",{d:`M632 ${y+27} L639 ${y+32} L632 ${y+37}`,fill:"none",stroke:col,"stroke-width":1.6}));
+    T(s,{x:650,y:y+37,"font-size":13.5,"font-weight":600,fill:col},eff);
+  };
+  branch(28,V("--s-correct"),"… agrees with the choice","because the decision was correct","CONFIRMS → confidence ↑");
+  branch(158,V("--s-incorrect"),"… points to the other circle","because the decision was wrong","REFUTES → confidence ↓");
+  T(s,{x:24,y:240,"font-size":11,fill:V("--ink-2")},"The split is produced by the participant's own error — at 70.7 %, essentially internal noise: a randomisation by mistake.");
+  host.appendChild(s);
+}
+function scale(host){
+  const W=560,H=118; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"}); const x0=36,x1=524;
+  s.appendChild(el("line",{x1:x0,x2:x1,y1:44,y2:44,stroke:V("--rule-strong"),"stroke-width":1.5}));
+  for(let i=0;i<9;i++){ const x=x0+i*(x1-x0)/8, mid=i===4, col=i<4?V("--s-incorrect"):i>4?V("--s-correct"):V("--ink-3");
+    s.appendChild(el("circle",{cx:x,cy:44,r:mid?7:6,fill:col,opacity:mid?.65:(.35+Math.abs(i-4)*.16)}));
+    T(s,{x:x,y:26,"text-anchor":"middle","font-size":11.5,"font-weight":600,fill:V("--ink")},i+1);
+    T(s,{x:x,y:66,"text-anchor":"middle","font-size":9.5,fill:V("--ink-3")},(i/8*100).toFixed(0)+"%"); }
+  T(s,{x:x0,y:92,"font-size":10.5,"font-weight":600,fill:V("--s-incorrect")},"CHANGE OF MIND"); T(s,{x:x0,y:107,"font-size":9.5,fill:V("--ink-2")},"sure it was the other circle");
+  T(s,{x:(x0+x1)/2,y:92,"text-anchor":"middle","font-size":10.5,"font-weight":600,fill:V("--ink-3")},"guess");
+  T(s,{x:x1,y:92,"text-anchor":"end","font-size":10.5,"font-weight":600,fill:V("--s-correct")},"CONFIRMED"); T(s,{x:x1,y:107,"text-anchor":"end","font-size":9.5,fill:V("--ink-2")},"sure my choice was right");
+  host.appendChild(s);
+}
+function trap(host){
+  const W=560,H=300; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const naive=m=>{const c=curves(m);return slope(c.cor)-(-slope(c.inc));}, short=m=>{const c=curves(m);return c.inc[2]-c.optInc[2];};
+  const bars=(ox,title,unit,vals,note,good)=>{
+    const bw=70,gap=34,MAXH=90, anyNeg=vals.some(v=>v[1]<0), base=anyNeg?140:200, maxv=Math.max(...vals.map(v=>Math.abs(v[1])))*1.15;
+    T(s,{x:ox,y:22,"font-size":11.5,"font-weight":600,fill:V("--ink")},title); T(s,{x:ox,y:38,"font-size":10,fill:V("--ink-3")},unit);
+    s.appendChild(el("line",{x1:ox,x2:ox+2*(bw+gap),y1:base,y2:base,stroke:V("--rule-strong")}));
+    vals.forEach(([lab,v],i)=>{ const h=Math.max(3,Math.abs(v)/maxv*MAXH), x=ox+i*(bw+gap), up=v>=0, col=i===good?V("--s-incorrect"):V("--s-ref");
+      s.appendChild(el("rect",{x:x,y:up?base-h:base,width:bw,height:h,rx:4,fill:col,opacity:i===good?1:.5}));
+      T(s,{x:x+bw/2,y:up?base-h-9:base+h+17,"text-anchor":"middle","font-size":12,"font-weight":600,fill:V("--ink")},(v>0?"+":"")+v.toFixed(2));
+      T(s,{x:x+bw/2,y:up?base+17:base-10,"text-anchor":"middle","font-size":11,"font-weight":600,fill:V("--ink-2")},lab); });
+    T(s,{x:ox,y:282,"font-size":11,fill:V("--ink-2")},note);
+  };
+  bars(24,"RAW INDEX  βc − βd","confidence points per level",[["0°",naive("0")],["90°",naive("90")]],"✗ points the wrong way",1);
+  s.appendChild(el("line",{x1:280,x2:280,y1:14,y2:286,stroke:V("--rule")}));
+  bars(304,"SHORTFALL vs OPTIMAL","confidence points at level 2",[["0°",short("0")],["90°",short("90")]],"✓ the predicted pattern",0);
+  host.appendChild(s);
+}
+function mind(host){
+  const W=560,H=190; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"}); const sd=1.35;
+  const erf=x=>{const t=1/(1+.3275911*Math.abs(x));const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return x>=0?y:-y;};
+  const pb=mu=>0.5*(1+erf((5-mu)/(sd*Math.SQRT2)));
+  T(s,{x:16,y:22,"font-size":10,fill:V("--ink-3"),"letter-spacing":".08em"},"SHARE OF TRIALS WITH CONFIDENCE < 5 (INCORRECT, STRONG EVIDENCE)");
+  [["0°  prediction",pb(curves("0").inc[2]),V("--s-incorrect")],["90° regularity",pb(curves("90").inc[2]),V("--s-correct")]].forEach(([lab,v,col],k)=>{
+    const y=64+k*54, x0=170, xw=330;
+    T(s,{x:16,y:y+5,"font-size":12,"font-weight":500,fill:V("--ink")},lab);
+    s.appendChild(el("rect",{x:x0,y:y-13,width:xw,height:26,rx:4,fill:V("--surface-2")}));
+    s.appendChild(el("rect",{x:x0,y:y-13,width:xw*v,height:26,rx:4,fill:col}));
+    T(s,{x:x0+xw*v+10,y:y+5,"font-size":12.5,"font-weight":600,fill:V("--ink")},(v*100).toFixed(0)+" %"); });
+  T(s,{x:16,y:176,"font-size":10.5,fill:V("--ink-2")},"In the prediction mode the majority sees the refutation and stays.");
+  host.appendChild(s);
+}
+function mech(host){
+  const W=940,H=250; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const panel=(ox,title,sub,fn)=>{ const L=ox+42,W2=292,Tp=44,B=200, x=i=>L+i*W2/2, y=c=>Tp+(9-c)/8*(B-Tp);
+    T(s,{x:ox,y:22,"font-size":11.5,"font-weight":600,fill:V("--ink"),"letter-spacing":".05em"},title); T(s,{x:ox,y:38,"font-size":10.5,fill:V("--ink-3")},sub);
+    s.appendChild(el("line",{x1:L,x2:L+W2,y1:y(5),y2:y(5),stroke:V("--rule"),"stroke-dasharray":"2 3"}));
+    const base=[7.4,5.7,3.4], alt=fn(base);
+    [[base,V("--s-ref"),"4 4","unbiased"],[alt,V("--s-incorrect"),"","biased"]].forEach(([ys,col,dash,nm])=>{ const a={d:ys.map((v,i)=>(i?"L":"M")+x(i)+" "+y(v)).join(" "),fill:"none",stroke:col,"stroke-width":dash?1.6:2.4}; if(dash)a["stroke-dasharray"]=dash;
+      s.appendChild(el("path",a)); ys.forEach((v,i)=>s.appendChild(el("circle",{cx:x(i),cy:y(v),r:3.6,fill:col}))); T(s,{x:x(2)+8,y:y(ys[2])+4,"font-size":10,fill:col},nm); });
+    ["0","1","2"].forEach((l,i)=>T(s,{x:x(i),y:B+16,"text-anchor":"middle","font-size":10,fill:V("--ink-3")},l)); T(s,{x:L,y:B+34,"font-size":9.5,fill:V("--ink-3"),"letter-spacing":".07em"},"EVIDENCE LEVEL"); };
+  panel(24,"A · ASYMMETRIC WEIGHTING","disconfirming evidence is down-weighted → flatter slope",b=>[b[0],b[0]-(b[0]-b[1])*.42,b[0]-(b[0]-b[2])*.42]);
+  s.appendChild(el("line",{x1:470,x2:470,y1:14,y2:236,stroke:V("--rule")}));
+  panel(516,"B · CHOICE BIAS","commitment adds a fixed bonus → parallel shift",b=>b.map(v=>Math.min(8.9,v+2.1)));
+  host.appendChild(s);
+}
+function pdi(host){
+  const W=560,H=330; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"}); const L=60,R=W-24,Tp=28,B=252;
+  const xs=v=>L+(v/40)*(R-L), ys=v=>B-(v/1.6)*(B-Tp);
+  for(let g=0;g<=1.6001;g+=.4){ s.appendChild(el("line",{x1:L,x2:R,y1:ys(g),y2:ys(g),stroke:V("--grid")})); T(s,{x:L-9,y:ys(g)+4,"text-anchor":"end","font-size":10,fill:V("--ink-3")},g.toFixed(1)); }
+  [0,10,20,30,40].forEach(v=>T(s,{x:xs(v),y:B+18,"text-anchor":"middle","font-size":10,fill:V("--ink-3")},v));
+  T(s,{x:(L+R)/2,y:B+38,"text-anchor":"middle","font-size":10,fill:V("--ink-3"),"letter-spacing":".07em"},"PDI — CONVICTION");
+  T(s,{x:14,y:(Tp+B)/2,"font-size":10,fill:V("--ink-3"),"letter-spacing":".07em",transform:`rotate(-90 14 ${(Tp+B)/2})`,"text-anchor":"middle"},"DISCONFIRMATORY WEIGHT");
+  const r=rng(101);
+  [["0",V("--s-incorrect"),1.02,-0.0155,"0° prediction"],["90",V("--s-correct"),1.19,-0.0038,"90° regularity"]].forEach(([m,col,b0,b1,nm])=>{
+    for(let i=0;i<75;i++){ const p=Math.max(1,Math.min(39,12+gauss(r)*8.5)), w=Math.max(.05,Math.min(1.55,b0+b1*p+gauss(r)*.135));
+      s.appendChild(el("circle",{cx:xs(p),cy:ys(w),r:3.6,fill:col,opacity:.45,stroke:V("--surface"),"stroke-width":1})); }
+    s.appendChild(el("line",{x1:xs(1),y1:ys(b0+b1),x2:xs(39),y2:ys(b0+b1*39),stroke:col,"stroke-width":2.5}));
+    T(s,{x:xs(39),y:ys(b0+b1*39)-12,"text-anchor":"end","font-size":11,"font-weight":600,fill:col},nm); });
+  T(s,{x:L,y:B+60,"font-size":10.5,fill:V("--ink-2")},"Predicted PDI × mode interaction: steeper slope at 0°. N = 150 simulated.");
+  host.appendChild(s);
+}
+function alt(host){
+  const W=940,H=250; const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  [["① MODE-SPECIFIC","supports H2",[[7.4,6.9,6.1],[6.8,5.0,3.1]],V("--s-incorrect")],["② GENERAL, EQUAL","bias without a mode effect",[[7.4,6.9,6.2],[6.8,6.3,5.6]],V("--ink-3")],["③ NO BIAS","optimal revision in both modes",[[7.4,5.8,3.5],[6.8,4.8,2.7]],V("--ink-3")]]
+  .forEach(([title,sub,series,col],k)=>{ const ox=24+k*306,L=ox+34,W2=214,Tp=64,B=196, x=i=>L+i*W2/2, y=c=>Tp+(9-c)/8*(B-Tp);
+    T(s,{x:ox,y:24,"font-size":11.5,"font-weight":600,fill:col},title); T(s,{x:ox,y:41,"font-size":10.5,fill:V("--ink-3")},sub);
+    s.appendChild(el("line",{x1:L,x2:L+W2,y1:y(5),y2:y(5),stroke:V("--rule"),"stroke-dasharray":"2 3"}));
+    series.forEach((ys,i)=>{ const c2=i===0?V("--s-incorrect"):V("--s-correct");
+      s.appendChild(el("path",{d:ys.map((v,j)=>(j?"L":"M")+x(j)+" "+y(v)).join(" "),fill:"none",stroke:c2,"stroke-width":2.2})); ys.forEach((v,j)=>s.appendChild(el("circle",{cx:x(j),cy:y(v),r:3.4,fill:c2})));
+      T(s,{x:x(2)+7,y:y(ys[2])+4,"font-size":10,fill:c2},i===0?"0°":"90°"); });
+    T(s,{x:L,y:B+18,"font-size":9.5,fill:V("--ink-3")},"incorrect trials only"); });
+  host.appendChild(s);
+}
+
+function norm(host){
+  const W=940,H=272;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"});
+  const heads=[["TRIALKLASSE",44],["SOLLRICHTUNG",300],["NORMATIV GEFORDERT",470],["MESSGRÖSSE",690]];
+  heads.forEach(([t,x])=>{
+    const h=el("text",{x:x,y:20,"font-size":10,fill:V("--ink-3"),"letter-spacing":".1em"});
+    h.textContent=t;s.appendChild(h);
+  });
+  const band=(y,who,sub,col,up,soll,mess,mnote)=>{
+    const g=el("g",{});
+    g.appendChild(el("rect",{x:24,y:y,width:892,height:84,rx:5,fill:"none",stroke:col,"stroke-width":1.4,opacity:.85}));
+    const a=el("text",{x:44,y:y+34,"font-size":13,"font-weight":600,fill:col});a.textContent=who;g.appendChild(a);
+    const b=el("text",{x:44,y:y+56,"font-size":11,fill:V("--ink-2")});b.textContent=sub;g.appendChild(b);
+    // normative mini-curve
+    const x0=300,x1=428,yt=y+24,yb=y+64;
+    const pts=up?[[x0,yb],[(x0+x1)/2,y+40],[x1,yt]]:[[x0,yt],[(x0+x1)/2,y+44],[x1,yb]];
+    g.appendChild(el("path",{d:pts.map((p,i)=>(i?"L":"M")+p[0]+" "+p[1]).join(" "),
+      fill:"none",stroke:col,"stroke-width":2.4,"stroke-linecap":"round"}));
+    pts.forEach(p=>g.appendChild(el("circle",{cx:p[0],cy:p[1],r:3.6,fill:col})));
+    const ev=el("text",{x:x0,y:y+78,"font-size":9,fill:V("--ink-3")});ev.textContent="Evidenzstufe 0 → 2";g.appendChild(ev);
+    // arrow + requirement
+    const ar=el("text",{x:470,y:y+46,"font-size":26,"font-weight":600,fill:col});ar.textContent=up?"↑":"↓";g.appendChild(ar);
+    const so=el("text",{x:500,y:y+42,"font-size":12.5,"font-weight":500,fill:V("--ink")});so.textContent=soll;g.appendChild(so);
+    const so2=el("text",{x:500,y:y+60,"font-size":10.5,fill:V("--ink-3")});so2.textContent="keine Option, sondern Norm";g.appendChild(so2);
+    // measure
+    const me=el("text",{x:690,y:y+38,"font-size":12.5,"font-weight":600,fill:col});me.textContent=mess;g.appendChild(me);
+    const mn=el("text",{x:690,y:y+58,"font-size":10.5,fill:V("--ink-2")});mn.textContent=mnote;g.appendChild(mn);
+    return g;
+  };
+  s.appendChild(band(32,"nach KORREKTER Wahl","Replay bestätigt die Entscheidung",V("--s-correct"),true,
+    "Confidence muss steigen","confirmatory β","Steigung auf korrekten Trials"));
+  s.appendChild(band(134,"nach INKORREKTER Wahl","Replay widerspricht der Entscheidung",V("--s-incorrect"),false,
+    "Confidence muss fallen","disconfirmatory β","Steigung auf inkorrekten Trials"));
+  // one flowing line: bold clause + normal clause, so the two can never collide
+  const f1=el("text",{x:24,y:246,"font-size":12,fill:V("--ink-2")});
+  const b1=el("tspan",{"font-weight":600,fill:V("--ink")});
+  b1.textContent="Rational = beide Zeilen gleich gut erfüllen.";
+  const b2=el("tspan",{dx:"8"});
+  b2.textContent="Confirmation Bias = die untere schlechter als die obere.";
+  f1.appendChild(b1);f1.appendChild(b2);s.appendChild(f1);
+  const f3=el("text",{x:24,y:264,"font-size":10.5,fill:V("--ink-3")});
+  f3.textContent="Der Befund ist nie die Bewegung selbst, sondern ihr Rückstand gegenüber der geforderten Bewegung.";
+  s.appendChild(f3);
+  host.appendChild(s);
+}
+
+const jobs={"f-trial":trial,"f-angle":angle,"f-timeline":timeline,"f-split":split,"f-scale":scale,
+  "f-norm":norm,"f-trap":trap,"f-mind":mind,"f-mech":mech,"f-pdi":pdi,"f-alt":alt,
+  "f-main-0":h=>linePanel(h,"0"),"f-main-90":h=>linePanel(h,"90")};
+for(const id in jobs){const n=document.getElementById(id);if(n){n.innerHTML="";jobs[id](n);}}
+document.documentElement.setAttribute("data-figures-ready","1");
+})();
+</script></body></html>
