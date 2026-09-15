@@ -24,6 +24,10 @@ experiment/data/simulated/
 experiment/documents/*.pdf
 !experiment/documents/WP3_briefing.pdf
 
+# ── Generated results (simulation dry-runs, fits) — regenerate with the scripts ─
+analysis_output/*
+!analysis_output/.gitkeep
+
 # ── Build / scratch ───────────────────────────────────────────────────────────
 *.log
 .tmp/

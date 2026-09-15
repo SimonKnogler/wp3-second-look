@@ -396,6 +396,62 @@ which is why only the two newly added screens were affected. Fixed; a scan of
 every `while` loop containing `event.getKeys` now reports none without a flip.
 **Rule for any new response screen: draw and flip on every iteration.**
 
+## 10f. Analysis dry-run on simulated data (2026-09-15) — what it changed
+
+`analysis/simulate_wp3.py` writes sessions in the task's exact CSV layout (calibration
+rows, `wp3_task1/2`, `wp3_summary`; `--format web` for the online layout) from a
+generative observer with known w_c / w_d per angle, a running 1u2d, timeouts, clipping and
+a PDI correlated with w_d(0°). `analysis/fit_wp3_model.py` is the model-based analysis
+(psychometric → per-trial evidence logit → censored-Gaussian ML fit of w_c, w_d; null /
+weight / choice-bias / both models by BIC; two-stage group tests; parameter recovery
+against `ground_truth.csv`). Both pipelines were run on N = 150 simulated participants
+under four truths: mode effect (w_d 0.45 vs 0.85), null (0.95/0.95), pure choice bias
+(b = 0.8, weights equal), and a milder boost. Findings, in order of consequence:
+
+1. **The descriptive β index is inverted by the scale, as predicted (§10d).** On data with
+   a strong built-in bias at 0°, `analyze_wp3.py` reports β_conf = 0.44 < β_disc = 1.29 —
+   "more disconfirmatory than confirmatory integration". It is a faithful Rollwage
+   replication and it gives the wrong sign for H1. Keep it as the descriptive layer; it is
+   not the primary test.
+2. **H1 as a w_d/w_c ratio is biased toward finding confirmation bias.** Under the null,
+   the ratio test still came out p = 5e-4, because w_c is inflated at the ceiling (median
+   1.15 vs truth 0.95). **w_c is not identified per person in this paradigm**: correct
+   trials start near 9, so almost any w_c ≥ 0.5 fits. Recovery r ≈ 0.1–0.3 regardless of
+   likelihood or boost. → Report w_c at group level only; do not build H1 on the ratio.
+3. **w_d is well identified and the mode contrast on w_d is the primary model-based test.**
+   Recovery r = 0.55–0.72, bias ≈ 0. Paired test on log w_d (0° vs 90°): true effect
+   p = 4e-20; null p = 0.86; pure choice bias p = 0.71 (correctly null — commitment does
+   not create a mode difference). Medians recover the truth (0.30 vs 0.71 for 0.43/0.87).
+4. **A pure choice bias masquerades as confirmation bias in the weight model** (fitted
+   w_d = 0.5 with true w_d = 0.95) — the intercept/slope confusion from §10d — and the BIC
+   comparison catches it once an explicit **ideal-observer null model** (w = 1, b = 0) is
+   in the set: under pure choice bias "choice" wins 70–84 of 150 per angle and the null
+   model 9–24; under the true null the null model wins 71–85 and "choice" only 27–31.
+   Without the null model, "choice" also won under the null simply by having fewer
+   parameters. The w_d mode test is correctly null in both cases (p = .86 / .71).
+5. **Saturation is a design issue, not just an analysis one.** With +1.2 logit, 60 % of
+   correct high-evidence ratings are 9. A milder boost (0.6) barely helps because the
+   *baseline* on correct trials is already ~7.8. The +1.2 boost should be validated in the
+   pilot against the accuracy it induces (Rollwage: 81 %); if it induces > 90 % the high
+   level is near-decisive and adds little beyond the low level.
+6. **Unbounded fits explode.** A few participants' w_c went to 10⁹. Weights are now bounded
+   to [0.05, 3], flagged (`at_bound`), and group t-tests use a 5–95 % winsorised log-ratio;
+   medians are reported raw. A full hierarchical (Stan) fit would do this properly.
+7. **Data-structure quirks found in the real CSVs:** (a) keys logged both via `addData`
+   and `extraInfo` come out twice (`participant.1`, `wp3_mean_score.1`, …, `Unnamed: 71`)
+   — fixed in the task for the WP3 additions, and both loaders strip `.1`/`Unnamed`
+   columns; (b) the calibration phase is `calibration_interleaved`; (c) `is_timeout` /
+   `prop_high_clipped` arrive as bool, string or NaN depending on the row — loaders coerce
+   explicitly (`astype(bool)` on the string `"False"` is `True`); (d) the **web CSV has no
+   calibration rows** — the psychometric function is still estimable from Task 1+2 because
+   the staircase keeps prop varying (`CDT_WP3_TRACK=1`); with a frozen prop it would not be.
+   Keep tracking on, or log calibration in the web port.
+8. **The PDI test is the weakest link,** as the power analysis said: with true r = −0.35
+   on w_d(0°) it is detected at N = 150 (r ≈ −0.22, Spearman −0.30, p < .01) but one
+   unlucky seed (latent r = −0.11) shows nothing. Preregister Spearman on w_d(0°).
+
+Dry-run outputs live in `analysis_output/` (gitignored); regenerate with the two scripts.
+
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
 To reconnect WP3 with the proposal's "expectations of control" moderator, we

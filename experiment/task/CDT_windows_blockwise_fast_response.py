@@ -2283,17 +2283,15 @@ def run_wp3():
             show_break_screen(trial_no, trial_no, "this block")
 
     mean_score = float(np.mean(scores)) if scores else 0.0
-    expInfo['wp3_mean_score'] = round(mean_score, 4)
-    expInfo['wp3_bonus'] = round(WP3_BONUS * mean_score, 2)
+    bonus_amount = round(WP3_BONUS * mean_score, 2)
     wp3_motivation_check()     # before the reveal, so the amount cannot bias it
-    # ExperimentHandler copies extraInfo into an entry only at nextEntry(); the trial
-    # rows were closed before these values existed, so emit one explicit summary row.
+    # One explicit summary row. These keys are deliberately NOT also put into expInfo:
+    # a key present in both addData and extraInfo is written twice and pandas renames
+    # the second copy 'name.1' (quiz/motivation live in expInfo already, so they reach
+    # this row via extraInfo; mean score / bonus are addData-only).
     thisExp.addData('phase', 'wp3_summary')
-    thisExp.addData('participant', expInfo['participant'])
-    thisExp.addData('wp3_mean_score', expInfo['wp3_mean_score'])
-    thisExp.addData('wp3_bonus', expInfo['wp3_bonus'])
-    thisExp.addData('bonus_motivation_1to5', expInfo.get('bonus_motivation_1to5', np.nan))
-    thisExp.addData('bonus_quiz_attempts', expInfo.get('bonus_quiz_attempts', np.nan))
+    thisExp.addData('wp3_mean_score', round(mean_score, 4))
+    thisExp.addData('wp3_bonus', bonus_amount)
     thisExp.nextEntry()
     _save()
     msg.text = (f"Done — thank you!\n\nYour confidence bonus: {wp3_bonus_text(mean_score)}\n\n"

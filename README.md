@@ -117,6 +117,30 @@ Pools trials from both phases as evidence levels 0/1/2 and fits separate regress
 (disconfirmatory β), plus meta-d′ from Task 1 only. Rollwage's exclusion criteria are
 applied.
 
+**Model-based analysis (primary):**
+
+```bash
+python3 experiment/analysis/fit_wp3_model.py experiment/data/real/raw --pdi pdi.csv
+```
+
+Fits each participant's psychometric function, converts every evidence sample to a
+log-likelihood ratio, and estimates confirmatory / disconfirmatory weights (w_c, w_d)
+with a censored-Gaussian likelihood; compares null / weighting / choice-bias models by
+BIC. **The primary test is the 0° vs 90° contrast on w_d** — w_c is not identified per
+person (correct trials sit at the scale ceiling), and the raw β difference has the wrong
+sign by construction. See design doc §10f for the dry-run that established this.
+
+**Simulate before you analyse:**
+
+```bash
+python3 experiment/analysis/simulate_wp3.py analysis_output/sim --n 150 --seed 3
+python3 experiment/analysis/fit_wp3_model.py analysis_output/sim --pdi analysis_output/sim/pdi.csv --truth analysis_output/sim/ground_truth.csv
+```
+
+Writes sessions in the task's exact CSV layout (`--format web` for the online layout)
+from a known generative model and reports parameter recovery. Use `--wd0 0.95 --wd90 0.95`
+for a null, `--choice-bias 0.8` for a pure commitment bias.
+
 **Regression check** — verifies that the evidence sample kept the decision trial's side
 and rotation. Run it on any new data; a violation silently inverts the core measure:
 

@@ -28,7 +28,7 @@ version writes `CDT_wp3_<participant>.csv` (trial level only).
 
 | Column | Meaning |
 |---|---|
-| `phase` | `calibration`, `wp3_task1`, `wp3_task2`, `wp3_evidence`, `wp3_summary` |
+| `phase` | `calibration_interleaved`, `wp3_task1`, `wp3_task2`, `wp3_summary` (the evidence sample is not its own row — it lives in `prop_post`) |
 | `evidence_level` | `0` none (Task 1) · `1` low · `2` high (+1.2 logit) |
 | `angle_bias` | `0` prediction mode · `90` regularity mode |
 | `prop_used` | control strength of the decision trial |
