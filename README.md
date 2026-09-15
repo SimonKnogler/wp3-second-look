@@ -162,15 +162,17 @@ python3 experiment/analysis/check_wp3_replay_invariant.py <kinematics.csv> [...]
   the feedback-free design. One total at the end only.
 - **`prop` is capped at 0.90.** If a participant's medium converges above ~0.72 the boost
   clips and high ≈ low; those blocks are flagged (`prop_high_clipped`) and excluded.
-- **The Bayes-optimal reference model is not built yet.** It decides the *sign* of the
-  primary result, not just its precision — see §11 of the briefing. Build it before data
-  collection so predictions can be preregistered.
+- **Do not read the bias off the raw β slopes.** On simulated data with a strong built-in
+  bias at 0°, the descriptive index comes out with the *wrong sign* (scale ceiling on
+  correct trials). The model-based fit (`fit_wp3_model.py`) is the primary analysis, and
+  its primary test is the 0° vs 90° contrast on w_d — see design doc §10f.
 
 ---
 
 ## Open work
 
-- [ ] Bayes-optimal reference model + choice-bias vs weighting model comparison
+- [x] Reference model + null / weighting / choice-bias comparison (`fit_wp3_model.py`, validated on simulated data — §10f)
+- [ ] Hierarchical (Stan/PyMC) version of the fit — the two-stage fit bounds and winsorises instead
 - [ ] Human feel-test of scale, evidence marker and scoring-rule instructions
 - [ ] Pilot: what accuracy does the +1.2-logit boost actually induce? (Rollwage: 81 %)
 - [ ] Consent / instruction / demographics screens for the online version
