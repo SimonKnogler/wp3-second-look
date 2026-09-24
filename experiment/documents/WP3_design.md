@@ -445,7 +445,11 @@ under four truths: mode effect (w_d 0.45 vs 0.85), null (0.95/0.95), pure choice
    explicitly (`astype(bool)` on the string `"False"` is `True`); (d) the **web CSV has no
    calibration rows** — the psychometric function is still estimable from Task 1+2 because
    the staircase keeps prop varying (`CDT_WP3_TRACK=1`); with a frozen prop it would not be.
-   Keep tracking on, or log calibration in the web port.
+   Keep tracking on, or log calibration in the web port; (e) in the **kinematics** file the
+   calibration `trial_num` counter restarts for the second block, so the same `trial_num`
+   appears under both angles — group on `(phase, angle_bias, trial_num)`, never on
+   `trial_num` alone, or two calibration trials silently merge into one. Task-1/2 and
+   evidence rows are unaffected (continuous counter).
 8. **The PDI test is the weakest link,** as the power analysis said: with true r = −0.35
    on w_d(0°) it is detected at N = 150 (r ≈ −0.22, Spearman −0.30, p < .01) but one
    unlucky seed (latent r = −0.11) shows nothing. Preregister Spearman on w_d(0°).
@@ -477,6 +481,14 @@ columns are NaN for WP3 decision trials by construction.
 WP1 is untouched: the behaviour is opt-in per call
 (`run_trial(respond_after_motion=True)`, default `False`), and WP3's calibration passes
 the same window as the task it calibrates.
+
+Verified on a bot session (p901, both angles): 14/14 decision trials answered, **no
+timeouts**, `rt_choice` 1.9–3.7 s measured from the prompt, and the replay-invariant
+check passes on all 8 evidence samples. Frames per trial are now equal across
+calibration, Task 1, Task 2 and the evidence sample (867–1102, ~5 % frame-rate jitter) —
+the decision trials match the evidence sample, which was fixed-duration by construction,
+i.e. evidence per trial is now constant where it used to be whatever the participant
+chose to take.
 
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
