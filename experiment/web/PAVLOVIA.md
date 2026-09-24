@@ -44,16 +44,13 @@ reachable; use `simonknogler`.)
 
 ## One-time setup
 
-1. **Create the project** at https://gitlab.pavlovia.org/projects/new → *Create blank
-   project* → name `wp3-second-look`, **private**, and **untick** "Initialize repository
-   with a README" (the local repo already has one; an initialised remote would need a
-   merge). It appears in the Pavlovia dashboard automatically.
-2. **Point the local repo at it and push:**
-   ```bash
-   cd ~/Desktop/PhD/Experiments/wp3-pavlovia
-   git remote add origin https://gitlab.pavlovia.org/simonknogler/wp3-second-look.git
-   git push -u origin master
-   ```
+1. **Project — done (2026-09-24).** gitlab.pavlovia.org supports *push-to-create*: pushing
+   `master` from `~/Desktop/PhD/Experiments/wp3-pavlovia` created the **private** project
+   https://gitlab.pavlovia.org/simonknogler/wp3-second-look with the initial build. It
+   appears in the Pavlovia dashboard automatically. (To recreate from scratch: `git init -b
+   master`, add the four files, `git remote add origin <url>`, `git push -u origin master`.)
+2. **Local repo** lives at `~/Desktop/PhD/Experiments/wp3-pavlovia`, tracking
+   `origin/master`; the deploy script targets it by default.
 3. **DataPipe.** At https://pipe.jspsych.org connect an OSF project and create an
    experiment; enable data collection on it; copy the experiment ID into
    `experiment/web/index.html`:
