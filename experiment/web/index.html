@@ -59,7 +59,10 @@ const CFG = {
   CAL_MAX: +(Q.get("calmax") || 80),
   CAL_REVERSALS: 12,
   BOOST_LOGIT: +(Q.get("boost") || 1.2),
-  MOTION_DUR: 5.0,                     // fixed motion/evidence window per decision trial
+  // Fixed motion window, response collected afterwards. Self-terminated sampling made
+  // evidence-per-trial vary with confidence (fast exits on easy-feeling trials) and
+  // possibly with angle — the two things the weighting model must not confound.
+  MOTION_DUR: +(Q.get("motiondur") || 3.0),
   RESP_GRACE: +(Q.get("respgrace") || 20),  // extra seconds to answer after the motion stops
   EV_DUR: +(Q.get("evdur") || 3.0),
   ANGLES: [0, 90],
@@ -189,11 +192,17 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
     const squareCx = left==="square"?-Engine.OFFSET_X:Engine.OFFSET_X;
     const dotCx = left==="square"?Engine.OFFSET_X:-Engine.OFFSET_X;
     mouse.moved=false;
-    let started=false, t0=0, resp=null, rt=NaN, keyH=null;
-    if(acceptResponse){
-      keyH=e=>{ const k=e.key.toLowerCase(); if(k==="a"||k==="s"){ resp = k==="a"?left:(left==="square"?"dot":"square"); rt=(performance.now()-t0)/1000; } };
+    let started=false, t0=0, resp=null, rt=NaN, keyH=null, tPrompt=0;
+    // Keys are armed only once the motion window has elapsed: every decision trial
+    // therefore delivers exactly MOTION_DUR of evidence. rt_choice is measured from
+    // the prompt, not from motion onset — it is deliberation time, not sampling time.
+    const armKeys=()=>{
+      if(!acceptResponse || keyH) return;
+      tPrompt=performance.now();
+      keyH=e=>{ const k=e.key.toLowerCase(); if(k==="a"||k==="s"){
+        resp = k==="a"?left:(left==="square"?"dot":"square"); rt=(performance.now()-tPrompt)/1000; } };
       window.addEventListener("keydown",keyH);
-    }
+    };
     let pausedAt=0, prompted=false;
     function frame(now){
       // Fullscreen lost mid-trial: freeze the trial clock until it is restored, so the
@@ -207,7 +216,7 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
       // waiting. Running past the window no longer discards the trial.
       if(el<dur){ const st=eng.step(mouse.x,mouse.y); drawShapes(st.square,st.dot,squareCx,dotCx); }
       else if(acceptResponse && !prompted){
-        prompted=true; drawShapes(eng.squarePos,eng.dotPos,squareCx,dotCx);
+        prompted=true; armKeys(); drawShapes(eng.squarePos,eng.dotPos,squareCx,dotCx);
         ctx.fillStyle="#eceae6"; ctx.font="600 24px system-ui, sans-serif";
         ctx.textAlign="center"; ctx.textBaseline="alphabetic";
         // below the confinement boxes, but never off a short screen
@@ -231,7 +240,7 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
     ctx.fillStyle="#8a8f98"; ctx.font="300 88px system-ui"; ctx.textAlign="center";
     ctx.textBaseline="middle"; ctx.fillText("+",cx,cy); ctx.textBaseline="alphabetic";
     setTimeout(()=>{ ctx.fillStyle="#8a8f98"; ctx.font="20px system-ui";
-      ctx.fillText(acceptResponse?"move the mouse — a = left, s = right":"watch — move the mouse",cx,cy+110);
+      ctx.fillText("move the mouse",cx,cy+110);
       requestAnimationFrame(frame); }, 500);
   });
 }
@@ -464,8 +473,9 @@ async function block(angle, blockIdx){
 async function main(){
   showScreen(`<h1>Control Detection Task</h1>
     <p>You will see two identical circles, one on the <b>left</b> and one on the <b>right</b>.
-    One follows your mouse; the other does not. Move the mouse, then judge which one you controlled
-    (<b>a</b> = left, <b>s</b> = right).</p>
+    One follows your mouse; the other does not. Keep the mouse moving while they move.
+    When the circles <b>stop</b>, say which one was yours (<b>a</b> = left, <b>s</b> = right) —
+    there is no rush, take the time you need.</p>
     <p>Please use a <b>mouse</b> (not a trackpad) and stay in fullscreen.</p>
     <p class="go">click to begin (fullscreen)</p>`);
   await new Promise(r=>{ const h=()=>{ stage.removeEventListener("click",h); r(); }; stage.addEventListener("click",h); });

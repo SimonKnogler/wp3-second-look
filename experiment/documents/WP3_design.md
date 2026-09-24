@@ -452,6 +452,32 @@ under four truths: mode effect (w_d 0.45 vs 0.85), null (0.95/0.95), pure choice
 
 Dry-run outputs live in `analysis_output/` (gitignored); regenerate with the two scripts.
 
+## 10g. Fixed decision window (2026-09-24)
+
+The choice used to be taken *during* motion: the trial ended on the keypress
+(`while clk.getTime() < total_motion_duration and resp_shape is None`). That is WP1's
+regime, and the `*_preRT` columns exist to serve it — evidence accumulated up to the
+response, for drift-diffusion analysis.
+
+It is wrong for WP3. Viewing time *is* evidence quantity here, so self-termination made
+evidence-per-trial vary (a) uncontrolled, (b) **with confidence** — people bail early on
+trials that feel easy, so high-confidence trials carried less evidence — and potentially
+(c) **with angle**, which is the primary contrast. A mode difference in sampling policy
+would have been indistinguishable from a mode difference in evidence weighting, and the
+psychometric-to-LLR step in `fit_wp3_model.py` assumes comparable evidence given `prop`.
+The staircase inherited the same problem: a threshold averaged over variable exposures.
+
+Now: the motion window is fixed and the choice is taken after it, from a frozen display.
+Window set to **3 s** (`CDT_WP3_MOTIONDUR` / `?motiondur=`), matching the 3 s evidence
+sample, so both stages of a Task-2 trial deliver the same exposure. A late answer no
+longer discards the trial (`CDT_WP3_RESPGRACE`, default 20 s, then a real timeout).
+`rt_choice` is now deliberation time from the prompt, not sampling time; `*_preRT`
+columns are NaN for WP3 decision trials by construction.
+
+WP1 is untouched: the behaviour is opt-in per call
+(`run_trial(respond_after_motion=True)`, default `False`), and WP3's calibration passes
+the same window as the task it calibrates.
+
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
 To reconnect WP3 with the proposal's "expectations of control" moderator, we

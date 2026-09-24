@@ -176,6 +176,13 @@ WP3_T1_N   = int(os.environ.get("CDT_WP3_T1", "30"))       # Task-1 trials PER A
 WP3_T2_N   = int(os.environ.get("CDT_WP3_T2", "60"))       # Task-2 trials PER ANGLE (half low/high)
 WP3_BOOST  = float(os.environ.get("CDT_WP3_BOOST", "1.2")) # logit boost for high evidence
 WP3_EV_DUR = float(os.environ.get("CDT_WP3_EVDUR", "3.0")) # evidence-sample duration (s)
+# WP3 collects the choice AFTER a fixed motion window instead of during motion. Letting
+# participants self-terminate made evidence-per-trial co-vary with confidence (fast exits
+# on easy-feeling trials) and potentially with angle — exactly the confounds the
+# confirmatory/disconfirmatory weights must not absorb. WP1 keeps the old fast-response
+# regime: the behaviour is opt-in per call via run_trial(respond_after_motion=True).
+WP3_MOTION_DUR  = float(os.environ.get("CDT_WP3_MOTIONDUR",  "3.0"))  # decision window (s)
+WP3_RESP_GRACE  = float(os.environ.get("CDT_WP3_RESPGRACE", "20.0"))  # s to answer afterwards
 # Confidence incentive (Rollwage 2018: quadratic scoring rule, both tasks, paid once at
 # the end). CDT_WP3_BONUS = maximum bonus in currency units; 0 = lab mode (points only).
 WP3_BONUS  = float(os.environ.get("CDT_WP3_BONUS", "0"))
@@ -886,6 +893,8 @@ evidence_cue = visual.TextStim(win, "EXTRA EVIDENCE\nsame two circles — a seco
                                color="white", height=34, wrapWidth=1000, bold=True)
 evidence_label = visual.TextStim(win, "EXTRA EVIDENCE  —  same circles, same sides  ·  keep moving, no response",
                                  color="white", height=22, pos=(0, 330), wrapWidth=1200)
+respond_label = visual.TextStim(win, "which one was yours?    a = left    ·    s = right",
+                                color="white", height=24, pos=(0, -300), wrapWidth=1200)
 feedbackTxt = visual.TextStim(win, "", color="black", height=80)
 
 confine = lambda p, l=250: p if (r := math.hypot(*p)) <= l else (p[0]*l/r, p[1]*l/r)
@@ -944,7 +953,8 @@ difficulty_levels_by_angle = {}
 def run_trial(
     trial_num, phase, angle_bias, expect_level, mode, catch_type="", target_shape=None, block_num=1,
     prop_override=None, cue_dur_range=None, motion_dur=None, response_window=None,
-    cue_color_override=None, accept_response=True, left_shape=None, applied_angle_override=None
+    cue_color_override=None, accept_response=True, left_shape=None, applied_angle_override=None,
+    respond_after_motion=False
 ):
     # left_shape pins which side each object occupies. Normally random per trial,
     # but WP3's evidence sample MUST inherit the decision trial's layout: both
@@ -1146,8 +1156,10 @@ def run_trial(
             'evidence': evidence
         })
         
-        # Check for early response during motion (WP3 evidence sample: escape only)
-        keys = event.getKeys(['a', 's', 'escape'] if accept_response else ['escape'], timeStamped=True)
+        # Check for early response during motion (WP3 evidence sample: escape only).
+        # With respond_after_motion the choice is not accepted yet — the window is fixed.
+        _live = ['a', 's', 'escape'] if (accept_response and not respond_after_motion) else ['escape']
+        keys = event.getKeys(_live, timeStamped=True)
         if keys:
             key, key_time = keys[0]
             if key == "escape":
@@ -1167,12 +1179,30 @@ def run_trial(
     
     low_move_ratio = low_move_frames / max(frame - 1, 1)
 
+    # Fixed-window mode: motion is over, the display freezes and the choice is taken now.
+    # Every trial has delivered exactly total_motion_duration of evidence, and answering
+    # slowly no longer discards the trial. rt_choice is deliberation time from the prompt,
+    # not sampling time, so the *_preRT columns stay NaN here by construction.
+    if accept_response and respond_after_motion and resp_shape is None:
+        prompt_start = core.getTime()
+        event.clearEvents(eventType='keyboard')
+        while core.getTime() - prompt_start < WP3_RESP_GRACE and resp_shape is None:
+            left_box.draw(); right_box.draw(); square.draw(); dot.draw()
+            respond_label.draw(); win.flip()
+            for key, key_time in event.getKeys(['a', 's', 'escape'], timeStamped=True):
+                if key == "escape":
+                    _save(); core.quit()
+                resp_shape = left_shape if key == "a" else ("dot" if left_shape == "square" else "square")
+                rt_choice = key_time - prompt_start
+                break
+
     # If no response during motion, mark timeout and skip remaining screens.
     # A WP3 evidence sample (accept_response=False) ends here by design: no
     # timeout message, no ratings — kinematics still logged below.
     if resp_shape is None:
         if accept_response:
-            msg.text = "Too slow!\n\nPlease respond faster next time."
+            msg.text = ("No response recorded." if respond_after_motion
+                        else "Too slow!\n\nPlease respond faster next time.")
             msg.draw(); win.flip(); core.wait(2.0)
             resp_shape = "timeout"
         else:
@@ -1591,7 +1621,8 @@ def reset_quest_for_angle(angle_bias):
     print(f"Resetting staircase for angle condition: {angle_bias} deg")
     global_quest[f'{abs_angle}'] = TwoDownOneUpStaircase()
 
-def run_calibration_both_angles(max_trials_per_staircase=70, min_trials_per_staircase=35, required_reversals=12, angle_keys=('0', '90')):
+def run_calibration_both_angles(max_trials_per_staircase=70, min_trials_per_staircase=35, required_reversals=12, angle_keys=('0', '90'),
+                                motion_dur=5.0, respond_after_motion=False):
     """
     Block 1: Calibration phase with both 0 deg and 90 deg angles interleaved.
     Runs one 1-up-2-down staircase per angle (converges on 70.7% correct). Stops
@@ -1669,7 +1700,8 @@ def run_calibration_both_angles(max_trials_per_staircase=70, min_trials_per_stai
         expect_level = 'low'  # placeholder; cue is always black during calibration
         res = run_trial(
             trial_counter, "calibration", angle_bias=angle_bias, expect_level=expect_level, mode="calibration",
-            prop_override=s_candidate, cue_dur_range=(0.5, 0.8), motion_dur=5.0
+            prop_override=s_candidate, cue_dur_range=(0.5, 0.8), motion_dur=motion_dur,
+            respond_after_motion=respond_after_motion
         )
 
         # Only update staircase on valid responses (exclude timeouts)
@@ -2205,7 +2237,8 @@ def run_wp3():
         run_calibration_both_angles(
             max_trials_per_staircase=80 if not CHECK_MODE else CHECK_CALIBRATION_TRIALS,
             min_trials_per_staircase=40 if not CHECK_MODE else CHECK_CALIBRATION_TRIALS,
-            required_reversals=12, angle_keys=(str(angle),))
+            required_reversals=12, angle_keys=(str(angle),),
+            motion_dur=WP3_MOTION_DUR, respond_after_motion=True)   # match the task window
         sc = global_quest[str(angle)]
         med0 = clamp_prop(sc.threshold_estimate())      # seed; also the fixed prop if tracking is off
         print(f"[WP3/{angle} deg] calibrated medium={med0:.3f}  "
@@ -2236,7 +2269,8 @@ def run_wp3():
             p_dec, p_high = next_props()
             blk['clipped'] = bool(p_high >= 0.899)   # boost would hit the ceiling at this difficulty
             res = run_trial(trial_no, "wp3_task1", angle_bias=angle, expect_level="low",
-                            mode="test", prop_override=p_dec, cue_dur_range=(0.5, 0.8), motion_dur=5.0)
+                            mode="test", prop_override=p_dec, cue_dur_range=(0.5, 0.8),
+                            motion_dur=WP3_MOTION_DUR, respond_after_motion=True)
             used = res.get('prop_used', p_dec)
             track(res, used)
             conf = conf_prob = conf_rt = np.nan
@@ -2263,7 +2297,8 @@ def run_wp3():
             p_dec, p_high = next_props()
             blk['clipped'] = bool(p_high >= 0.899)   # high collapses onto low for this trial
             res = run_trial(trial_no, "wp3_task2", angle_bias=angle, expect_level="low",
-                            mode="test", prop_override=p_dec, cue_dur_range=(0.5, 0.8), motion_dur=5.0)
+                            mode="test", prop_override=p_dec, cue_dur_range=(0.5, 0.8),
+                            motion_dur=WP3_MOTION_DUR, respond_after_motion=True)
             used = res.get('prop_used', p_dec)
             track(res, used)   # decision only; the evidence sample never feeds the staircase
             conf = conf_prob = conf_rt = np.nan
