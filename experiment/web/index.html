@@ -31,7 +31,9 @@
 <body>
 <div id="stage"><div id="screen"></div></div>
 <div id="err"></div>
-<script src="engine.js"></script>
+<!-- ?v= is a cache-buster: Pavlovia (and browsers) cache engine.js aggressively.
+     Bump it whenever engine.js changes, or participants keep the stale copy. -->
+<script src="engine.js?v=2"></script>
 <script>
 "use strict";
 // ─────────────────────────────────────────────────────────────────────────────
@@ -396,7 +398,9 @@ async function main(){
     <p>Please use a <b>mouse</b> (not a trackpad) and stay in fullscreen.</p>
     <p class="go">click to begin (fullscreen)</p>`);
   await new Promise(r=>{ const h=()=>{ stage.removeEventListener("click",h); r(); }; stage.addEventListener("click",h); });
-  try{ await document.documentElement.requestFullscreen(); }catch(e){}
+  // Some embeddings neither grant nor reject fullscreen — the promise just never
+  // settles, which used to hang the study on this line. Race it, never block.
+  try{ await Promise.race([document.documentElement.requestFullscreen(), wait(1000)]); }catch(e){}
   makeCanvas();
   await bonusInstructions();     // once, before any rated trial; covers Task 1 AND Task 2
   const order=shuffle([...CFG.ANGLES]);
@@ -425,8 +429,10 @@ async function main(){
     const meta=await (await fetch("motion_pool.json")).json();
     const buf=await (await fetch("motion_pool.bin")).arrayBuffer();
     POOL={data:new Float32Array(buf), F:meta.frames, n:meta.n};
-    main();
-  }catch(e){ showScreen(`<h1>Load error</h1><p>Could not load the motion pool.<br><code>${e.message}</code></p>`);
+    // main() must be awaited: an un-awaited rejection mid-study showed the
+    // participant a blank page with no clue what happened.
+    await main();
+  }catch(e){ showScreen(`<h1>Something went wrong</h1><p>Please tell the researcher what you see here.<br><code>${e.message}</code></p>`);
     document.getElementById("err").textContent=e.stack||e.message; }
 })();
 </script>

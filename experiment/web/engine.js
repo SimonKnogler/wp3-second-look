@@ -91,6 +91,9 @@ class TrialEngine {
   }
 }
 
-if (typeof module !== "undefined" && module.exports) {
-  module.exports = { TrialEngine, rotate, confine, OFFSET_X, BOX_HW, BOX_HH };
-}
+/* Node (test_engine.js) reads module.exports; the browser reads the global. Both
+   must exist: exporting only to module.exports made `Engine` undefined in the
+   browser and the first trial died with a silent ReferenceError. */
+const Engine = { TrialEngine, rotate, confine, OFFSET_X, BOX_HW, BOX_HH };
+if (typeof module !== "undefined" && module.exports) module.exports = Engine;
+else globalThis.Engine = Engine;

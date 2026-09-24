@@ -112,7 +112,9 @@ git add -A && git commit -m "..." && git push
 ## Known pitfalls
 
 - **Caching.** After a deploy the old version often persists; hard-reload, and if still
-  stale use the dashboard's synchronise/reset on the study.
+  stale use the dashboard's synchronise/reset on the study. `index.html` loads
+  `engine.js?v=N` for this reason — **bump `N` whenever `engine.js` changes**, or
+  participants silently keep the stale engine.
 - **`motion_pool.bin` is 2.9 MB** — expect a short blank moment on slow connections.
 - **Credits are consumed in RUNNING mode**, including your own test runs. Pilot in PILOTING.
 - **Fullscreen** is requested on the opening click; some browsers refuse it inside a frame.
