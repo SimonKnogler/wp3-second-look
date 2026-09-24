@@ -2,82 +2,99 @@
 
 ## The one thing to know first
 
-Pavlovia will **host** this study without trouble — it serves plain HTML/JS. But Pavlovia's
-**native data saving only works for PsychoJS or jsPsych** experiments, because saving is
-done by their plugin, which opens a session at the start and closes it at the end. This
-study is hand-coded vanilla JS and uses neither.
+Pavlovia will **host** this study — it serves plain HTML/JS. But Pavlovia's **native data
+saving only works for PsychoJS or jsPsych** experiments: saving is done by their plugin,
+which opens a session at the start and closes it at the end. This study is hand-coded
+vanilla JS and uses neither.
 
 So: **Pavlovia hosts, OSF DataPipe saves.** DataPipe is free, host-agnostic and already
-wired into `index.html`. The alternative — rewriting the task as a jsPsych plugin to get
-native saving — is a large change to a verified engine and is not recommended.
+wired into `index.html`. Rewriting the task as a jsPsych plugin to get native saving would
+mean rebuilding a verified engine for no scientific gain.
+
+A consequence worth knowing: without the plugin handshake Pavlovia never "opens a session"
+for a run. The first pilot on Pavlovia is also the test of whether it serves the study
+happily that way (people do host plain HTML on it, but verify it yourself before Prolific).
 
 ## Repository layout Pavlovia expects
 
+Per Pavlovia's own docs (`git add index.html` at the root) and the WP1 port that ran there:
+
 ```
-<pavlovia-repo>/
-  html/                 ← Pavlovia git-pulls THIS folder to the run URL
-    index.html
-    engine.js
-    motion_pool.bin
-    motion_pool.json
+wp3-pavlovia/           ← separate git repo, branch `master` (Pavlovia requires it)
+  index.html            ← at the ROOT, not in a subfolder
+  engine.js
+  motion_pool.bin
+  motion_pool.json
+  README.md
   data/                 ← created by Pavlovia itself; never delete
 ```
 
+Do **not** create a folder called `lib/` — Pavlovia symlinks its own `lib` into the run
+location and the deploy breaks (WP1 hit this).
+
 The source of truth stays in `experiment/web/` in the main repo. Never edit the Pavlovia
-copy directly — push from here with `tools/deploy_pavlovia.sh`.
+copy; push from here with `tools/deploy_pavlovia.sh`.
+
+## Accounts and credentials (already on this machine)
+
+Pavlovia uses its own GitLab at **gitlab.pavlovia.org** (not gitlab.com). The working
+account from this Mac is `simonknogler` — HTTPS credentials are in the macOS keychain, so
+`git push` works without a prompt. (Older repos under `Knoglersimon` are no longer
+reachable; use `simonknogler`.)
 
 ## One-time setup
 
-1. **Account.** Create one at pavlovia.org. Check first whether LMU has a site licence —
-   if it does, participant credits are free; otherwise budget roughly £0.20–0.25 per
-   participant (~£40 for 175).
-2. **DataPipe.** At pipe.jspsych.org, connect an OSF project and create an experiment.
-   Copy the experiment ID. Set it in `index.html`:
+1. **Create the project** at https://gitlab.pavlovia.org/projects/new → *Create blank
+   project* → name `wp3-second-look`, **private**, and **untick** "Initialize repository
+   with a README" (the local repo already has one; an initialised remote would need a
+   merge). It appears in the Pavlovia dashboard automatically.
+2. **Point the local repo at it and push:**
+   ```bash
+   cd ~/Desktop/PhD/Experiments/wp3-pavlovia
+   git remote add origin https://gitlab.pavlovia.org/simonknogler/wp3-second-look.git
+   git push -u origin master
+   ```
+3. **DataPipe.** At https://pipe.jspsych.org connect an OSF project and create an
+   experiment; enable data collection on it; copy the experiment ID into
+   `experiment/web/index.html`:
    ```js
    DATAPIPE_ID: Q.get("datapipe") || "PASTE_ID_HERE",
    ```
-   Enable "data collection" on the DataPipe experiment, otherwise uploads are rejected.
-3. **Create the Pavlovia study.** Dashboard → Experiments → New. This creates a GitLab
-   repo at `gitlab.pavlovia.org/<user>/<study>`. Clone it locally.
-4. **First deploy:**
-   ```bash
-   ./tools/deploy_pavlovia.sh ~/path/to/<study> "Initial WP3 web build"
-   ```
-5. **Activate.** In the Pavlovia dashboard set the study to **PILOTING** (free, only you)
-   for testing, then **RUNNING** for real data collection. New studies start INACTIVE and
-   cannot be opened until this is changed.
+   then redeploy. Until then `?datapipe=<id>` on the URL works for testing.
+4. **Activate.** pavlovia.org → Dashboard → the experiment → **PILOTING** (free, only
+   you) for testing; **RUNNING** for real data. New projects start INACTIVE.
+   RUNNING needs a licence or credits: check the Store for an LMU site licence; otherwise
+   ~£0.20 per saved run.
 
 ## Testing on Pavlovia
 
-Study URL: `https://run.pavlovia.org/<user>/<study>/`
+Run URL: `https://run.pavlovia.org/simonknogler/wp3-second-look/`
 
 Query parameters work the same as locally:
 
 | Parameter | Purpose |
 |---|---|
 | `?t1=6&t2=12&calmin=10&calmax=15` | short run for a feel test |
-| `?bonus=1.00` | activate the quadratic scoring rule with a £1 maximum |
-| `?datapipe=<id>` | override the DataPipe id without a redeploy |
-| `?pid=<id>` | set the participant id manually |
+| `?bonus=1.00` | quadratic scoring rule with a £1 maximum |
+| `?datapipe=<id>` | DataPipe id without a redeploy |
+| `?pid=<id>` | participant id |
 
-A piloting run appends `&__pilotToken=...` automatically — leave it alone.
+The dashboard's *Pilot* button appends `&__pilotToken=…` automatically; tokens expire
+after about an hour — regenerate from the dashboard.
 
-## Prolific integration
+## Prolific (later)
 
-Study URL given to Prolific:
+Study URL to give Prolific:
 
 ```
-https://run.pavlovia.org/<user>/<study>/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}&completion=https://app.prolific.com/submissions/complete?cc=XXXXXXXX
+https://run.pavlovia.org/simonknogler/wp3-second-look/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}&completion=https://app.prolific.com/submissions/complete?cc=XXXXXXXX
 ```
 
-`index.html` reads all three Prolific ids (they are written into every data row) and, when
+`index.html` reads the three Prolific ids (written into every data row) and, when
 `completion` is set, redirects there after showing the bonus for four seconds — that is
-what credits the participant. Without `completion` it simply shows a closing screen.
-
-**Prolific settings that matter for this study:** desktop only (Prolific cannot filter for
-mouse vs. trackpad — the instructions ask for a mouse, and low movement is flagged in the
-data), 18–50, no neurological or psychiatric history, and a time allowance of ~75 minutes
-for a ~55-minute task.
+what credits the participant. Prolific settings that matter: desktop only (Prolific cannot
+filter mouse vs. trackpad — the instructions ask for a mouse and low movement is flagged
+in the data), 18–50, no neurological/psychiatric history, ~75 min allowance.
 
 ## Everyday workflow
 
@@ -87,19 +104,16 @@ for a ~55-minute task.
 cd experiment/web && python3 -m http.server 8000     # → http://localhost:8000
 # 3. commit to the main repo
 git add -A && git commit -m "..." && git push
-# 4. deploy to Pavlovia
-./tools/deploy_pavlovia.sh ~/path/to/<study> "what changed"
-# 5. hard-reload the run URL (Pavlovia caches aggressively: Cmd+Shift+R)
+# 4. deploy to Pavlovia (default path ~/Desktop/PhD/Experiments/wp3-pavlovia)
+./tools/deploy_pavlovia.sh
+# 5. hard-reload the run URL — Pavlovia caches aggressively (Cmd+Shift+R)
 ```
 
 ## Known pitfalls
 
-- **Caching.** After a deploy the old version often persists. Hard-reload, and if it still
-  looks stale, use the dashboard's "reset/synchronise" on the study.
-- **`motion_pool.bin` is 2.9 MB.** It loads fine but is the bulk of the transfer; expect a
-  short blank moment on a slow connection before the first screen.
-- **Piloting tokens expire** after about an hour. Regenerate from the dashboard.
-- **Credits are consumed in RUNNING mode**, including your own test runs. Pilot in
-  PILOTING mode.
-- **Fullscreen.** The study requests fullscreen on the opening click. Some browsers refuse
-  it when the page is embedded in a frame; the study continues either way.
+- **Caching.** After a deploy the old version often persists; hard-reload, and if still
+  stale use the dashboard's synchronise/reset on the study.
+- **`motion_pool.bin` is 2.9 MB** — expect a short blank moment on slow connections.
+- **Credits are consumed in RUNNING mode**, including your own test runs. Pilot in PILOTING.
+- **Fullscreen** is requested on the opening click; some browsers refuse it inside a frame.
+  The study continues either way.

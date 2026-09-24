@@ -1,34 +1,36 @@
 #!/usr/bin/env bash
-# Sync the web build into a Pavlovia GitLab repo and push.
+# Sync the web build into the Pavlovia GitLab repo and push.
 #
-# Pavlovia serves the contents of an `html/` folder at the repo root: it git-pulls that
-# folder to https://run.pavlovia.org/<user>/<study>/ when the study is ACTIVATED.
-# Pavlovia also creates its own `data/` folder in the repo — never delete it.
+# Layout (per Pavlovia's current docs and the WP1 port): index.html and its assets sit at
+# the REPO ROOT on branch `master`. Pavlovia git-pulls the repo to
+# https://run.pavlovia.org/<user>/<project>/ when the study is PILOTING/RUNNING and
+# creates its own `data/` folder there — never delete it. Never add a folder named `lib/`:
+# Pavlovia symlinks its own lib into the run location and the deploy breaks.
 #
-#   ./tools/deploy_pavlovia.sh ~/path/to/pavlovia-repo "optional commit message"
+#   ./tools/deploy_pavlovia.sh [pavlovia-repo-path] ["commit message"]
 #
-# The source of truth stays experiment/web/ in THIS repo. Never edit the Pavlovia copy.
+# Source of truth is experiment/web/ in THIS repo. Never edit the Pavlovia copy directly.
 set -euo pipefail
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/experiment/web"
-DEST="${1:?usage: deploy_pavlovia.sh <pavlovia-repo-path> [message]}"
+DEST="${1:-$HOME/Desktop/PhD/Experiments/wp3-pavlovia}"
 MSG="${2:-Update WP3 web build}"
 
-[ -d "$DEST/.git" ] || { echo "ERROR: $DEST is not a git repository"; exit 1; }
+[ -d "$DEST/.git" ] || { echo "ERROR: $DEST is not a git repository (see experiment/web/PAVLOVIA.md)"; exit 1; }
 
-mkdir -p "$DEST/html"
 for f in index.html engine.js motion_pool.bin motion_pool.json; do
   [ -f "$SRC/$f" ] || { echo "ERROR: missing $SRC/$f"; exit 1; }
-  cp "$SRC/$f" "$DEST/html/$f"
-  printf '  %-20s %s\n' "$f" "$(du -h "$SRC/$f" | cut -f1)"
+  cp "$SRC/$f" "$DEST/$f"
+  printf '  %-18s %s\n' "$f" "$(du -h "$SRC/$f" | cut -f1)"
 done
 
 cd "$DEST"
-if git diff --quiet && git diff --cached --quiet; then
+[ "$(git branch --show-current)" = "master" ] || { echo "ERROR: Pavlovia expects branch 'master' (current: $(git branch --show-current))"; exit 1; }
+if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
   echo "no changes to deploy"; exit 0
 fi
-git add html
+git add index.html engine.js motion_pool.bin motion_pool.json
 git commit -q -m "$MSG"
-git push -q origin HEAD
+git push -q origin master
 echo "pushed to $(git remote get-url origin)"
-echo "activate / reload the study at https://pavlovia.org/dashboard?tab=1"
+echo "then: pavlovia.org → Dashboard → the experiment → hard-reload the run URL (Cmd+Shift+R)"
