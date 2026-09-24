@@ -140,6 +140,16 @@ BIC. **The primary test is the 0° vs 90° contrast on w_d** — w_c is not iden
 person (correct trials sit at the scale ceiling), and the raw β difference has the wrong
 sign by construction. See design doc §10f for the dry-run that established this.
 
+**Power before you recruit:**
+
+```bash
+python3 experiment/analysis/power_wp3.py            # ~30 min on 8 cores; --smoke for the plumbing
+```
+
+Monte Carlo over the complete pipeline at fixed N. Result for N = 150 (design doc §10h): MDE of a
+20 % reduction in w_d under the predictive mapping at 80 % power, **with the both model**. The
+weight model fabricates a mode effect when the difference is really in choice bias.
+
 **Simulate before you analyse:**
 
 ```bash
@@ -182,6 +192,9 @@ python3 experiment/analysis/check_wp3_replay_invariant.py <kinematics.csv> [...]
 ## Open work
 
 - [x] Reference model + null / weighting / choice-bias comparison (`fit_wp3_model.py`, validated on simulated data — §10f)
+- [x] Power / feasibility at N = 150 (`power_wp3.py`, design doc §10h): both model, MDE = 20 % reduction in w_d at 80 % power
+- [ ] Make the **both** model's w_d the primary test in `fit_wp3_model.py` — the weight model has a 79 % false-positive rate when the true mode difference is in choice bias (§10h)
+- [ ] Parametric-bootstrap null for the mode contrast (both model shows ≈ −0.045 log null bias → Type I ≈ .08)
 - [ ] Hierarchical (Stan/PyMC) version of the fit — the two-stage fit bounds and winsorises instead
 - [ ] Human feel-test of scale, evidence marker and scoring-rule instructions
 - [ ] Pilot: what accuracy does the +1.2-logit boost actually induce? (Rollwage: 81 %)

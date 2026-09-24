@@ -490,6 +490,44 @@ the decision trials match the evidence sample, which was fixed-duration by const
 i.e. evidence per trial is now constant where it used to be whatever the participant
 chose to take.
 
+## 10h. Power / feasibility at the hard cap N = 150 (2026-09-24)
+
+`experiment/analysis/power_wp3.py` — Monte Carlo over the **complete** pipeline: the
+`simulate_wp3.py` observer recalibrated to Rollwage 2018 (group `w_d(90°)` ≈ 1, choice bias
+`b ~ N(.4, .3)` — the mechanism that won his model comparison), analysed with
+`fit_wp3_model.fit_participant` verbatim (gates, anchors, bounds). 18 conditions, 9,800
+simulated participants. Tables: `power_wp3_report.md`, `power_wp3_summary*.csv`.
+
+1. **The weight model cannot be the primary test.** With the true mode difference placed in
+   choice bias only (`w_d` equal across angles) it reports a `w_d` mode effect of −0.22 log and
+   rejects H0 in **79 %** of N = 150 samples; with a real `w_d` effect it inflates it by 25–50 %
+   (true −0.20 → −0.31). The **both** model (`b`, `w_c`, `w_d`) is unbiased to within
+   0.02–0.05 log in every condition and reads +0.03 under the confound.
+2. **Feasible for a medium-or-larger effect.** Both model, 150 recruited → ~127 paired (13 %
+   attrition + gates): **MDE = 0.22 log = 20 % reduction in `w_d` at 80 % power**, stable at
+   19–20.5 % across all 18 conditions. Power: 10 % → 0.20; 18 % → ~0.80 (0.71–0.89 across
+   independent pools); 26 % → 0.97. Rollwage's extreme-group (top-decile radicals) difference
+   is ≈ 30 %. Not feasible for a ≤ 10 % effect at any affordable N.
+3. **Measurement noise, not N, is the constraint.** Per-angle SD of log `w_d` ≈ 0.57 → 0.81 of
+   the 0.87 paired SD; true heterogeneity (0.30) is minor. Recovery r ≈ 0.65 at 0° but ≈ 0.50 at
+   90°: the harder angle clips the boosted sample against the 0.90 ceiling more often. N = 200
+   would move 18 % power only to ~0.83. Rating noise 1.6 → 0.8 moves it 0.52 → 0.78 — the scoring
+   rule stays.
+4. **Boost.** 0.8 / 1.0 / 1.2 logit are power-equivalent within Monte Carlo error (0.84 / 0.78 /
+   0.87 at 18 %, pools of 800); 0.5 is worse (0.68). Implied accuracy of the high sample: 1.2 →
+   93 %, 0.8 → 87 %, 0.5 → 82 % (Rollwage: 80 %). Keep 1.2 for power, or drop to 0.8 for Rollwage
+   comparability and less ceiling clipping at 90°; both defensible.
+5. **Split** 30/60 vs 20/70 vs 45/45 (90 trials per angle): within noise; no change.
+6. **Small null bias of the both model:** its paired difference averages ≈ −0.045 log when the
+   truth is 0 (two independent pools, 600 and 800) → Type I ≈ 0.07–0.09 at nominal .05. Source
+   is the design asymmetry in (3). Preregister a **parametric-bootstrap null** (simulate from the
+   fitted parameters with `w_d` equalised across angles) or a simulation-calibrated α.
+7. Incorrect Task-2 trials per angle: **16.9** (the earlier reliability estimate assumed ~26);
+   incorrect Task-1 trials anchoring `L0_incorrect`: 8.7.
+
+**Decision:** run at N = 150. Preregister the both model as primary, the 20 % MDE, and the
+bootstrap null. PDI dropped from the confirmatory set (Rollwage's r ≈ .10–.17 needs N ≈ 400+).
+
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
 To reconnect WP3 with the proposal's "expectations of control" moderator, we
