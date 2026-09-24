@@ -37,16 +37,19 @@ copy; push from here with `tools/deploy_pavlovia.sh`.
 
 ## Accounts and credentials (already on this machine)
 
-Pavlovia uses its own GitLab at **gitlab.pavlovia.org** (not gitlab.com). The working
-account from this Mac is `simonknogler` — HTTPS credentials are in the macOS keychain, so
-`git push` works without a prompt. (Older repos under `Knoglersimon` are no longer
-reachable; use `simonknogler`.)
+Pavlovia uses its own GitLab at **gitlab.pavlovia.org** (not gitlab.com). The study lives
+under **`Knoglersimon`** — the simon.knogler@lmu.de account, same as the WP1 port
+(`cdt-online`). HTTPS credentials are in the macOS keychain, so `git push` works without
+a prompt. A second account, `simonknogler`, also has stored credentials; a first copy of
+the project was pushed there by mistake on 2026-09-24 and can be deleted from its
+dashboard. Do not push to it.
 
 ## One-time setup
 
 1. **Project — done (2026-09-24).** gitlab.pavlovia.org supports *push-to-create*: pushing
-   `master` from `~/Desktop/PhD/Experiments/wp3-pavlovia` created the **private** project
-   https://gitlab.pavlovia.org/simonknogler/wp3-second-look with the initial build. It
+   `master` from `~/Desktop/PhD/Experiments/wp3-pavlovia` (remote
+   `https://Knoglersimon@gitlab.pavlovia.org/…`) created the **private** project
+   https://gitlab.pavlovia.org/Knoglersimon/wp3-second-look with the initial build. It
    appears in the Pavlovia dashboard automatically. (To recreate from scratch: `git init -b
    master`, add the four files, `git remote add origin <url>`, `git push -u origin master`.)
 2. **Local repo** lives at `~/Desktop/PhD/Experiments/wp3-pavlovia`, tracking
@@ -65,7 +68,7 @@ reachable; use `simonknogler`.)
 
 ## Testing on Pavlovia
 
-Run URL: `https://run.pavlovia.org/simonknogler/wp3-second-look/`
+Run URL: `https://run.pavlovia.org/Knoglersimon/wp3-second-look/`
 
 Query parameters work the same as locally:
 
@@ -84,7 +87,7 @@ after about an hour — regenerate from the dashboard.
 Study URL to give Prolific:
 
 ```
-https://run.pavlovia.org/simonknogler/wp3-second-look/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}&completion=https://app.prolific.com/submissions/complete?cc=XXXXXXXX
+https://run.pavlovia.org/Knoglersimon/wp3-second-look/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}&completion=https://app.prolific.com/submissions/complete?cc=XXXXXXXX
 ```
 
 `index.html` reads the three Prolific ids (written into every data row) and, when
