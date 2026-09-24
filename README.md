@@ -98,6 +98,14 @@ cd experiment/web && python3 -m http.server 8000
 
 URL parameters mirror the env flags: `?t1=6&t2=12&calmin=10&calmax=15&bonus=1.00&pid=99`.
 
+**Hosting on Pavlovia + Prolific:** see [`experiment/web/PAVLOVIA.md`](experiment/web/PAVLOVIA.md).
+Short version — Pavlovia hosts the files from an `html/` folder, but its native data saving
+only works for PsychoJS/jsPsych, so this study saves via OSF DataPipe. Deploy with:
+
+```bash
+./tools/deploy_pavlovia.sh ~/path/to/pavlovia-repo "what changed"
+```
+
 Engine self-test (verifies the motion loop against the Python reference):
 
 ```bash

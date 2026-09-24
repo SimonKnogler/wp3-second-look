@@ -38,8 +38,14 @@
 //  Config  (override any via URL, e.g. ?t1=6&t2=12&pid=99)
 // ─────────────────────────────────────────────────────────────────────────────
 const Q = new URLSearchParams(location.search);
+// Prolific passes its ids as URL parameters; Pavlovia forwards the query string to the
+// study. Accept both the Prolific names and our short ones, so the same build works
+// locally, on Pavlovia and on Prolific without edits.
+const PROLIFIC_PID     = Q.get("PROLIFIC_PID")     || Q.get("participant") || "";
+const PROLIFIC_STUDY   = Q.get("STUDY_ID")         || "";
+const PROLIFIC_SESSION = Q.get("SESSION_ID")       || "";
 const CFG = {
-  participant: Q.get("pid") || String(Math.floor(Math.random()*1e6)),
+  participant: PROLIFIC_PID || Q.get("pid") || String(Math.floor(Math.random()*1e6)),
   T1_N: +(Q.get("t1") || 30),          // Task-1 trials per angle
   T2_N: +(Q.get("t2") || 60),          // Task-2 trials per angle (half low / half high)
   CAL_MIN: +(Q.get("calmin") || 40),   // staircase min / max trials
@@ -52,7 +58,12 @@ const CFG = {
   TRACK: (Q.get("track") || "1") === "1",   // keep the 1u2d running through Task 1 + 2
   BONUS: +(Q.get("bonus") || 0),       // max confidence bonus (quadratic scoring rule); 0 = points only
   BONUS_UNIT: Q.get("unit") || "£",
-  DATAPIPE_ID: "",                     // ← put your OSF DataPipe experiment ID here to auto-upload
+  // Pavlovia hosts hand-coded JS fine, but its NATIVE data saving requires PsychoJS or the
+  // jsPsych plugin — this study is neither, so data goes to OSF DataPipe instead.
+  // Set the id here for the deployed build; ?datapipe=... overrides it for testing.
+  DATAPIPE_ID: Q.get("datapipe") || "",
+  // Where Prolific sends participants when they finish. Leave empty outside Prolific.
+  COMPLETION_URL: Q.get("completion") || "",
 };
 const clampProp = p => Math.min(Math.max(p, 0.02), 0.90);
 const logit = x => { x = Math.min(Math.max(x,1e-6),1-1e-6); return Math.log(x/(1-x)); };
@@ -272,18 +283,31 @@ function toCSV(){
   const esc=v=>v===undefined||v===null||(typeof v==="number"&&isNaN(v))?"":String(v);
   return cols.join(",")+"\n"+rows.map(r=>cols.map(c=>esc(r[c])).join(",")).join("\n");
 }
+// Returns "" on success, or an error string. The participant must never silently lose a
+// session: if the upload fails we say so on screen and still offer the local download.
 async function saveData(){
+  META.prolific_study_id = PROLIFIC_STUDY; META.prolific_session_id = PROLIFIC_SESSION;
   const csv=toCSV(), name=`CDT_wp3_${CFG.participant}.csv`;
-  // 1) always offer a local download (works on any host, good for piloting)
-  const blob=new Blob([csv],{type:"text/csv"}); const url=URL.createObjectURL(blob);
-  const a=document.createElement("a"); a.href=url; a.download=name; a.click();
-  // 2) optional: OSF DataPipe (host-agnostic, works on Pavlovia/Netlify/etc.)
+  let err="";
   if(CFG.DATAPIPE_ID){
-    try{ await fetch("https://pipe.jspsych.org/api/data/",{method:"POST",
-      headers:{"Content-Type":"application/json","Accept":"*/*"},
-      body:JSON.stringify({experimentID:CFG.DATAPIPE_ID,filename:name,data:csv})}); }
-    catch(err){ document.getElementById("err").textContent="DataPipe upload failed: "+err.message; }
-  }
+    err="upload failed";
+    for(let attempt=1; attempt<=3; attempt++){          // transient network errors are common online
+      try{
+        const r=await fetch("https://pipe.jspsych.org/api/data/",{method:"POST",
+          headers:{"Content-Type":"application/json","Accept":"*/*"},
+          body:JSON.stringify({experimentID:CFG.DATAPIPE_ID,filename:name,data:csv})});
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        err=""; break;
+      }catch(e){ err="upload failed: "+e.message; if(attempt<3) await wait(1500); }
+    }
+  } else { err="no DATAPIPE_ID configured — data not uploaded"; }
+  // Always offer the local copy as a fallback (and the only copy when piloting locally).
+  try{
+    const blob=new Blob([csv],{type:"text/csv"}); const url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download=name; a.click();
+  }catch(e){ /* a blocked download must not break the completion screen */ }
+  if(err) document.getElementById("err").textContent=err;
+  return err;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -380,9 +404,18 @@ async function main(){
   const meanScore = SCORES.length ? SCORES.reduce((a,b)=>a+b,0)/SCORES.length : 0;
   META.wp3_mean_score=+meanScore.toFixed(4); META.wp3_bonus=+(CFG.BONUS*meanScore).toFixed(2);
   await motivationCheck();
-  await saveData();
+  const saveErr = await saveData();
+  if(CFG.COMPLETION_URL){
+    // Prolific: show the bonus briefly, then return the participant so they get credited.
+    showScreen(`<h1>Done — thank you!</h1><p>Your confidence bonus: <b>${bonusText(meanScore)}</b></p>
+      ${saveErr?`<p style="color:#e0713a">${saveErr} — please tell the researcher.</p>`:""}
+      <p class="go">returning you to Prolific…</p>`);
+    await wait(4000);
+    location.href = CFG.COMPLETION_URL;
+    return;
+  }
   showScreen(`<h1>Done — thank you!</h1><p>Your confidence bonus: <b>${bonusText(meanScore)}</b></p>
-    <p>Your data file has downloaded${CFG.DATAPIPE_ID?" and uploaded":""}.</p>
+    <p>${saveErr?saveErr:"Your data has been saved"}.</p>
     <p class="go">you may close this window</p>`);
 }
 
