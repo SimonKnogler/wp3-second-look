@@ -5,11 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Control Detection — WP3</title>
 <style>
+  /* cursor:none on the root, not just the canvas: it used to reappear on every
+     between-trial screen. Children inherit it, so this covers the whole session. */
   html,body{margin:0;height:100%;background:#0e0f12;color:#eceae6;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
-    overflow:hidden;user-select:none;-webkit-user-select:none;}
+    overflow:hidden;user-select:none;-webkit-user-select:none;cursor:none;}
   #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
-  canvas{display:block;background:#0e0f12;cursor:none;}
+  canvas{display:block;background:#0e0f12;}
   #screen{max-width:760px;padding:0 40px;text-align:center;line-height:1.6;}
   #screen h1{font-size:2rem;font-weight:700;margin:0 0 18px;}
   #screen p{font-size:1.18rem;color:#cfcdc8;margin:14px 0;}
@@ -24,7 +26,10 @@
   .rule{height:2px;background:#3a3e46;width:100%;margin:2px 0 0;}
   .anchors{display:flex;justify-content:space-between;width:600px;color:#8a8f98;font-size:.9rem;}
   .anchors span{max-width:150px;}
-  .fb{font-size:2.2rem;font-weight:700;}
+  .fb{font-size:4.5rem;font-weight:700;letter-spacing:.01em;}
+  /* Fullscreen-recovery overlay (see fsRecover). */
+  #fsblock{position:fixed;inset:0;z-index:50;background:#0e0f12;cursor:none;
+    display:flex;align-items:center;justify-content:center;text-align:center;}
   #err{position:fixed;bottom:8px;left:8px;color:#c0603a;font-size:12px;font-family:monospace;}
 </style>
 </head>
@@ -54,7 +59,8 @@ const CFG = {
   CAL_MAX: +(Q.get("calmax") || 80),
   CAL_REVERSALS: 12,
   BOOST_LOGIT: +(Q.get("boost") || 1.2),
-  MOTION_DUR: 5.0,
+  MOTION_DUR: 5.0,                     // fixed motion/evidence window per decision trial
+  RESP_GRACE: +(Q.get("respgrace") || 20),  // extra seconds to answer after the motion stops
   EV_DUR: +(Q.get("evdur") || 3.0),
   ANGLES: [0, 90],
   TRACK: (Q.get("track") || "1") === "1",   // keep the 1u2d running through Task 1 + 2
@@ -130,6 +136,31 @@ let EVIDENCE_ON=false;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 function waitKeys(keys){ return new Promise(res=>{ const h=e=>{ const k=e.key.toLowerCase(); if(keys.includes(k)){ window.removeEventListener("keydown",h); res(k); } }; window.addEventListener("keydown",h); }); }
 
+// Fullscreen has to hold for the whole session: outside it the window is smaller than
+// the layout assumes and the desktop cursor comes back. Esc cannot be intercepted, so
+// we detect the exit and require a click to return — re-entering needs a user gesture.
+// Guarded by FS_OK: if the browser refused fullscreen at the start, never nag.
+let FS_OK=false, FS_EXITS=0, fsBlock=null;
+function fsRecover(){
+  if(fsBlock) return;
+  FS_EXITS++;
+  fsBlock=document.createElement("div"); fsBlock.id="fsblock";
+  fsBlock.innerHTML=`<div><h1>Please return to fullscreen</h1>
+    <p>The task has to stay in fullscreen. It is paused — nothing is lost.</p>
+    <p class="go">click anywhere to continue</p></div>`;
+  document.body.appendChild(fsBlock);
+  fsBlock.addEventListener("click", async()=>{
+    try{ await Promise.race([document.documentElement.requestFullscreen(), wait(1000)]); }catch(e){}
+    // Clear it either way. If the browser refuses fullscreen we must not trap the
+    // participant behind an overlay they can never dismiss; the exit is in the data.
+    if(fsBlock){ fsBlock.remove(); fsBlock=null; }
+  }, {once:true});
+}
+document.addEventListener("fullscreenchange", ()=>{
+  if(!document.fullscreenElement && FS_OK) fsRecover();
+  else if(document.fullscreenElement && fsBlock){ fsBlock.remove(); fsBlock=null; }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Motion trial (decision) / evidence sample
 // ─────────────────────────────────────────────────────────────────────────────
@@ -163,11 +194,27 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
       keyH=e=>{ const k=e.key.toLowerCase(); if(k==="a"||k==="s"){ resp = k==="a"?left:(left==="square"?"dot":"square"); rt=(performance.now()-t0)/1000; } };
       window.addEventListener("keydown",keyH);
     }
+    let pausedAt=0, prompted=false;
     function frame(now){
+      // Fullscreen lost mid-trial: freeze the trial clock until it is restored, so the
+      // participant does not lose movement time to an accidental Esc.
+      if(fsBlock){ if(!pausedAt) pausedAt=performance.now(); requestAnimationFrame(frame); return; }
+      if(pausedAt){ if(started) t0+=performance.now()-pausedAt; pausedAt=0; }
       if(!started){ if(mouse.moved){ started=true; t0=performance.now(); } drawShapes(eng.squarePos,eng.dotPos,squareCx,dotCx); requestAnimationFrame(frame); return; }
       const el=(performance.now()-t0)/1000;
-      const st=eng.step(mouse.x,mouse.y); drawShapes(st.square,st.dot,squareCx,dotCx);
-      if(resp!==null || el>=dur){
+      // The MOTION window is fixed (every trial delivers the same amount of evidence).
+      // The RESPONSE is not: once the motion ends the display freezes and we keep
+      // waiting. Running past the window no longer discards the trial.
+      if(el<dur){ const st=eng.step(mouse.x,mouse.y); drawShapes(st.square,st.dot,squareCx,dotCx); }
+      else if(acceptResponse && !prompted){
+        prompted=true; drawShapes(eng.squarePos,eng.dotPos,squareCx,dotCx);
+        ctx.fillStyle="#eceae6"; ctx.font="600 24px system-ui, sans-serif";
+        ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+        // below the confinement boxes, but never off a short screen
+        ctx.fillText("which one was yours?    a = left    ·    s = right",
+                     cx, Math.min(cy+Engine.BOX_HH+44, canvas.height-22));
+      }
+      if(resp!==null || (!acceptResponse && el>=dur) || el>=dur+CFG.RESP_GRACE){
         if(keyH) window.removeEventListener("keydown",keyH);
         EVIDENCE_ON=false;
         const timeout = acceptResponse && resp===null;
@@ -181,10 +228,10 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
     }
     // brief fixation, then go
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle="#8a8f98"; ctx.font="26px system-ui"; ctx.textAlign="center";
-    ctx.fillText("+",cx,cy);
-    setTimeout(()=>{ ctx.fillStyle="#8a8f98"; ctx.font="18px system-ui";
-      ctx.fillText(acceptResponse?"move the mouse — a = left, s = right":"watch — move the mouse",cx,cy+70);
+    ctx.fillStyle="#8a8f98"; ctx.font="300 88px system-ui"; ctx.textAlign="center";
+    ctx.textBaseline="middle"; ctx.fillText("+",cx,cy); ctx.textBaseline="alphabetic";
+    setTimeout(()=>{ ctx.fillStyle="#8a8f98"; ctx.font="20px system-ui";
+      ctx.fillText(acceptResponse?"move the mouse — a = left, s = right":"watch — move the mouse",cx,cy+110);
       requestAnimationFrame(frame); }, 500);
   });
 }
@@ -221,9 +268,19 @@ function wp3Score(rating, correct){
 }
 const bonusText=m => CFG.BONUS>0 ? `${CFG.BONUS_UNIT}${(CFG.BONUS*m).toFixed(2)} (of a possible ${CFG.BONUS_UNIT}${CFG.BONUS.toFixed(2)})`
                                  : `${Math.round(100*m)} out of 100 points`;
-async function bonusInstructions(){
+// withEvidence=false runs before Part A: the rule itself, checked on the rating scale.
+// withEvidence=true runs immediately before Part B: a short reminder plus the two
+// questions about extra evidence. Those used to be asked before Part A, describing a
+// situation that had not happened yet and was forgotten by the time it did.
+async function bonusInstructions({withEvidence=false}={}){
   const stake = CFG.BONUS>0 ? `a bonus of up to <b>${CFG.BONUS_UNIT}${CFG.BONUS.toFixed(2)}</b>` : "<b>points</b> (up to 100)";
-  const explain = `<h1>How your confidence ratings earn ${stake}</h1>
+  const explain = withEvidence ? `<h1>Before Part B — a reminder</h1>
+    <p>The rating still works the same way: what earns ${stake} is <b>matching your rating
+    to what is true</b> — high when you were right, low when you were wrong.</p>
+    <p>What is new is that you now see <b>extra evidence</b> after your choice. If it shows
+    you were wrong, saying so with a <b>low</b> rating earns you the full amount.
+    Changing your mind is free; staying convinced against the evidence is what costs.</p>
+    <p class="go">press SPACE for two quick questions</p>` : `<h1>How your confidence ratings earn ${stake}</h1>
     <p>After each choice you rate how likely it is that you were <b>right</b> (1 = 0%, 5 = 50%, 9 = 100%).</p>
     <p>What is rewarded is <b>knowing when you are right</b> — not performance.
     Both of these earn the full amount:<br>
@@ -236,12 +293,20 @@ async function bonusInstructions(){
     <p class="go">press SPACE for two quick questions</p>`;
   // Answered on the 1–9 scale itself: an earlier version used 1/2/3 answer keys that
   // described ratings 8–9 / 5 / 1–2, so the key was nearly the opposite of its meaning.
-  const quiz=[
+  const quiz = withEvidence ? [
     [`<h1>Question 1 of 2</h1>
       <p>You chose the <b>LEFT</b> circle.<br>The extra evidence then clearly showed the <b>RIGHT</b> one was yours.</p>
       <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r<=2],
     [`<h1>Question 2 of 2</h1>
       <p>You chose the <b>LEFT</b> circle.<br>The extra evidence then clearly confirmed it <b>was</b> yours.</p>
+      <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r>=8],
+  ] : [
+    [`<h1>Question 1 of 2</h1>
+      <p>You chose the <b>LEFT</b> circle — but it was barely a guess, and you think you
+      probably got it wrong.</p>
+      <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r<=2],
+    [`<h1>Question 2 of 2</h1>
+      <p>You chose the <b>LEFT</b> circle, and you clearly felt it following your hand.</p>
       <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r>=8],
   ];
   let attempts=0;
@@ -259,7 +324,7 @@ async function bonusInstructions(){
     }
     if(ok) break;
   }
-  META.bonus_quiz_attempts=attempts;
+  META[withEvidence?"bonus_quiz_attempts_evidence":"bonus_quiz_attempts"]=attempts;
 }
 async function motivationCheck(){   // before the reveal, so the amount cannot bias it
   showScreen(`<h1>One last question</h1><p>How much did the bonus rule affect how carefully you chose your confidence ratings?</p>
@@ -324,9 +389,12 @@ async function calibration(angle){
     const p=sc.next();
     const r=await motionTrial(p,angle,{});
     if(!r.timeout){ sc.update(p, r.correct); n++;
-      showScreen(`<div class="fb" style="color:${r.correct?'#67c091':'#e0713a'}">${r.correct?'Right':'Wrong'}</div>`);
-      await wait(600); showCanvas();
-    } else { showScreen(`<p style="color:#e0713a">Too slow — keep moving</p>`); await wait(900); showCanvas(); }
+      // Same colour for both: this is the only feedback in the study, and green/red
+      // adds a valence signal the main (feedback-free) task deliberately lacks —
+      // it is also the one pair a red-green colour deficit cannot separate.
+      showScreen(`<div class="fb">${r.correct?'Right':'Wrong'}</div>`);
+      await wait(700); showCanvas();
+    } else { showScreen(`<p style="color:#e0713a">No response recorded</p>`); await wait(900); showCanvas(); }
   }
   return sc;   // the staircase itself: it keeps running through both tasks (design §10e)
 }
@@ -360,14 +428,17 @@ async function block(angle, blockIdx){
     showCanvas();
   }
 
-  // Task 2
+  // Task 2 — the scoring rule is re-explained here, where extra evidence first exists
+  if(blockIdx===1) await bonusInstructions({withEvidence:true});
   showScreen(`<h1>Part B</h1><p>Each trial now has two parts.</p>
     <p>1) Move, then choose the circle you controlled (a = left, s = right) — as before.</p>
     <p>2) You then get <b>extra evidence</b> about that same trial: the same two circles, on the
     same sides, and the same one is still truly yours — but a <b>new</b> stretch of movement.
     Keep moving and watch. This second sample is as clear as the first, or <b>clearer</b>.
     It is bonus information — no response during it.</p>
-    <p>Then rate how likely it is that your <b>first</b> choice was correct.</p><p class="go">press SPACE</p>`);
+    <p>Then rate how likely it is that your <b>first</b> choice was correct. If the extra
+    evidence shows your choice was wrong, a <b>low</b> rating is what earns you the most.</p>
+    <p class="go">press SPACE</p>`);
   await waitKeys([" "]); showCanvas();
   const levels=shuffle([...Array(Math.floor(CFG.T2_N/2)).fill("low"),...Array(CFG.T2_N-Math.floor(CFG.T2_N/2)).fill("high")]);
   for(const lev of levels){
@@ -401,12 +472,14 @@ async function main(){
   // Some embeddings neither grant nor reject fullscreen — the promise just never
   // settles, which used to hang the study on this line. Race it, never block.
   try{ await Promise.race([document.documentElement.requestFullscreen(), wait(1000)]); }catch(e){}
+  FS_OK = !!document.fullscreenElement;   // only police fullscreen if we ever had it
   makeCanvas();
-  await bonusInstructions();     // once, before any rated trial; covers Task 1 AND Task 2
+  await bonusInstructions();     // the rule itself; the evidence questions come before Part B
   const order=shuffle([...CFG.ANGLES]);
   for(let b=0;b<order.length;b++){ await block(order[b], b+1); }
   const meanScore = SCORES.length ? SCORES.reduce((a,b)=>a+b,0)/SCORES.length : 0;
   META.wp3_mean_score=+meanScore.toFixed(4); META.wp3_bonus=+(CFG.BONUS*meanScore).toFixed(2);
+  META.fullscreen_exits=FS_EXITS;   // >0 means part of the session ran outside fullscreen
   await motivationCheck();
   const saveErr = await saveData();
   if(CFG.COMPLETION_URL){
