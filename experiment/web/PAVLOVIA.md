@@ -44,6 +44,15 @@ a prompt. A second account, `simonknogler`, also has stored credentials; a first
 the project was pushed there by mistake on 2026-09-24 and can be deleted from its
 dashboard. Do not push to it.
 
+Two things bite when the stored credential lapses:
+
+- **Passwords are rejected** — the prompt wants a GitLab **personal access token**
+  (Edit profile → Access Tokens, scope `write_repository`). A failed attempt makes git
+  *erase* the keychain entry, so the next push prompts again.
+- **`Error in the HTTP2 framing layer`** on push is a transport flake, not a bad
+  password. Already pinned in the Pavlovia repo with `git config http.version HTTP/1.1`
+  (and `http.postBuffer 524288000` for the 2.9 MB pool).
+
 ## One-time setup
 
 1. **Project — done (2026-09-24).** gitlab.pavlovia.org supports *push-to-create*: pushing
