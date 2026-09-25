@@ -1,0 +1,721 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Confidence in Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    color-scheme:light;
+    --bg:#f6f7f9; --surface:#fcfcfd; --panel:#eef1f5;
+    --ink:#14181d; --ink-2:#4b535d; --muted:#7c8590;
+    --grid:#e3e6ea; --axis:#c9ced4; --hair:rgba(20,24,29,.10);
+    --blue:#2a78d6; --orange:#eb6834; --aqua:#1baf7a;
+    --blue-wash:rgba(42,120,214,.10); --orange-wash:rgba(235,104,52,.10); --aqua-wash:rgba(27,175,122,.12);
+    --demo-bg:#0e0f12; --demo-ink:#eceae6; --demo-box:#22262c; --demo-muted:#8a8f98;
+    --display:"Fraunces",Georgia,"Times New Roman",serif;
+    --body:"IBM Plex Sans",-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      color-scheme:dark;
+      --bg:#0f1216; --surface:#171b21; --panel:#1d2229;
+      --ink:#f2f3f5; --ink-2:#c5cad1; --muted:#8a929c;
+      --grid:#262b32; --axis:#363c45; --hair:rgba(255,255,255,.10);
+      --blue:#3987e5; --orange:#d95926; --aqua:#199e70;
+      --blue-wash:rgba(57,135,229,.14); --orange-wash:rgba(217,89,38,.14); --aqua-wash:rgba(25,158,112,.16);
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#0f1216; --surface:#171b21; --panel:#1d2229;
+    --ink:#f2f3f5; --ink-2:#c5cad1; --muted:#8a929c;
+    --grid:#262b32; --axis:#363c45; --hair:rgba(255,255,255,.10);
+    --blue:#3987e5; --orange:#d95926; --aqua:#199e70;
+    --blue-wash:rgba(57,135,229,.14); --orange-wash:rgba(217,89,38,.14); --aqua-wash:rgba(25,158,112,.16);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.6;
+       padding-block:0 96px;-webkit-font-smoothing:antialiased}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto} *{transition:none!important;animation:none!important}}
+
+  /* ── reading column and breakouts ─────────────────────────── */
+  .col{max-width:680px;margin:0 auto;padding-inline:20px}
+  .wide{max-width:960px;margin:0 auto;padding-inline:20px}
+  .bleed{background:var(--demo-bg);color:var(--demo-ink)}
+  p{margin:0 0 1.15em}
+  a{color:inherit}
+  strong{font-weight:600}
+  h1,h2,h3{font-family:var(--display);font-weight:600;text-wrap:balance;line-height:1.15;margin:0}
+  h1{font-size:clamp(40px,7vw,64px);letter-spacing:-.015em;font-variation-settings:"opsz" 144}
+  h2{font-size:clamp(26px,4vw,34px);margin:0 0 .5em;font-variation-settings:"opsz" 60}
+  h3{font-size:20px;font-family:var(--body);font-weight:600;margin:1.4em 0 .4em}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+  .eyebrow b{color:var(--ink);font-weight:500}
+  section{padding-block:56px 8px}
+  section.bleed{padding-block:44px 40px;margin-block:24px 8px}
+  .dek{font-size:21px;line-height:1.45;color:var(--ink-2);margin:20px 0 26px;text-wrap:pretty}
+  .byline{display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:14px;color:var(--muted);font-family:var(--mono)}
+  .byline .dot{width:4px;height:4px;border-radius:50%;background:var(--muted)}
+  .lead{font-size:19px;line-height:1.55}
+  .pull{font-family:var(--display);font-size:clamp(22px,3.2vw,28px);line-height:1.3;margin:34px 0;padding-left:20px;
+        border-left:3px solid var(--aqua);color:var(--ink);font-variation-settings:"opsz" 40}
+  .pull small{display:block;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;letter-spacing:.05em}
+  .note{font-size:15px;color:var(--ink-2);border-left:2px solid var(--axis);padding:4px 0 4px 16px;margin:18px 0}
+  hr.sep{border:0;height:1px;background:var(--hair);margin:8px 0 0}
+
+  /* ── figures ───────────────────────────────────────────────── */
+  figure{margin:26px 0}
+  figcaption{font-size:14.5px;line-height:1.5;color:var(--ink-2);margin-top:12px;max-width:760px}
+  figcaption b{color:var(--ink);font-weight:600}
+  .fig-title{font-weight:600;font-size:15px;margin:0 0 2px}
+  .fig-sub{font-size:13.5px;color:var(--muted);margin:0 0 10px}
+  .plot{background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:16px 14px 10px;position:relative}
+  .plot svg{display:block;width:100%;height:auto;overflow:visible}
+  svg text{font-family:var(--body);font-size:12px;fill:var(--ink-2)}
+  svg .ax{stroke:var(--axis);stroke-width:1}
+  svg .gr{stroke:var(--grid);stroke-width:1}
+  svg .t-mut{fill:var(--muted)}
+  svg .t-ink{fill:var(--ink)}
+  svg .t-mono{font-family:var(--mono);font-size:11px;fill:var(--muted)}
+  svg .t-lab{font-size:12.5px;font-weight:600;fill:var(--ink)}
+  svg .ln{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  svg .ln-blue{stroke:var(--blue)} svg .ln-orange{stroke:var(--orange)} svg .ln-aqua{stroke:var(--aqua)}
+  svg .ln-ink{stroke:var(--ink)} svg .ln-mut{stroke:var(--axis)}
+  svg .dash{stroke-dasharray:6 5}
+  svg .thin{stroke-width:1.25;opacity:.75}
+  svg .dot-blue{fill:var(--blue);stroke:var(--surface);stroke-width:2}
+  svg .dot-orange{fill:var(--orange);stroke:var(--surface);stroke-width:2}
+  svg .dot-aqua{fill:var(--aqua);stroke:var(--surface);stroke-width:2}
+  svg .dot-ink{fill:var(--ink);stroke:var(--surface);stroke-width:2}
+  svg .dot-open{fill:var(--surface);stroke-width:2}
+  svg .bar-aqua{fill:var(--aqua)} svg .bar-ink{fill:var(--ink-2)} svg .bar-blue{fill:var(--blue)}
+  svg .wash-blue{fill:var(--blue-wash)} svg .wash-orange{fill:var(--orange-wash)} svg .wash-aqua{fill:var(--aqua-wash)}
+  svg .box{fill:none;stroke:var(--axis);stroke-width:1}
+  svg .box-ink{fill:var(--surface);stroke:var(--axis);stroke-width:1}
+  svg .arrow{stroke:var(--ink-2);stroke-width:1.5;fill:none;marker-end:url(#arr)}
+  svg .arrow-aqua{stroke:var(--aqua);stroke-width:2;fill:none;marker-end:url(#arr-aqua)}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--ink-2);margin:6px 2px 0}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .key{display:inline-block;width:22px;height:0;border-top:2px solid var(--ink)}
+  .key.blue{border-color:var(--blue)} .key.orange{border-color:var(--orange)} .key.aqua{border-color:var(--aqua)} .key.mut{border-color:var(--axis)}
+  .key.dash{border-top-style:dashed}
+  .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--ink)}
+  .swatch.aqua{background:var(--aqua)} .swatch.mut{background:var(--ink-2)}
+  .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12.5px;padding:6px 9px;border-radius:6px;
+       transform:translate(-50%,calc(-100% - 10px));white-space:nowrap;opacity:0;transition:opacity .12s}
+  .tip.on{opacity:1}
+  .tip b{font-weight:600}
+
+  /* ── controls ──────────────────────────────────────────────── */
+  .controls{display:flex;flex-wrap:wrap;gap:14px 26px;align-items:end;margin:8px 0 14px;font-size:14px}
+  .ctl{display:flex;flex-direction:column;gap:4px;min-width:150px;flex:1 1 150px}
+  .ctl label{font-size:12.5px;color:var(--muted);font-family:var(--mono);letter-spacing:.04em;text-transform:uppercase}
+  .ctl output{font-family:var(--mono);font-size:13px;color:var(--ink)}
+  input[type=range]{width:100%;accent-color:var(--blue)}
+  .seg{display:inline-flex;border:1px solid var(--axis);border-radius:8px;overflow:hidden}
+  .seg button{background:transparent;border:0;color:var(--ink-2);padding:7px 12px;font:inherit;font-size:14px;cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+  .seg button:focus-visible,.btn:focus-visible,input:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  .btn{background:var(--ink);color:var(--bg);border:0;border-radius:8px;padding:8px 14px;font:inherit;font-size:14px;cursor:pointer}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--axis)}
+  .presets{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+  .presets button{background:var(--panel);border:1px solid var(--hair);color:var(--ink);border-radius:999px;padding:6px 13px;font:inherit;font-size:13.5px;cursor:pointer}
+  .presets button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+  /* ── demo (always dark, it is the task's own screen) ───────── */
+  .demo-wrap{max-width:960px;margin:0 auto;padding-inline:20px}
+  .demo-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:baseline;margin-bottom:12px}
+  .demo-head h2{color:var(--demo-ink);margin:0}
+  .demo-head .eyebrow{color:var(--demo-muted);margin:0}
+  .demo-stage{position:relative;border-radius:12px;overflow:hidden;background:var(--demo-bg);border:1px solid #23272e}
+  canvas#cdt{display:block;width:100%;height:auto;aspect-ratio:720/420;cursor:crosshair;touch-action:none}
+  .demo-overlay{position:absolute;inset:auto 0 0 0;display:flex;justify-content:space-between;gap:10px;padding:10px 14px;
+                font-family:var(--mono);font-size:12.5px;color:var(--demo-muted);pointer-events:none}
+  .demo-overlay b{color:var(--demo-ink);font-weight:500}
+  .demo-controls{display:flex;flex-wrap:wrap;gap:14px 26px;align-items:end;margin-top:14px;color:var(--demo-ink)}
+  .demo-controls .ctl label{color:var(--demo-muted)}
+  .demo-controls .ctl output{color:var(--demo-ink)}
+  .demo-controls .seg{border-color:#3a3e46}
+  .demo-controls .seg button{color:var(--demo-muted)}
+  .demo-controls .seg button[aria-pressed="true"]{background:var(--demo-ink);color:var(--demo-bg)}
+  .demo-controls .btn.ghost{color:var(--demo-ink);border-color:#3a3e46}
+  .demo-controls input[type=range]{accent-color:var(--demo-ink)}
+  .demo-cap{color:var(--demo-muted);font-size:14.5px;line-height:1.5;margin-top:14px;max-width:760px}
+  .demo-cap b{color:var(--demo-ink);font-weight:500}
+
+  /* ── property table, tiles, strips ─────────────────────────── */
+  .props{width:100%;border-collapse:collapse;font-size:15px;margin:14px 0 6px}
+  .props th,.props td{text-align:left;padding:10px 10px;border-top:1px solid var(--hair);vertical-align:top}
+  .props th{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;border-top:0}
+  .props td:first-child{font-weight:600;white-space:nowrap}
+  .props .no{color:var(--muted)} .props .yes{color:var(--ink);font-weight:600}
+  .props .study{font-family:var(--mono);font-size:13px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:18px 0}
+  .tile{background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:14px 16px}
+  .tile .lab{font-size:13px;color:var(--muted);margin:0 0 4px}
+  .tile .val{font-size:34px;font-weight:600;line-height:1.05;margin:0}
+  .tile .val small{font-size:15px;font-weight:500;color:var(--ink-2);margin-left:4px}
+  .tile .sub{font-size:13px;color:var(--ink-2);margin:6px 0 0}
+  .tile.blue{border-top:3px solid var(--blue)} .tile.orange{border-top:3px solid var(--orange)} .tile.aqua{border-top:3px solid var(--aqua)}
+  .status{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:18px 0}
+  .status .tile ul{margin:8px 0 0;padding-left:18px;font-size:14.5px;color:var(--ink-2)}
+  .status .tile li{margin:3px 0}
+  .status .tile li.done{color:var(--ink)}
+  .status .tile li.done::marker{color:var(--aqua)}
+  .kicker{display:inline-block;font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--panel);color:var(--ink-2);margin-bottom:8px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media (max-width:720px){.two{grid-template-columns:1fr}}
+  .outcomes{width:100%;border-collapse:collapse;font-size:14.5px;margin:12px 0}
+  .outcomes th,.outcomes td{text-align:left;padding:10px;border-top:1px solid var(--hair);vertical-align:top}
+  .outcomes th{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;border-top:0}
+  .outcomes td:first-child{white-space:nowrap;font-family:var(--mono);font-size:13.5px}
+  .outcomes tr.on td{background:var(--aqua-wash)}
+  details{margin:10px 0 0;font-size:14px;color:var(--ink-2)}
+  details summary{cursor:pointer;color:var(--muted);font-family:var(--mono);font-size:12.5px}
+  details table{border-collapse:collapse;margin-top:8px;font-variant-numeric:tabular-nums}
+  details td,details th{padding:4px 10px;border-bottom:1px solid var(--hair);text-align:right}
+  details th:first-child,details td:first-child{text-align:left}
+  .eq{font-family:var(--mono);font-size:15.5px;background:var(--panel);border-radius:10px;padding:16px 18px;overflow-x:auto;line-height:1.7;margin:14px 0}
+  .eq .b{color:var(--aqua);font-weight:500} .eq .w{font-weight:500}
+  .foot{color:var(--muted);font-size:13.5px;font-family:var(--mono);margin-top:40px}
+</style>
+</head>
+<body>
+
+<!-- ─────────────────────────────── masthead ─────────────────────────────── -->
+<header class="col" style="padding-top:64px">
+  <p class="eyebrow">Project update · <b>Work packages 1 + 3</b> · September 2026</p>
+  <h1>Confidence in Control</h1>
+  <p class="dek">Two experiments, one question: is confidence about our own agency a <em>read-out</em> of the evidence — or a <em>belief</em> that expectation can bend and evidence can revise?</p>
+  <div class="byline"><span>Simon Knogler</span><span class="dot"></span><span>LMU Munich</span><span class="dot"></span><span>≈ 9 min read</span><span class="dot"></span><span>interactive — move, drag, click</span></div>
+</header>
+
+<!-- ─────────────────────────────── 1 · hook ─────────────────────────────── -->
+<section class="col">
+  <p class="eyebrow">Start here</p>
+  <p class="lead">You have driven for years. You expect the car to answer every input. Then the road ices over. Your <em>actual</em> control drops — but what happens to your <em>confidence</em> that you are in control?</p>
+  <p>One account says the experienced driver, with a precise internal model, feels the loss sharply: the prediction fails, and confidence collapses with it. Another says the strong expectation makes her overconfident — the belief outlives the control. A learner on the same road, with no model to lean on, watches what the car does and updates as she goes.</p>
+  <p>That scene is the whole project. A judgment of one's own control draws on a sensorimotor signal — but also on what we <strong>expected beforehand</strong> and what we <strong>learn afterwards</strong>. We ask how open such judgments are to that extra information, and whether it depends on <em>where the control signal comes from</em>. And we ask it about confidence specifically, for a reason that will matter later: confidence is the one variable we can hold to a standard.</p>
+</section>
+
+<!-- ─────────────────────────────── 2 · the task (demo) ─────────────────────── -->
+<section class="bleed">
+  <div class="demo-wrap">
+    <div class="demo-head">
+      <div><p class="eyebrow">The instrument · same task in both studies</p><h2>Which circle is yours?</h2></div>
+      <span style="font-family:var(--mono);font-size:12.5px;color:var(--demo-muted)">move the mouse over the screen · click a circle to answer · or press <b>a</b> / <b>s</b></span>
+    </div>
+    <div class="demo-stage">
+      <canvas id="cdt" width="720" height="420" aria-label="Control detection task demo: two circles, one partly follows your mouse"></canvas>
+      <div class="demo-overlay"><span id="demo-msg">move the mouse to start</span><span id="demo-score">trials <b>0</b> · correct <b>0</b></span></div>
+    </div>
+    <div class="demo-controls">
+      <div class="ctl"><label for="prop">your control · prop</label><input type="range" id="prop" min="0" max="100" value="60"><output id="prop-out">0.60</output></div>
+      <div class="ctl" style="flex:0 0 auto"><label>mapping</label><div class="seg" role="group" aria-label="mapping"><button type="button" id="ang0" aria-pressed="true">0° direct</button><button type="button" id="ang90" aria-pressed="false">90° rotated</button></div></div>
+      <div class="ctl" style="flex:0 0 auto"><label>&nbsp;</label><button type="button" class="btn ghost" id="newtrial">New trial</button></div>
+    </div>
+    <p class="demo-cap"><b>Two identical circles.</b> One blends your mouse with a pre-recorded trajectory in proportion <em>prop</em>; the other is pure replay, speed-matched to your hand so that only <em>direction</em> can give it away. In the study a staircase tunes prop until you are right 70.7 % of the time — genuinely uncertain, on purpose. Try 0.3, then switch to 90°: the rotation is where the second study's manipulation lives. <span style="opacity:.75">(Demo: synthetic trajectories, same motion engine. The studies draw from 1,600 recorded ones.)</span></p>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 3 · the lever ─────────────────────────── -->
+<section class="col">
+  <p class="eyebrow">The lever · two sources of the control signal</p>
+  <h2>Same accuracy, different computation</h2>
+  <p>At <strong>0°</strong> the cursor moves as your hand moves. A forward model predicts the outcome, and the match between prediction and feedback <em>is</em> the signal. At <strong>90°</strong> the mapping is rotated: the prediction fails, and you find your circle by detecting which one's motion <em>correlates</em> with yours over time.</p>
+</section>
+<figure class="wide">
+  <div class="plot">
+    <svg viewBox="0 0 900 250" role="img" aria-label="Two routes from hand movement to a control signal: at 0 degrees a forward model predicts feedback and the match is the signal; at 90 degrees the prediction fails and control is inferred from correlation over time. A staircase equates accuracy across both.">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor" style="fill:var(--ink-2)"/></marker>
+        <marker id="arr-aqua" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--aqua)"/></marker>
+      </defs>
+      <!-- 0 deg lane -->
+      <rect x="20" y="24" width="860" height="92" rx="10" class="wash-blue"/>
+      <text x="36" y="48" class="t-lab">0° · prediction-based</text>
+      <rect x="36" y="60" width="118" height="40" rx="7" class="box-ink"/><text x="95" y="85" text-anchor="middle" class="t-ink">hand moves</text>
+      <path d="M156 80 L214 80" class="arrow"/>
+      <rect x="216" y="60" width="150" height="40" rx="7" class="box-ink"/><text x="291" y="85" text-anchor="middle" class="t-ink">forward model</text>
+      <path d="M368 80 L426 80" class="arrow"/><text x="397" y="72" text-anchor="middle" class="t-mono">predicts</text>
+      <rect x="428" y="60" width="150" height="40" rx="7" class="box-ink"/><text x="503" y="85" text-anchor="middle" class="t-ink">feedback matches</text>
+      <path d="M580 80 L638 80" class="arrow"/>
+      <rect x="640" y="60" width="224" height="40" rx="7" style="fill:var(--blue)"/><text x="752" y="85" text-anchor="middle" style="fill:#fff;font-weight:600">control signal · high precision</text>
+      <!-- 90 deg lane -->
+      <rect x="20" y="132" width="860" height="92" rx="10" class="wash-orange"/>
+      <text x="36" y="156" class="t-lab">90° · regularity-based</text>
+      <rect x="36" y="168" width="118" height="40" rx="7" class="box-ink"/><text x="95" y="193" text-anchor="middle" class="t-ink">hand moves</text>
+      <path d="M156 188 L214 188" class="arrow"/><text x="185" y="180" text-anchor="middle" class="t-mono">rotated</text>
+      <rect x="216" y="168" width="150" height="40" rx="7" class="box-ink"/><text x="291" y="193" text-anchor="middle" class="t-ink">prediction fails</text>
+      <path d="M368 188 L426 188" class="arrow"/>
+      <rect x="428" y="168" width="150" height="40" rx="7" class="box-ink"/><text x="503" y="193" text-anchor="middle" class="t-ink">correlate over time</text>
+      <path d="M580 188 L638 188" class="arrow"/>
+      <rect x="640" y="168" width="224" height="40" rx="7" style="fill:var(--orange)"/><text x="752" y="193" text-anchor="middle" style="fill:#fff;font-weight:600">control signal · inferred</text>
+      <!-- staircase brace -->
+      <path d="M640 118 L640 128 M864 118 L864 128 M640 123 L864 123" class="ax"/>
+      <text x="752" y="242" text-anchor="middle" class="t-mono">staircase holds accuracy at 70.7 % in both → the two differ in how, not how well</text>
+    </svg>
+  </div>
+  <figcaption><b>Wen Wen's dual-mode distinction, used as an instrument.</b> It lets us vary the <em>precision of the internal signal</em> without varying difficulty. Everything that follows is a comparison between these two lanes.</figcaption>
+</figure>
+
+<!-- ─────────────────────────────── 4 · the question ─────────────────────── -->
+<section class="col">
+  <p class="eyebrow">What we are after</p>
+  <h2>Read-out, or belief?</h2>
+  <p>On the classical view, confidence is a <strong>read-out</strong>: a function of the evidence at the moment you decide, and nothing else. On the newer <em>expected-precision</em> view it is a <strong>belief</strong> — it incorporates what you expected, and it can be revised by what arrives afterwards. Three properties separate the two, and our two experiments test one each:</p>
+  <table class="props">
+    <thead><tr><th>Property</th><th>Read-out predicts</th><th>Belief predicts</th><th>Tested by</th></tr></thead>
+    <tbody>
+      <tr><td>Sensitivity<br><span style="font-weight:400;color:var(--ink-2);white-space:normal">does confidence track accuracy?</span></td><td>yes</td><td>yes</td><td class="study">both — meta-d′ · not diagnostic</td></tr>
+      <tr><td>Bias<br><span style="font-weight:400;color:var(--ink-2);white-space:normal">shifted by expectation, accuracy fixed?</span></td><td class="no">no</td><td class="yes">yes</td><td class="study">Study 1 · before the decision</td></tr>
+      <tr><td>Revision<br><span style="font-weight:400;color:var(--ink-2);white-space:normal">updated by later evidence — and symmetrically?</span></td><td class="no">no — it is finished at the decision</td><td class="yes">yes</td><td class="study">Study 2 · after the decision</td></tr>
+    </tbody>
+  </table>
+  <p class="pull">Agency ratings can be shifted. Confidence can be <em>wrong</em>.<small>Sensitivity has a benchmark (meta-d′), bias has one (accuracy), revision has one (Bayes). That is why the paper is about confidence.</small></p>
+</section>
+
+<!-- ─────────────────────────────── 5 · study 1 ───────────────────────────── -->
+<section class="col">
+  <p class="eyebrow">Study 1 · before the decision · <b>work package 1</b> · lab</p>
+  <h2>Feed in an expectation</h2>
+  <p>Participants first learn that a colour predicts how much control they will have. Then, on the trials that matter, the colours keep coming but control is quietly held at each person's own medium. Does the expectation move the judgment when the evidence hasn't changed?</p>
+</section>
+<figure class="wide">
+  <div class="plot">
+    <svg viewBox="0 0 900 150" role="img" aria-label="Study 1 trial flow: calibrate with a staircase, learn colour cues that predict high or low control, then test with cues shown but control held at medium; rate agency and confidence.">
+      <rect x="20" y="30" width="250" height="64" rx="8" class="box"/><text x="145" y="56" text-anchor="middle" class="t-lab">Calibrate</text><text x="145" y="76" text-anchor="middle">staircase → medium, per angle</text>
+      <path d="M272 62 L318 62" class="arrow"/>
+      <rect x="320" y="30" width="250" height="64" rx="8" class="box"/><text x="445" y="56" text-anchor="middle" class="t-lab">Learn</text><text x="445" y="76" text-anchor="middle">colour cue → high / low control</text>
+      <path d="M572 62 L618 62" class="arrow"/>
+      <rect x="620" y="30" width="260" height="64" rx="8" class="box"/><text x="750" y="56" text-anchor="middle" class="t-lab">Test</text><text x="750" y="76" text-anchor="middle">cue shown · control held at medium</text>
+      <text x="750" y="122" text-anchor="middle" class="t-mono">rate: which circle · how much control · how confident</text>
+      <text x="145" y="122" text-anchor="middle" class="t-mono">0° and 90° in separate blocks, order counterbalanced</text>
+    </svg>
+  </div>
+</figure>
+<figure class="wide">
+  <div class="fig-title">The cue moves the judgment only under the rotated mapping</div>
+  <div class="fig-sub">Cue effect (high-cue − low-cue) on medium trials, per participant. Preliminary: n = 8 with per-person data; the n = 11–12 group figures show the same shape.</div>
+  <div class="controls" style="margin-top:0">
+    <div class="ctl" style="flex:0 0 auto"><label>measure</label><div class="seg" role="group" aria-label="measure"><button type="button" id="m-conf" aria-pressed="true">Confidence</button><button type="button" id="m-ag" aria-pressed="false">Agency</button></div></div>
+  </div>
+  <div class="plot" id="wp1-plot"><div class="tip" id="wp1-tip"></div></div>
+  <div class="legend"><span><i class="swatch" style="background:var(--blue)"></i>0° direct</span><span><i class="swatch" style="background:var(--orange)"></i>90° rotated</span><span><i class="key mut"></i>one participant</span><span><i class="swatch"></i>group mean</span></div>
+  <figcaption><b>Under 90°, expectation shifts confidence and felt agency alike; under 0°, nothing moves.</b> Five of eight participants show the interaction on confidence; two (P2, P4) carry much of it — which is exactly why the full sample of 30–50 is being collected before this sentence goes in a paper.</figcaption>
+  <details><summary>data table</summary><table id="wp1-table"></table></details>
+</figure>
+<section class="col" style="padding-top:0">
+  <div class="tiles">
+    <div class="tile blue"><p class="lab">Metacognitive sensitivity · 0°</p><p class="val">.66</p><p class="sub">type-2 AUROC, n = 11–12</p></div>
+    <div class="tile orange"><p class="lab">Metacognitive sensitivity · 90°</p><p class="val">.68</p><p class="sub">no difference between mappings</p></div>
+    <div class="tile"><p class="lab">Learned the cue</p><p class="val">12<small>of 12</small></p><p class="sub">acc(high-cue) − acc(low-cue) > .10 in learning</p></div>
+  </div>
+  <p><strong>Read together:</strong> the read-out is equally <em>good</em> in both lanes — people discriminate their own hits from misses just as well at 90°. What differs is what the judgment <em>admits</em>. Under prediction it ignores the prior; under inference it lets the prior in. Malleable where the model is missing, stable where it holds.</p>
+</section>
+
+<!-- ─────────────────────────────── 6 · study 2 ───────────────────────────── -->
+<section class="col">
+  <p class="eyebrow">Study 2 · after the decision · <b>work package 3</b> · online, N = 150</p>
+  <h2>Feed in evidence — after they've committed</h2>
+  <p>Now the expectation manipulation is gone. Instead, on half the trials, <em>more evidence arrives after the choice has been made</em>: the same two circles, same sides, same truth — a fresh stretch of movement, as clear as the first or clearer. It always points to the truth, so it confirms the people who were right and contradicts the people who were wrong. Then they rate how likely their <em>first</em> choice was correct.</p>
+</section>
+<figure class="wide">
+  <div class="plot">
+    <svg viewBox="0 0 900 220" role="img" aria-label="Study 2 trial flows. Task 1: move 3 seconds, choose, rate confidence 1 to 9. Task 2: move 3 seconds, choose, then extra evidence for 3 seconds with the same circles on the same sides, then rate. Extra evidence is either the same strength or stronger.">
+      <text x="20" y="34" class="t-lab">Task 1 · level 0</text>
+      <rect x="20" y="46" width="150" height="46" rx="8" class="box"/><text x="95" y="74" text-anchor="middle" class="t-ink">move · 3 s</text>
+      <path d="M172 69 L206 69" class="arrow"/>
+      <rect x="208" y="46" width="150" height="46" rx="8" class="box"/><text x="283" y="74" text-anchor="middle" class="t-ink">choose a / s</text>
+      <path d="M360 69 L394 69" class="arrow"/>
+      <rect x="396" y="46" width="170" height="46" rx="8" class="box"/><text x="481" y="74" text-anchor="middle" class="t-ink">rate 1 – 9</text>
+      <text x="20" y="134" class="t-lab">Task 2 · levels 1 and 2</text>
+      <rect x="20" y="146" width="150" height="46" rx="8" class="box"/><text x="95" y="174" text-anchor="middle" class="t-ink">move · 3 s</text>
+      <path d="M172 169 L206 169" class="arrow"/>
+      <rect x="208" y="146" width="150" height="46" rx="8" class="box"/><text x="283" y="174" text-anchor="middle" class="t-ink">choose a / s</text>
+      <path d="M360 169 L394 169" class="arrow-aqua"/>
+      <rect x="396" y="146" width="230" height="46" rx="8" style="fill:var(--aqua-wash);stroke:var(--aqua);stroke-width:1.5"/><text x="511" y="166" text-anchor="middle" class="t-ink" style="font-weight:600">extra evidence · 3 s</text><text x="511" y="184" text-anchor="middle" class="t-mono">same sides · same truth · no response</text>
+      <path d="M628 169 L662 169" class="arrow-aqua"/>
+      <rect x="664" y="146" width="170" height="46" rx="8" class="box"/><text x="749" y="174" text-anchor="middle" class="t-ink">rate 1 – 9</text>
+      <text x="511" y="210" text-anchor="middle" class="t-mono">low = same strength as the decision · high = +1.2 logit stronger</text>
+      <text x="749" y="112" text-anchor="middle" class="t-mono">1 = 0 % · 5 = 50 % · 9 = 100 % correct</text>
+      <text x="749" y="34" text-anchor="end" class="t-mono">quadratic scoring rule · one payout at the end</text>
+    </svg>
+  </div>
+  <figcaption><b>Adapted from Rollwage, Dolan &amp; Fleming (2018).</b> Ratings are elicited as a probability of being correct and paid with a proper scoring rule — the standard device for eliciting an honest degree of belief, which is what licenses the word <em>belief</em> above. 290 decision trials, ~50 minutes, both mappings, order counterbalanced.</figcaption>
+</figure>
+
+<section class="col">
+  <h3>What the template looks like — and what we predict</h3>
+  <p>In Rollwage's data everyone drops when shown they were wrong; confirming evidence barely moves the (already high) confidence on correct trials. The interesting part is not the drop, it is <em>how much</em> — and whether that depends on where the control signal came from. Drag the weights to see the hypotheses as data patterns.</p>
+</section>
+<figure class="wide">
+  <div class="two">
+    <div>
+      <div class="fig-title">The template · Rollwage et al. 2018</div>
+      <div class="fig-sub">Mean confidence by evidence level, read from their Fig. 4B (moderates)</div>
+      <div class="plot" id="roll-plot"></div>
+      <div class="legend"><span><i class="key"></i>correct → confirming</span><span><i class="key dash"></i>incorrect → disconfirming</span></div>
+    </div>
+    <div>
+      <div class="fig-title">Our prediction · drag the weights</div>
+      <div class="fig-sub">w = how much of the new evidence gets used; 1 = ideal observer. b = commitment to the choice.</div>
+      <div class="presets" role="group" aria-label="presets">
+        <button type="button" data-preset="seal" aria-pressed="true">Self-sealing at 0°</button>
+        <button type="button" data-preset="bayes" aria-pressed="false">Evidence-led at 0°</button>
+        <button type="button" data-preset="none" aria-pressed="false">No mode difference</button>
+      </div>
+      <div class="controls" style="margin:0 0 8px">
+        <div class="ctl"><label for="wd0">w<sub>d</sub> · 0°</label><input type="range" id="wd0" min="0" max="150" value="60"><output id="wd0-out">0.60</output></div>
+        <div class="ctl"><label for="wd90">w<sub>d</sub> · 90°</label><input type="range" id="wd90" min="0" max="150" value="100"><output id="wd90-out">1.00</output></div>
+        <div class="ctl"><label for="bch">b · commitment</label><input type="range" id="bch" min="0" max="100" value="40"><output id="bch-out">0.40</output></div>
+      </div>
+    </div>
+  </div>
+  <div class="two" style="margin-top:14px">
+    <div><div class="fig-sub" style="margin:0 0 6px"><i class="swatch" style="background:var(--blue);vertical-align:-1px"></i>&nbsp; 0° · prediction-based</div><div class="plot" id="hyp0"></div></div>
+    <div><div class="fig-sub" style="margin:0 0 6px"><i class="swatch" style="background:var(--orange);vertical-align:-1px"></i>&nbsp; 90° · regularity-based</div><div class="plot" id="hyp90"></div></div>
+  </div>
+  <div class="legend"><span><i class="key blue"></i>correct (confirming)</span><span><i class="key blue dash"></i>incorrect (disconfirming)</span><span><i class="key mut"></i>ideal observer, w = 1 · b = 0</span></div>
+  <figcaption id="hyp-cap"></figcaption>
+  <table class="outcomes" id="outcomes">
+    <thead><tr><th>If w<sub>d</sub> at 0° is…</th><th>Combined with Study 1, the story reads</th></tr></thead>
+    <tbody>
+      <tr data-o="seal"><td>lower than at 90°</td><td>Under prediction, confidence admits neither the prior <em>nor</em> the counter-evidence — an <strong>encapsulated</strong> belief. Under inference it is open to both.</td></tr>
+      <tr data-o="bayes"><td>higher than at 90°</td><td>Signal precision sets the prior–evidence balance: a precise signal makes confidence evidence-led, an imprecise one expectation-led. The cleanest Bayesian result.</td></tr>
+      <tr data-o="none"><td>the same</td><td>The mode governs what confidence <em>admits</em>, not how it is <em>revised</em>. Bias and revision dissociate.</td></tr>
+    </tbody>
+  </table>
+  <p class="note">The primary hypothesis is <strong>H2</strong>: w<sub>d</sub> differs between 0° and 90°. <strong>H1</strong> — disconfirming evidence is under-weighted (w<sub>d</sub> &lt; 1) — is the Rollwage replication. The delusional-ideation (PDI) correlation from the proposal is dropped from the confirmatory set: Rollwage's own effects (r ≈ .10–.17) need N ≈ 400+, which is not on the table.</p>
+</figure>
+
+<!-- ─────────────────────────────── 7 · measurement ───────────────────────── -->
+<section class="col">
+  <p class="eyebrow">How we measure it</p>
+  <h2>One line per rating</h2>
+  <p>Every Task-2 rating is fitted as a log-odds line. The baseline comes from Task 1 (separately for hits and misses). Then a commitment term, then the new evidence — converted to a log-likelihood ratio through each person's own psychometric function — weighted by <em>w</em>:</p>
+  <div class="eq">rating = 1 + 8 · σ( L<sub>0</sub> + <span class="b">b</span> + <span class="w">w<sub>c</sub></span> · e )&nbsp;&nbsp;&nbsp;&nbsp;on correct trials<br>rating = 1 + 8 · σ( L<sub>0</sub> + <span class="b">b</span> − <span class="w">w<sub>d</sub></span> · e )&nbsp;&nbsp;&nbsp;&nbsp;on incorrect trials<br><span style="color:var(--muted)">ideal observer: w<sub>c</sub> = w<sub>d</sub> = 1, b = 0 · fitted per person × mapping by censored-Gaussian ML · compared by BIC</span></div>
+  <p><strong>Why w<sub>d</sub> and not the raw slopes?</strong> Correct trials start near the top of the scale, so their slope is compressed by the ceiling — on simulated data the raw confirm-vs-disconfirm index comes out with the <em>wrong sign</em>. Incorrect trials start mid-scale and have room to move. w<sub>d</sub> is the well-identified quantity; the 0° vs 90° contrast on it is the primary test.</p>
+  <p><strong>Why b matters.</strong> Rollwage's model comparison put the individual-difference signal in <em>commitment</em>, not in the weights. We pushed that truth through our own pipeline — a mode difference in b only, w<sub>d</sub> identical:</p>
+</section>
+<figure class="wide">
+  <div class="two">
+    <div class="plot" id="fpr-plot"></div>
+    <div>
+      <div class="fig-title">A model without b invents the effect</div>
+      <p style="font-size:15px;color:var(--ink-2);margin:6px 0 0">False-positive rate for the mode contrast on w<sub>d</sub> at N = 150 when the true difference is entirely in commitment. The model with b stays at the nominal rate; the model without it reports a w<sub>d</sub> effect four times in five — and inflates real effects by 25–50 %. <strong>The preregistered primary test uses the model with b.</strong></p>
+    </div>
+  </div>
+</figure>
+
+<!-- ─────────────────────────────── 8 · power ─────────────────────────────── -->
+<section class="col">
+  <p class="eyebrow">Can we detect it?</p>
+  <h2>N is capped at 150 — so we asked the question backwards</h2>
+  <p>Instead of "how many people for effect X", we simulated 6,600 participants through the <em>complete</em> pipeline — staircase, psychometric fit, exclusions, the actual fitter — and asked what the smallest detectable effect is at the N we can afford.</p>
+</section>
+<figure class="wide">
+  <div class="two">
+    <div>
+      <div class="fig-title">Power at N recruited, by true reduction in w<sub>d</sub> under the predictive mapping</div>
+      <div class="fig-sub">Normal approximation to the Monte Carlo (paired SD 0.87, 85 % of recruits usable). Simulated checkpoints: 18 % → .80, 26 % → .97.</div>
+      <div class="plot" id="pow-plot"></div>
+    </div>
+    <div>
+      <div class="controls" style="margin-top:4px">
+        <div class="ctl"><label for="eff">true reduction in w<sub>d</sub> at 0°</label><input type="range" id="eff" min="0" max="40" value="20"><output id="eff-out">20 %</output></div>
+        <div class="ctl"><label for="nrec">participants recruited</label><input type="range" id="nrec" min="80" max="220" value="150" step="5"><output id="nrec-out">150</output></div>
+      </div>
+      <div class="tiles" style="margin-top:8px">
+        <div class="tile aqua"><p class="lab">Power · normal approximation</p><p class="val" id="pow-val">.80</p><p class="sub" id="pow-sub">127 usable pairs · two-sided α = .05</p></div>
+        <div class="tile"><p class="lab">Smallest detectable at 80 % · simulated</p><p class="val">20<small>%</small></p><p class="sub">Rollwage's radicals vs. moderates ≈ 30 %</p></div>
+      </div>
+    </div>
+  </div>
+  <figcaption><b>Feasible for a medium-or-larger effect; not for a small one.</b> Measurement noise, not N, is the ceiling: the per-person estimate of w<sub>d</sub> has SD 0.57, which is 0.81 of the 0.87 paired SD — true between-person variation is only 0.30. Going from 150 to 200 participants buys 3 points of power; halving rating noise buys 26. That is what the scoring rule is for.</figcaption>
+</figure>
+<section class="col" style="padding-top:0">
+  <div class="tiles">
+    <div class="tile"><p class="lab">Session</p><p class="val">50<small>min</small></p><p class="sub">290 decision trials + 120 evidence samples</p></div>
+    <div class="tile"><p class="lab">Prolific at £6 / h · 175 recruited</p><p class="val">£1.4<small>k</small></p><p class="sub">£2.0k at the recommended £9 / h · incl. 33 % fee, bonus, Pavlovia</p></div>
+    <div class="tile"><p class="lab">Usable pairs from 150</p><p class="val">≈127</p><p class="sub">13 % attrition + preregistered exclusions</p></div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 9 · one paper ─────────────────────────── -->
+<section class="col">
+  <p class="eyebrow">One paper · the bundle</p>
+  <h2>Before and after the decision</h2>
+  <p>Both studies use the same instrument, the same two signal sources, and the same dependent variable. Study 1 feeds information in <em>before</em> the judgment; Study 2 <em>after</em>. Together they ask a single question — how open is confidence about control to anything beyond the immediate signal — and answer it as three properties in one table.</p>
+</section>
+<figure class="wide">
+  <div class="plot">
+    <svg viewBox="0 0 900 280" role="img" aria-label="Timeline of one control judgment: expectation before, the sensorimotor signal during, evidence after. Study 1 tests the arrow from expectation into the judgment; Study 2 tests the arrow from post-decision evidence into the revised judgment. Both run under the 0 and 90 degree mappings.">
+      <!-- spine -->
+      <path d="M60 150 L840 150" class="ax"/>
+      <!-- expectation -->
+      <rect x="60" y="60" width="200" height="54" rx="9" class="box-ink"/><text x="160" y="83" text-anchor="middle" class="t-lab">expectation</text><text x="160" y="101" text-anchor="middle" class="t-mono">learned cue · Study 1</text>
+      <path d="M160 116 L160 140" class="arrow"/>
+      <!-- signal -->
+      <rect x="350" y="122" width="200" height="56" rx="9" style="fill:var(--ink)"/><text x="450" y="146" text-anchor="middle" style="fill:var(--bg);font-weight:600">the judgment</text><text x="450" y="164" text-anchor="middle" style="fill:var(--bg);font-family:var(--mono);font-size:11px">which circle · how confident</text>
+      <rect x="350" y="200" width="200" height="46" rx="9" class="box-ink"/><text x="450" y="220" text-anchor="middle" class="t-lab">sensorimotor signal</text><text x="450" y="236" text-anchor="middle" class="t-mono">0° prediction · 90° regularity</text>
+      <path d="M450 198 L450 182" class="arrow"/>
+      <!-- evidence -->
+      <rect x="640" y="60" width="200" height="54" rx="9" style="fill:var(--aqua-wash);stroke:var(--aqua);stroke-width:1.5"/><text x="740" y="83" text-anchor="middle" class="t-lab">post-decision evidence</text><text x="740" y="101" text-anchor="middle" class="t-mono">fresh sample · Study 2</text>
+      <path d="M740 116 L740 140" class="arrow-aqua"/>
+      <!-- horizontal arrows on the spine -->
+      <path d="M262 150 L346 150" class="arrow"/><text x="304" y="140" text-anchor="middle" class="t-mono">does it get in?</text>
+      <path d="M552 150 L636 150" class="arrow-aqua"/><text x="594" y="140" text-anchor="middle" class="t-mono">does it revise?</text>
+      <!-- labels -->
+      <text x="160" y="40" text-anchor="middle" class="t-mut">before</text>
+      <text x="450" y="40" text-anchor="middle" class="t-mut">during</text>
+      <text x="740" y="40" text-anchor="middle" class="t-mut">after</text>
+      <text x="450" y="270" text-anchor="middle" class="t-mono">the two mappings run through the entire timeline — every arrow is tested under both</text>
+    </svg>
+  </div>
+  <figcaption><b>Working title: <em>Confidence in control: read-out, bias and revision across two sources of the agency signal.</em></b> The results table has three rows — sensitivity (equal, replicated in both studies at N ≈ 150), bias (mode-dependent, Study 1), revision (Study 2) — and the last sentence of the abstract is chosen by the outcome table above. Every version is a paper; only one of them is a null.</figcaption>
+</figure>
+
+<!-- ─────────────────────────────── 10 · status ───────────────────────────── -->
+<section class="col">
+  <p class="eyebrow">Where we are</p>
+  <h2>Built, verified, piloted — preregistration next</h2>
+  <div class="status">
+    <div class="tile blue"><span class="kicker">Study 1 · WP1</span><p class="val" style="font-size:26px">collecting</p><ul><li class="done">paradigm final, pipeline + diagnostics gate built</li><li class="done">n = 12 in; pattern above</li><li>full sample 30–50 over the coming months</li></ul></div>
+    <div class="tile aqua"><span class="kicker">Study 2 · WP3</span><p class="val" style="font-size:26px">ready to pilot</p><ul><li class="done">lab (PsychoPy) and online (JS) versions, same engine, bot-verified</li><li class="done">live on Pavlovia; first human run 24 Sept, bugs fixed</li><li class="done">3 s fixed evidence window; scoring rule; evidence marker</li><li>consent / demographics screens; 5-person pilot</li></ul></div>
+    <div class="tile"><span class="kicker">Decisions made</span><p class="val" style="font-size:26px">this week</p><ul><li class="done">N = 150; PDI moved to exploratory</li><li class="done">primary test on the model with b; MDE 20 % preregistered</li><li class="done">bootstrap null for a small estimator bias</li><li>evidence boost 1.2 vs 0.8 — power-equivalent, your call</li></ul></div>
+  </div>
+  <p>Then: preregistration, Prolific, and the first real look at whether a belief about one's own control is one that the world can change.</p>
+  <p class="foot">Sources: WP1 diagnostics + behavioural analysis (metasoa, 15 Sept 2026) · WP3 design doc §1–10h · power_wp3.py (24 Sept 2026) · Rollwage, Dolan &amp; Fleming, Curr Biol 2018.</p>
+</section>
+
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s);
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const sig=x=>1/(1+Math.exp(-x)), logit=p=>Math.log(p/(1-p));
+const fmt=(x,d)=>x.toFixed(d);
+
+/* ═══════════════════════════ 1. the task demo (compact port of engine.js) ═══════════════════════════ */
+(function demo(){
+  const cv=$("#cdt"), ctx=cv.getContext("2d"); const W=720,H=420,cx=W/2,cy=H/2;
+  const LP=.5, MAXS=20, OFF=170, BHW=115, BHH=140;
+  let prop=.6, angle=0, applied=0, trials=0, correct=0;
+  const rotate=(x,y,deg)=>{const a=deg*Math.PI/180;return [x*Math.cos(a)-y*Math.sin(a), x*Math.sin(a)+y*Math.cos(a)];};
+  const hyp=(x,y)=>Math.hypot(x,y);
+  const confine=(p,c)=>[Math.min(Math.max(p[0],c-BHW),c+BHW), Math.min(Math.max(p[1],-BHH),BHH)];
+  // synthetic snippet: unit directions from a random-walk heading (the studies use recorded trajectories)
+  function snippet(n){const out=[];let h=Math.random()*Math.PI*2;for(let i=0;i<n;i++){h+=(Math.random()-.5)*.5;out.push([Math.cos(h),Math.sin(h)]);}return out;}
+  let st=null, mouse={x:0,y:0,moved:false}, answered=false, revealT=0;
+  function newTrial(){
+    applied = angle===90 ? (Math.random()<.5?90:-90) : 0;
+    const left = Math.random()<.5?"A":"B";           // A/B are internal labels; the participant only sees left/right
+    const target = Math.random()<.5?"A":"B";
+    st={ti:snippet(2000),di:snippet(2000),f:0,last:null,magLp:0,vt:[0,0],vd:[0,0],
+        target, left, aCx:left==="A"?-OFF:OFF, bCx:left==="A"?OFF:-OFF};
+    st.aPos=[st.aCx,0]; st.bPos=[st.bCx,0]; answered=false; mouse.moved=false; st.started=false;
+    $("#demo-msg").textContent="move the mouse to start";
+  }
+  function step(mx,my){
+    if(st.last===null) st.last=[mx,my];
+    let dx=mx-st.last[0], dy=my-st.last[1]; st.last=[mx,my];
+    [dx,dy]=rotate(dx,dy,applied);
+    const t0=st.ti[st.f%st.ti.length], d0=st.di[st.f%st.di.length]; st.f++;
+    let magM=hyp(dx,dy); if(magM>MAXS){dx*=MAXS/magM;dy*=MAXS/magM;magM=MAXS;}
+    st.magLp = st.f===1 ? magM : .5*st.magLp+.5*magM;
+    const tdir=[t0[0]*st.magLp,t0[1]*st.magLp], ddir=[d0[0]*st.magLp,d0[1]*st.magLp];
+    const tdx=prop*dx+(1-prop)*tdir[0], tdy=prop*dy+(1-prop)*tdir[1];
+    st.vt=[LP*st.vt[0]+(1-LP)*tdx, LP*st.vt[1]+(1-LP)*tdy];
+    st.vd=[LP*st.vd[0]+(1-LP)*ddir[0], LP*st.vd[1]+(1-LP)*ddir[1]];
+    const nt=hyp(...st.vt), nd=hyp(...st.vd);
+    if(nt>1e-9) st.vt=[st.vt[0]/nt*st.magLp, st.vt[1]/nt*st.magLp];
+    if(nd>1e-9) st.vd=[st.vd[0]/nd*st.magLp, st.vd[1]/nd*st.magLp];
+    const [aV,bV]= st.target==="A" ? [st.vt,st.vd] : [st.vd,st.vt];
+    st.aPos=confine([st.aPos[0]+aV[0], st.aPos[1]+aV[1]], st.aCx);
+    st.bPos=confine([st.bPos[0]+bV[0], st.bPos[1]+bV[1]], st.bCx);
+  }
+  const P=p=>[cx+p[0], cy-p[1]];
+  function draw(){
+    ctx.fillStyle=css("--demo-bg")||"#0e0f12"; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle="#22262c"; ctx.lineWidth=1;
+    for(const bx of [st.aCx,st.bCx]){const [x,y]=P([bx-BHW,BHH]); ctx.strokeRect(x,y,BHW*2,BHH*2);}
+    const targetPos = st.target==="A"?st.aPos:st.bPos;
+    for(const p of [st.aPos,st.bPos]){const [x,y]=P(p); ctx.fillStyle="#eceae6"; ctx.beginPath(); ctx.arc(x,y,16,0,Math.PI*2); ctx.fill();}
+    if(answered){ // reveal: ring the true target in blue
+      const [x,y]=P(targetPos); ctx.strokeStyle=css("--blue")||"#3987e5"; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(x,y,24,0,Math.PI*2); ctx.stroke();
+      ctx.fillStyle="#8a8f98"; ctx.font="500 13px 'IBM Plex Mono', monospace"; ctx.textAlign="center"; ctx.fillText("blue ring = the one you controlled", cx, 28);
+    } else if(!st.started){
+      ctx.fillStyle="#8a8f98"; ctx.font="300 64px 'IBM Plex Sans', system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("+",cx,cy); ctx.textBaseline="alphabetic";
+    }
+    if(applied!==0){ctx.fillStyle="#8a8f98"; ctx.font="500 12px 'IBM Plex Mono', monospace"; ctx.textAlign="right"; ctx.fillText(`mapping rotated ${applied>0?"+":"−"}90°`, W-14, 24);}
+  }
+  function frame(){
+    if(!answered){
+      if(!st.started && mouse.moved){st.started=true; $("#demo-msg").textContent="which one is yours? click it (or a / s)";}
+      if(st.started) step(mouse.x,mouse.y);
+    }
+    draw(); requestAnimationFrame(frame);
+  }
+  function answer(side){ // "left" | "right"
+    if(answered||!st.started) return;
+    const trueSide = (st.target===st.left) ? "left" : "right";
+    const ok = side===trueSide; trials++; if(ok) correct++;
+    answered=true; $("#demo-msg").textContent = ok ? "right — that one was yours" : `wrong — yours was the ${trueSide} one`;
+    $("#demo-score").innerHTML=`trials <b>${trials}</b> · correct <b>${correct}</b>`;
+    setTimeout(newTrial, 1600);
+  }
+  function toCanvas(e){const r=cv.getBoundingClientRect(); const sx=W/r.width, sy=H/r.height; return [(e.clientX-r.left)*sx-cx, -((e.clientY-r.top)*sy-cy)];}
+  cv.addEventListener("pointermove",e=>{[mouse.x,mouse.y]=toCanvas(e); mouse.moved=true;});
+  cv.addEventListener("pointerdown",e=>{const [x]=toCanvas(e); answer(x<0?"left":"right");});
+  window.addEventListener("keydown",e=>{ if(document.activeElement && /INPUT|BUTTON/.test(document.activeElement.tagName)) return;
+    const k=e.key.toLowerCase(); if(k==="a") answer("left"); if(k==="s") answer("right"); });
+  $("#prop").addEventListener("input",e=>{prop=+e.target.value/100; $("#prop-out").value=fmt(prop,2);});
+  $("#ang0").addEventListener("click",()=>{angle=0; $("#ang0").setAttribute("aria-pressed","true"); $("#ang90").setAttribute("aria-pressed","false"); newTrial();});
+  $("#ang90").addEventListener("click",()=>{angle=90; $("#ang90").setAttribute("aria-pressed","true"); $("#ang0").setAttribute("aria-pressed","false"); newTrial();});
+  $("#newtrial").addEventListener("click",newTrial);
+  newTrial(); frame();
+})();
+
+/* ═══════════════════════════ shared SVG helpers ═══════════════════════════ */
+function svgEl(tag,attrs,txt){const e=document.createElementNS("http://www.w3.org/2000/svg",tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(txt!=null)e.textContent=txt;return e;}
+function axisY(g,x0,x1,y,val,lab){g.appendChild(svgEl("line",{x1:x0,x2:x1,y1:y,y2:y,class:"gr"}));g.appendChild(svgEl("text",{x:x0-8,y:y+4,"text-anchor":"end",class:"t-mono"},lab??val));}
+
+/* ═══════════════════════════ 2. WP1 slopegraph (real per-participant data, n = 8) ═══════════════════════════ */
+(function wp1(){
+  const D=[ // overview.csv, v1 interleaved: cue effect high − low on medium trials
+    {p:"P1",cf:[-0.22,0.60],ag:[-0.17,1.40]},{p:"P2",cf:[-0.40,0.98],ag:[-0.54,1.87]},
+    {p:"P3",cf:[-0.19,0.25],ag:[-0.03,0.55]},{p:"P4",cf:[-0.41,0.95],ag:[-0.54,1.68]},
+    {p:"P5",cf:[0.13,0.09],ag:[0.01,0.18]},{p:"P6",cf:[0.12,0.00],ag:[-0.11,0.07]},
+    {p:"P7",cf:[-0.05,0.02],ag:[0.22,-0.19]},{p:"P8",cf:[0.37,-0.11],ag:[0.93,-0.07]}];
+  const host=$("#wp1-plot"), tip=$("#wp1-tip"); let measure="cf";
+  const W=900,H=340, ml=70, mr=40, mt=20, mb=40, x0=ml, x1=W-mr, xA=x0+180, xB=x1-180;
+  function render(){
+    host.querySelectorAll("svg").forEach(s=>s.remove());
+    const vals=D.map(d=>d[measure]); const lo=Math.min(-0.6,...vals.flat())-0.05, hi=Math.max(1.1,...vals.flat())+0.1;
+    const y=v=>mt+(hi-v)/(hi-lo)*(H-mt-mb);
+    const svg=svgEl("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":`Slopegraph of the cue effect on ${measure==="cf"?"confidence":"agency"} at 0 and 90 degrees for eight participants with the group mean`});
+    const ticks= measure==="cf" ? [-0.5,0,0.5,1.0] : [-0.5,0,0.5,1.0,1.5];
+    ticks.forEach(t=>{ if(t<lo||t>hi) return; axisY(svg,x0,x1,y(t),t,(t>0?"+":"")+t.toFixed(1)); });
+    svg.appendChild(svgEl("line",{x1:x0,x2:x1,y1:y(0),y2:y(0),class:"ax"}));
+    svg.appendChild(svgEl("text",{x:x0-8,y:mt+6,"text-anchor":"end",class:"t-mono"},measure==="cf"?"Δ confidence":"Δ agency"));
+    svg.appendChild(svgEl("text",{x:xA,y:H-14,"text-anchor":"middle",class:"t-lab"},"0° direct"));
+    svg.appendChild(svgEl("text",{x:xB,y:H-14,"text-anchor":"middle",class:"t-lab"},"90° rotated"));
+    D.forEach(d=>{const [a,b]=d[measure];
+      const g=svgEl("g",{style:"cursor:default"});
+      g.appendChild(svgEl("line",{x1:xA,x2:xB,y1:y(a),y2:y(b),class:"ln ln-mut",style:"stroke-width:1.5"}));
+      g.appendChild(svgEl("circle",{cx:xA,cy:y(a),r:5,class:"dot-blue"}));
+      g.appendChild(svgEl("circle",{cx:xB,cy:y(b),r:5,class:"dot-orange"}));
+      g.appendChild(svgEl("line",{x1:xA,x2:xB,y1:y(a),y2:y(b),style:"stroke:transparent;stroke-width:22"}));
+      g.addEventListener("pointermove",e=>{const r=host.getBoundingClientRect(); tip.innerHTML=`<b>${d.p}</b> &nbsp; 0°: ${a>0?"+":""}${a.toFixed(2)} &nbsp; 90°: ${b>0?"+":""}${b.toFixed(2)}`; tip.style.left=(e.clientX-r.left)+"px"; tip.style.top=(e.clientY-r.top)+"px"; tip.classList.add("on");});
+      g.addEventListener("pointerleave",()=>tip.classList.remove("on"));
+      svg.appendChild(g);});
+    const mA=vals.reduce((s,v)=>s+v[0],0)/vals.length, mB=vals.reduce((s,v)=>s+v[1],0)/vals.length;
+    svg.appendChild(svgEl("line",{x1:xA,x2:xB,y1:y(mA),y2:y(mB),class:"ln ln-ink",style:"stroke-width:3"}));
+    svg.appendChild(svgEl("circle",{cx:xA,cy:y(mA),r:7,class:"dot-ink"}));
+    svg.appendChild(svgEl("circle",{cx:xB,cy:y(mB),r:7,class:"dot-ink"}));
+    svg.appendChild(svgEl("text",{x:xA-14,y:y(mA)+4,"text-anchor":"end",class:"t-lab"},`mean ${mA>0?"+":""}${mA.toFixed(2)}`));
+    svg.appendChild(svgEl("text",{x:xB+14,y:y(mB)+4,"text-anchor":"start",class:"t-lab"},`mean ${mB>0?"+":""}${mB.toFixed(2)}`));
+    svg.appendChild(svgEl("text",{x:(xA+xB)/2,y:mt+6,"text-anchor":"middle",class:"t-mono"},`interaction (90° − 0°) = ${(mB-mA)>0?"+":""}${(mB-mA).toFixed(2)} · ${D.filter(d=>d[measure][1]>d[measure][0]).length} of 8 positive`));
+    host.appendChild(svg);
+    const tb=$("#wp1-table"); tb.innerHTML="<tr><th>participant</th><th>0° Δconf</th><th>90° Δconf</th><th>0° Δagency</th><th>90° Δagency</th></tr>"+D.map(d=>`<tr><td>${d.p}</td><td>${d.cf[0].toFixed(2)}</td><td>${d.cf[1].toFixed(2)}</td><td>${d.ag[0].toFixed(2)}</td><td>${d.ag[1].toFixed(2)}</td></tr>`).join("");
+  }
+  $("#m-conf").addEventListener("click",()=>{measure="cf";$("#m-conf").setAttribute("aria-pressed","true");$("#m-ag").setAttribute("aria-pressed","false");render();});
+  $("#m-ag").addEventListener("click",()=>{measure="ag";$("#m-ag").setAttribute("aria-pressed","true");$("#m-conf").setAttribute("aria-pressed","false");render();});
+  render();
+})();
+
+/* ═══════════════════════════ 3. evidence-level charts (Rollwage template + hypothesis explorer) ═══════════════════════════ */
+function levelChart(host, series, opts){ // series: [{pts:[y0,y1,y2] in %, cls:"ln-ink", dash:bool, label, thin:bool}]
+  host.querySelectorAll("svg").forEach(s=>s.remove());
+  const W=440,H=260, ml=46, mr=88, mt=16, mb=38; const xs=[ml, ml+(W-ml-mr)/2, W-mr]; const y=v=>mt+(100-v)/100*(H-mt-mb);
+  const svg=svgEl("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":opts.aria});
+  [0,25,50,75,100].forEach(t=>axisY(svg,ml,W-mr,y(t),t,t+" %"));
+  svg.appendChild(svgEl("line",{x1:ml,x2:ml,y1:y(100),y2:y(0),class:"ax"}));
+  ["level 0","low","high"].forEach((l,i)=>svg.appendChild(svgEl("text",{x:xs[i],y:H-18,"text-anchor":"middle",class:"t-mut"},l)));
+  svg.appendChild(svgEl("text",{x:(ml+W-mr)/2,y:H-4,"text-anchor":"middle",class:"t-mono"},"post-decision evidence"));
+  series.forEach(s=>{
+    const d=s.pts.map((v,i)=>`${i?"L":"M"}${xs[i]} ${y(v)}`).join(" ");
+    svg.appendChild(svgEl("path",{d,class:`ln ${s.cls}${s.dash?" dash":""}${s.thin?" thin":""}`}));
+    if(!s.thin){ s.pts.forEach((v,i)=>svg.appendChild(svgEl("circle",{cx:xs[i],cy:y(v),r:4.5,class:s.dash?`dot-open ${s.cls.replace("ln-","ln-")}`:s.cls.replace("ln-","dot-"),style:s.dash?`stroke:var(--${s.cls.replace("ln-","")})`:""})));
+      svg.appendChild(svgEl("text",{x:xs[2]+10,y:y(s.pts[2])+4,class:"t-lab",style:"font-weight:500;font-size:12px"},s.label)); }
+  });
+  host.appendChild(svg);
+}
+levelChart($("#roll-plot"),[{pts:[72,75,78],cls:"ln-ink",label:"correct"},{pts:[67,52,40],cls:"ln-ink",dash:true,label:"incorrect"}],{aria:"Rollwage 2018 template: on correct trials confidence rises modestly from 72 to 78 percent; on incorrect trials it falls from 67 to 40 percent as post-decision evidence strengthens."});
+
+(function explorer(){
+  const L0c=logit(.72), L0i=logit(.65), E=[0,0.9,1.4], WC=0.5;
+  const pred=(w,b,corr)=>E.map((e,i)=> 100*sig( (corr?L0c:L0i) + (i? b:0) + (i? (corr? WC*e : -w*e) : 0) ));
+  const ideal=corr=>E.map((e,i)=>100*sig((corr?L0c:L0i)+(i?(corr?e:-e):0)));
+  const S={wd0:.6,wd90:1.0,b:.4};
+  const presets={seal:{wd0:.6,wd90:1.0,b:.4},bayes:{wd0:1.2,wd90:.7,b:.4},none:{wd0:.9,wd90:.9,b:.4}};
+  function classify(){const d=S.wd0-S.wd90; return d<-.08?"seal":d>.08?"bayes":"none";}
+  function render(){
+    ["wd0","wd90"].forEach(k=>{$("#"+k).value=Math.round(S[k]*100); $("#"+k+"-out").value=fmt(S[k],2);});
+    $("#bch").value=Math.round(S.b*100); $("#bch-out").value=fmt(S.b,2);
+    const mk=(w,cls)=>[{pts:ideal(true),cls:"ln-mut",thin:true},{pts:ideal(false),cls:"ln-mut",thin:true,dash:true},
+                       {pts:pred(w,S.b,true),cls,label:"correct"},{pts:pred(w,S.b,false),cls,dash:true,label:"incorrect"}];
+    levelChart($("#hyp0"),mk(S.wd0,"ln-blue"),{aria:"Predicted confidence by evidence level at 0 degrees for correct and incorrect trials"});
+    levelChart($("#hyp90"),mk(S.wd90,"ln-orange"),{aria:"Predicted confidence by evidence level at 90 degrees for correct and incorrect trials"});
+    const o=classify(); document.querySelectorAll("#outcomes tr[data-o]").forEach(r=>r.classList.toggle("on",r.dataset.o===o));
+    document.querySelectorAll(".presets button").forEach(b=>b.setAttribute("aria-pressed", String(JSON.stringify(presets[b.dataset.preset])===JSON.stringify(S))));
+    const drop0=pred(S.wd0,S.b,false), drop90=pred(S.wd90,S.b,false);
+    $("#hyp-cap").innerHTML=`<b>Reading the dashed lines.</b> After the strong disconfirming sample, confidence in a wrong choice sits at <b>${drop0[2].toFixed(0)} %</b> under 0° and <b>${drop90[2].toFixed(0)} %</b> under 90° (ideal observer: ${ideal(false)[2].toFixed(0)} %). The thin grey lines are what a perfectly rational updater would do; the gap between dashed and grey is confirmation bias, and the difference in that gap between the two panels is the primary hypothesis.`;
+  }
+  ["wd0","wd90"].forEach(k=>$("#"+k).addEventListener("input",e=>{S[k]=+e.target.value/100;render();}));
+  $("#bch").addEventListener("input",e=>{S.b=+e.target.value/100;render();});
+  document.querySelectorAll(".presets button").forEach(b=>b.addEventListener("click",()=>{Object.assign(S,presets[b.dataset.preset]);render();}));
+  render();
+})();
+
+/* ═══════════════════════════ 4. false-positive bars ═══════════════════════════ */
+(function fpr(){
+  const host=$("#fpr-plot"); const W=440,H=230, ml=150, mr=60, mt=24, mb=34; const x=v=>ml+v*(W-ml-mr);
+  const svg=svgEl("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":"False-positive rate for the mode contrast on w d when the true difference is in choice bias only: 79 percent for the model without b, 7 percent for the model with b, nominal 5 percent marked."});
+  [0,.25,.5,.75,1].forEach(t=>{svg.appendChild(svgEl("line",{x1:x(t),x2:x(t),y1:mt,y2:H-mb,class:"gr"}));svg.appendChild(svgEl("text",{x:x(t),y:H-mb+16,"text-anchor":"middle",class:"t-mono"},(t*100).toFixed(0)+" %"));});
+  const rows=[{lab:"model without b",sub:"weight model",v:.79,cls:"bar-ink"},{lab:"model with b",sub:"the preregistered primary",v:.07,cls:"bar-aqua"}];
+  rows.forEach((r,i)=>{const yy=mt+24+i*80; svg.appendChild(svgEl("text",{x:ml-12,y:yy+8,"text-anchor":"end",class:"t-lab"},r.lab)); svg.appendChild(svgEl("text",{x:ml-12,y:yy+24,"text-anchor":"end",class:"t-mono"},r.sub));
+    svg.appendChild(svgEl("rect",{x:ml,y:yy-2,width:x(r.v)-ml,height:22,rx:4,class:r.cls})); svg.appendChild(svgEl("text",{x:x(r.v)+8,y:yy+13,class:"t-lab"},(r.v*100).toFixed(0)+" %"));});
+  svg.appendChild(svgEl("line",{x1:x(.05),x2:x(.05),y1:mt-6,y2:H-mb,class:"ax",style:"stroke:var(--ink-2);stroke-dasharray:3 3"}));
+  svg.appendChild(svgEl("text",{x:x(.05)+6,y:mt+2,class:"t-mono"},"nominal 5 %"));
+  svg.appendChild(svgEl("text",{x:ml,y:H-6,class:"t-mono"},"false-positive rate at N = 150 · truth: mode effect in b only, w_d equal"));
+  host.appendChild(svg);
+})();
+
+/* ═══════════════════════════ 5. power explorer ═══════════════════════════ */
+(function power(){
+  const SD=0.87, USE=0.97*0.87;
+  const Phi=z=>0.5*(1+erf(z/Math.SQRT2)); function erf(x){const s=Math.sign(x);x=Math.abs(x);const t=1/(1+.3275911*x);const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-.284496736)*t+.254829592)*t*Math.exp(-x*x);return s*y;}
+  // t critical value for df ≈ n−1 (1.98 at n≈127) rather than z; the simulation used the exact noncentral t
+  const pow=(pct,N)=>{const mu=-Math.log(1-pct/100); const n=Math.round(N*USE); const dz=mu/SD; const tc=1.96+1.2/Math.max(n-1,20); return {p:Phi(dz*Math.sqrt(n)-tc)+Phi(-dz*Math.sqrt(n)-tc), n};};
+  const host=$("#pow-plot"); const W=440,H=260, ml=46, mr=20, mt=14, mb=40; const x=v=>ml+v/40*(W-ml-mr), y=v=>mt+(1-v)*(H-mt-mb);
+  function render(){
+    const pct=+$("#eff").value, N=+$("#nrec").value; $("#eff-out").value=pct+" %"; $("#nrec-out").value=N;
+    const {p,n}=pow(pct,N); $("#pow-val").textContent=p>=.995?"1.00":p.toFixed(2).replace(/^0/,""); $("#pow-sub").textContent=`${n} usable pairs · two-sided α = .05`;
+    host.querySelectorAll("svg").forEach(s=>s.remove());
+    const svg=svgEl("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":"Power as a function of the true percent reduction in w d, for the chosen number of recruited participants, with the 80 percent line and 20 percent minimum detectable effect marked."});
+    [0,.2,.4,.6,.8,1].forEach(t=>axisY(svg,ml,W-mr,y(t),t,t.toFixed(1).replace(/^0/,"")));
+    [0,10,20,30,40].forEach(t=>svg.appendChild(svgEl("text",{x:x(t),y:H-20,"text-anchor":"middle",class:"t-mut"},t+" %")));
+    svg.appendChild(svgEl("text",{x:(ml+W-mr)/2,y:H-4,"text-anchor":"middle",class:"t-mono"},"true reduction in w_d under the predictive mapping"));
+    svg.appendChild(svgEl("line",{x1:ml,x2:W-mr,y1:y(.8),y2:y(.8),class:"ax",style:"stroke:var(--ink-2);stroke-dasharray:3 3"}));
+    svg.appendChild(svgEl("text",{x:W-mr,y:y(.8)-6,"text-anchor":"end",class:"t-mono"},"80 % power"));
+    // reference curve for N=150 (thin) + current N (solid)
+    const curve=(NN,cls)=>{let d="";for(let q=0;q<=40;q+=.5){const v=pow(q,NN).p;d+=(q?"L":"M")+x(q)+" "+y(v)+" ";}svg.appendChild(svgEl("path",{d,class:"ln "+cls}));};
+    if(N!==150) curve(150,"ln-mut thin");
+    curve(N,"ln-ink");
+    svg.appendChild(svgEl("circle",{cx:x(pct),cy:y(p),r:6,class:"dot-aqua"}));
+    svg.appendChild(svgEl("text",{x:x(pct)+(pct>30?-10:10),y:y(p)-10,"text-anchor":pct>30?"end":"start",class:"t-lab"},`${pct} % → ${p.toFixed(2).replace(/^0/,"")}`));
+    host.appendChild(svg);
+  }
+  $("#eff").addEventListener("input",render); $("#nrec").addEventListener("input",render); render();
+})();
+})();
+</script>
+</body>
+</html>
