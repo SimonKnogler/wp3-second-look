@@ -528,6 +528,42 @@ simulated participants. Tables: `power_wp3_report.md`, `power_wp3_summary*.csv`.
 **Decision:** run at N = 150. Preregister the both model as primary, the 20 % MDE, and the
 bootstrap null. PDI dropped from the confirmatory set (Rollwage's r ≈ .10–.17 needs N ≈ 400+).
 
+## 10i. Validation run: does the analysis measure what we set out to measure? (2026-09-29)
+
+Ten participants were simulated to behave as the hypothesis states (w_d at 0° = 0.6 × w_d at
+90°; commitment and confirmatory weight equal), written in the online task's exact file layout
+(`make_validation_data.py`, seed fixed beforehand), and put through the complete planned
+analysis (`wp3_paper_analysis.py`). Report: `WP3_validation_results.html`; poster on the canvas.
+
+1. **The primary measure works.** Difference in log w_d put in −0.67, recovered −0.77, 95 % CI
+   [−1.17, −0.37], t(9) = −4.35, p = .002, d_z = −1.38; bootstrap null p = .003. Commitment did
+   not differ between mappings, as built in. Individual weights recovered at r = .83.
+2. **The level of w_d is biased low; never test it against 1.** The strong evidence sample lies
+   outside the range the staircase visits, so its strength is extrapolated from a psychometric
+   slope that is itself over-estimated (strong sample: true 3.0, fitted 3.5–4.7). An over-estimated
+   evidence strength is compensated by an under-estimated weight: fitted/true = 0.75 with
+   calibration trials in the fit, 0.66 without (120 simulated participants per cell). The factor is
+   the same at both mappings, which is why the contrast survives. A weaker boost (0.8) does not
+   change it.
+3. **The fix: an ideal-observer benchmark.** Each participant's session is re-simulated from
+   their fitted parameters with w_d = 1 and refitted. Through this pipeline an ideal observer
+   returns w_d = 0.83, not 1. Against that benchmark the run gave the correct answer at both
+   mappings: 0° under-used (0.39, p = .005; true 0.47), 90° not (0.85, p = .88; true 0.92).
+4. **The online task was losing data.** Calibration trials were never written to the file, and
+   neither were `fullscreen_exits`, `bonus_quiz_attempts_evidence` and the Prolific study and
+   session identifiers (collected into META but missing from `toCSV()`'s column list). Both
+   fixed; calibration rows are pushed outside the scoring path so the bonus is untouched.
+   With calibration rows in the fit, recovery of individual weights rose from r = .61 to .83.
+5. **BIC prefers the simpler model** (weights only, ΔBIC ≈ 17 to the model with commitment)
+   although the data were generated with a commitment term. The model for inference stays fixed
+   in advance; say so in the preregistration.
+6. **Per-person M-ratio from 30 Task-1 trials per mapping is too noisy** (SD > 1). Use the
+   hierarchical estimator for the comparison between mappings, as in work package 1.
+
+The effect built in here (about 50 % reduction) is more than twice the smallest effect the full
+study can detect. Ten participants show that the analysis returns what was put in, not that an
+effect of realistic size will be found.
+
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
 To reconnect WP3 with the proposal's "expectations of control" moderator, we

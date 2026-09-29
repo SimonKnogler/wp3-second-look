@@ -32,3 +32,7 @@ analysis_output/*
 *.log
 .tmp/
 scratch/
+
+# WP1 poster routine: generated poster and any local copy of participant data
+presentations/posters/out/
+presentations/posters/data/

@@ -110,7 +110,10 @@ def simulate_participant(p, rng, fmt, timeout_rate, track):
     base = dict(participant=p.participant, session=1, age="", gender="", handedness="",
                 learning_order=str(p.order), counterbalance_index=int(p.participant) % 8)
     for block_i, ang in enumerate(p.order, 1):
-        t, sl = (p.t0, p.slope) if ang == 0 else (p.t90, p.slope)
+        # slope / meta / noise may be given per angle (slope0, meta90, ...): a session
+        # re-simulated from FITTED parameters has one of each per angle
+        t, sl = (p.t0 if ang == 0 else p.t90), p.get(f"slope{ang}", p.slope)
+        meta, noise = p.get(f"meta{ang}", p.meta), p.get(f"noise{ang}", p.noise)
         pre, wc, wd, b = (p.pre0, p.wc0, p.wd0, p.b0) if ang == 0 else (p.pre90, p.wc90, p.wd90, p.b90)
         sc = Staircase()
 
@@ -146,7 +149,7 @@ def simulate_participant(p, rng, fmt, timeout_rate, track):
             resp = true if correct else ("dot" if true == "square" else "square")
             if track:
                 sc.update(correct)
-            L0 = pre + p.meta * (1 if correct else -1)
+            L0 = pre + meta * (1 if correct else -1)
             post = np.nan
             if lev == 0:
                 L = L0
@@ -154,7 +157,7 @@ def simulate_participant(p, rng, fmt, timeout_rate, track):
                 post = prop if lev == 1 else p_high
                 e = logit(p_correct(post, t, sl))          # log-LR of a truth-pointing sample
                 L = L0 + b + (wc * e if correct else -wd * e)
-            conf = rating_from_logodds(L, p.noise, rng)
+            conf = rating_from_logodds(L, noise, rng)
             pc = (conf - 1) / 8
             score = 1 - (1 - pc) ** 2 if correct else 1 - pc ** 2
             scores.append(score)
@@ -181,11 +184,15 @@ def simulate_participant(p, rng, fmt, timeout_rate, track):
         cols = ["participant", "session", "phase", "wp3_task", "evidence_level", "angle_bias",
                 "prop_used", "prop_post", "accuracy", "true_shape", "resp_shape", "rt_choice",
                 "is_timeout", "wp3_confidence", "wp3_prob", "wp3_conf_rt", "wp3_score",
-                "prop_high_clipped", "med_live", "bonus_quiz_attempts", "bonus_motivation_1to5",
-                "wp3_mean_score", "wp3_bonus"]
-        w = df[df.phase.str.startswith("wp3_task")].copy()
+                "prop_high_clipped", "med_live", "bonus_quiz_attempts", "bonus_quiz_attempts_evidence",
+                "bonus_motivation_1to5", "wp3_mean_score", "wp3_bonus", "fullscreen_exits",
+                "prolific_study_id", "prolific_session_id"]      # = toCSV() in web/index.html
+        df["phase"] = df["phase"].replace("calibration_interleaved", "calibration")
+        w = df[df.phase.str.startswith("wp3_task") | (df.phase == "calibration")].copy()
         for c in ("bonus_quiz_attempts", "bonus_motivation_1to5", "wp3_mean_score", "wp3_bonus"):
             w[c] = df[c].dropna().iloc[-1]
+        w["bonus_quiz_attempts_evidence"] = int(rng.integers(1, 3)); w["fullscreen_exits"] = 0
+        w["prolific_study_id"] = ""; w["prolific_session_id"] = ""
         return w.reindex(columns=cols)
     return df
 

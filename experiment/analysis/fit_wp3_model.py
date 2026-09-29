@@ -141,6 +141,7 @@ def fit_models(e, correct, rating, L0c, L0i):
             out["b_choice"] = float(best.x[0])
         elif name == "both":
             out["b_both"], out["w_c_both"], out["w_d_both"] = float(best.x[0]), float(np.exp(best.x[1])), float(np.exp(best.x[2]))
+            out["sd_both"] = float(np.exp(best.x[3]))
         # "null" has only the noise parameter — nothing to extract
     out["best_model"] = min(("null", "weight", "choice", "both"), key=lambda m: out[f"bic_{m}"])
     # Weights are only identified within a range: a saturated cell can push a weight to

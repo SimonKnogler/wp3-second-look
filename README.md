@@ -140,6 +140,27 @@ BIC. **The primary test is the 0° vs 90° contrast on w_d** — w_c is not iden
 person (correct trials sit at the scale ceiling), and the raw β difference has the wrong
 sign by construction. See design doc §10f for the dry-run that established this.
 
+**The planned analysis, as it will be reported:**
+
+```bash
+python3 experiment/analysis/wp3_paper_analysis.py DATA_DIR        # every planned test -> results.json
+python3 experiment/analysis/wp3_report.py results.json report.html   # results section, APA style
+```
+
+Exclusions, manipulation checks, meta-d′, descriptives, model comparison, the primary contrast
+(log w_d, 0° vs 90°, from the model with weights **and** commitment) against the *t* distribution
+and a parametric-bootstrap null, and the level of w_d against an ideal-observer benchmark.
+Runs on lab and web files alike.
+
+**Validation run** — ten simulated participants who behave as the hypothesis says, in the online
+task's exact file layout, with the truth kept in `ground_truth.csv`:
+
+```bash
+python3 experiment/analysis/make_validation_data.py experiment/analysis/validation
+python3 experiment/analysis/wp3_paper_analysis.py experiment/analysis/validation/data
+python3 experiment/analysis/wp3_report.py experiment/analysis/validation/results.json experiment/documents/WP3_validation_results.html
+```
+
 **Power before you recruit:**
 
 ```bash
@@ -182,6 +203,11 @@ python3 experiment/analysis/check_wp3_replay_invariant.py <kinematics.csv> [...]
   the feedback-free design. One total at the end only.
 - **`prop` is capped at 0.90.** If a participant's medium converges above ~0.72 the boost
   clips and high ≈ low; those blocks are flagged (`prop_high_clipped`) and excluded.
+- **Do not test w_d against 1.** The strength of the strong evidence sample lies outside the
+  range the staircase visits and is over-estimated, which pulls every fitted w_d down by a
+  quarter to a third — the same factor at both mappings. The contrast between mappings is
+  unaffected; the *level* is tested against an ideal observer passed through the same pipeline
+  (`wp3_paper_analysis.py`, design doc §10i).
 - **Do not read the bias off the raw β slopes.** On simulated data with a strong built-in
   bias at 0°, the descriptive index comes out with the *wrong sign* (scale ceiling on
   correct trials). The model-based fit (`fit_wp3_model.py`) is the primary analysis, and
@@ -193,8 +219,10 @@ python3 experiment/analysis/check_wp3_replay_invariant.py <kinematics.csv> [...]
 
 - [x] Reference model + null / weighting / choice-bias comparison (`fit_wp3_model.py`, validated on simulated data — §10f)
 - [x] Power / feasibility at N = 150 (`power_wp3.py`, design doc §10h): both model, MDE = 20 % reduction in w_d at 80 % power
-- [ ] Make the **both** model's w_d the primary test in `fit_wp3_model.py` — the weight model has a 79 % false-positive rate when the true mode difference is in choice bias (§10h)
-- [ ] Parametric-bootstrap null for the mode contrast (both model shows ≈ −0.045 log null bias → Type I ≈ .08)
+- [x] Primary test on the **both** model's w_d, with a parametric-bootstrap null (`wp3_paper_analysis.py`)
+- [x] Validation run: the planned analysis recovers a built-in mode effect from files in the task's own layout (§10i)
+- [x] Online task writes calibration trials and every collected field to the data file
+- [ ] Hierarchical meta-d′ for the comparison between mappings — 30 Task-1 trials per mapping do not support a per-person ratio
 - [ ] Hierarchical (Stan/PyMC) version of the fit — the two-stage fit bounds and winsorises instead
 - [ ] Human feel-test of scale, evidence marker and scoring-rule instructions
 - [ ] Pilot: what accuracy does the +1.2-logit boost actually induce? (Rollwage: 81 %)

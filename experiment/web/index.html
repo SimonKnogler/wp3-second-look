@@ -355,7 +355,10 @@ function toCSV(){
   const cols=["participant","session","phase","wp3_task","evidence_level","angle_bias",
     "prop_used","prop_post","accuracy","true_shape","resp_shape","rt_choice","is_timeout",
     "wp3_confidence","wp3_prob","wp3_conf_rt","wp3_score","prop_high_clipped","med_live",
-    "bonus_quiz_attempts","bonus_motivation_1to5","wp3_mean_score","wp3_bonus"];
+    "bonus_quiz_attempts","bonus_quiz_attempts_evidence","bonus_motivation_1to5",
+    "wp3_mean_score","wp3_bonus","fullscreen_exits","prolific_study_id","prolific_session_id"];
+  // Every META key must be listed here or it is silently dropped from the file: the four
+  // fields after wp3_bonus were collected for weeks without ever being written.
   const esc=v=>v===undefined||v===null||(typeof v==="number"&&isNaN(v))?"":String(v);
   return cols.join(",")+"\n"+rows.map(r=>cols.map(c=>esc(r[c])).join(",")).join("\n");
 }
@@ -397,6 +400,13 @@ async function calibration(angle){
   while(n<CFG.CAL_MAX && !(sc.nRev>=CFG.CAL_REVERSALS && n>=CFG.CAL_MIN)){
     const p=sc.next();
     const r=await motionTrial(p,angle,{});
+    // Logged since the validation run: the psychometric function is fitted on every decision
+    // trial, and without these the strength of the strong evidence sample is extrapolated
+    // from a narrower range. Pushed directly, NOT through log(): unrated rows must not enter
+    // the confidence score.
+    rows.push({participant:CFG.participant, session:1, phase:"calibration", angle_bias:angle,
+      prop_used:p, accuracy:r.correct, true_shape:r.true_shape, resp_shape:r.resp_shape,
+      rt_choice:r.rt, is_timeout:r.timeout});
     if(!r.timeout){ sc.update(p, r.correct); n++;
       // Same colour for both: this is the only feedback in the study, and green/red
       // adds a valence signal the main (feedback-free) task deliberately lacks —
