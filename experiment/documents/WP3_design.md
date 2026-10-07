@@ -750,6 +750,28 @@ recycling), a browser run of the unpatched motion loop (360 steps in 3.00 s wall
 is the reference, provided it runs on a 120 Hz display as in the WP1 lab (on a 60 Hz monitor it
 would give the slow-motion stimulus; check `frame`/`timestamp` in its kinematics file).
 
+## 10l. Web build: what the data file must carry before Prolific (2026-10-07)
+
+A review of the online build before the first Prolific pilot found that the trial CSV could not
+support checks the project relies on, and that a few failure modes would cost whole sessions.
+No change to the task, the schedule or the stimulus.
+
+- **Replay invariant on web data.** `check_wp3_replay_invariant.py` (§10b) is the first check on
+  new data, but the web build wrote no kinematics file and logged neither the side layout nor the
+  applied ±90° sign, so the check could not run. Each trial now logs `left_shape`,
+  `applied_angle_bias` and `evidence_sum` (summed momentary evidence of the 3 s look); Task-2 rows add
+  the same for the second look (`post_*`). The script reads either file.
+- **Reproducibility and context:** `seed`, `build`, `started_at`, `duration_min`, screen/window
+  size, `dpr`, `user_agent`, `block_idx`, `trial_idx`. `user_agent` contains commas, so the CSV
+  writer now quotes fields.
+- **Saving:** an interim upload after each block (`*.csv.partial`), the local download only as a
+  fallback, and on Prolific a retry screen instead of a redirect when the final upload fails.
+  A Prolific URL without a DataPipe id or without `bonus` refuses to start.
+- **Pause bug:** an Esc during the response prompt did not stop the 20 s grace clock (the trial
+  could time out right after resuming, and `rt_choice` included the pause), and keys pressed on the
+  pause screen counted as answers. The response clock now pauses with the motion clock, and choice
+  and rating keys are ignored while paused.
+
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
 To reconnect WP3 with the proposal's "expectations of control" moderator, we

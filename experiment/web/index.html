@@ -86,10 +86,19 @@ const CFG = {
   // TESTING ONLY: run without pointer lock (cursor visible, deltas from plain mousemove).
   NOLOCK: Q.get("nolock") === "1",
 };
+// Identifies the deployed version in the data (bump with every change to index.html or engine.js).
+const BUILD = "2026-10-07a";
+// A Prolific link that would run without saving or without the promised bonus wastes a full
+// session per participant. Refuse to start instead; the researcher sees it on the first test.
+const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
+  ...(CFG.DATAPIPE_ID ? [] : ["no DataPipe id (set DATAPIPE_ID in index.html or add &datapipe=… to the study URL)"]),
+  ...(CFG.BONUS>0 ? [] : ["no bonus amount (add &bonus=3.00 to the study URL)"]),
+] : [];
 const clampProp = p => Math.min(Math.max(p, 0.02), 0.90);
 const logit = x => { x = Math.min(Math.max(x,1e-6),1-1e-6); return Math.log(x/(1-x)); };
 const invLogit = z => 1/(1+Math.exp(-z));
 let RSEED = (+ (Q.get("seed")||Date.now())) & 0x7fffffff;
+const SEED0 = RSEED;     // logged: with the pool file it reproduces every trajectory pair and layout
 const rnd = () => { RSEED = (RSEED*1103515245+12345)&0x7fffffff; return RSEED/0x7fffffff; };
 const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
 
@@ -238,7 +247,7 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
     const armKeys=()=>{
       if(!acceptResponse || keyH) return;
       tPrompt=performance.now();
-      keyH=e=>{ const k=e.key.toLowerCase(); if(k==="a"||k==="s"){
+      keyH=e=>{ if(fsBlock) return; const k=e.key.toLowerCase(); if(k==="a"||k==="s"){
         resp = k==="a"?left:(left==="square"?"dot":"square"); rt=(performance.now()-tPrompt)/1000; } };
       window.addEventListener("keydown",keyH);
     };
@@ -247,7 +256,12 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
       // Fullscreen or pointer lock lost mid-trial: freeze the trial clock until it is restored,
       // so the participant does not lose movement time to an accidental Esc.
       if(fsBlock){ if(!pausedAt) pausedAt=performance.now(); drainMotion(); requestAnimationFrame(frame); return; }
-      if(pausedAt){ if(started){ t0+=performance.now()-pausedAt; clock.resume(performance.now()/1000); } pausedAt=0; }
+      // The response clock pauses too: an Esc while the prompt is up must neither use up the
+      // 20 s grace nor inflate rt_choice.
+      if(pausedAt){ const d=performance.now()-pausedAt;
+        if(started){ t0+=d; clock.resume(performance.now()/1000); }
+        if(prompted) tPrompt+=d;
+        pausedAt=0; }
       if(!started){
         const [mx,my]=drainMotion();
         if(mx!==0||my!==0){ started=true; t0=performance.now(); clock=new Engine.SimClock(t0/1000); }
@@ -314,7 +328,7 @@ function confidence(){
         <span style="text-align:right">MY choice<br>was correct</span></div>
       <p class="go">press 1 – 9</p></div>`);
     const t0=performance.now();
-    const h=e=>{ const n=parseInt(e.key,10); if(n>=1&&n<=9){ window.removeEventListener("keydown",h);
+    const h=e=>{ if(fsBlock) return; const n=parseInt(e.key,10); if(n>=1&&n<=9){ window.removeEventListener("keydown",h);
       res({rating:n, prob:(n-1)/8*100, rt:(performance.now()-t0)/1000}); } };
     window.addEventListener("keydown",h);
   });
@@ -404,7 +418,10 @@ async function motivationCheck(){   // before the reveal, so the amount cannot b
 // ─────────────────────────────────────────────────────────────────────────────
 const rows=[];
 const META={};   // participant-level fields, written on every row
-function log(o){ const r=Object.assign({participant:CFG.participant, session:1}, o);
+let BLOCK_IDX=0, TRIAL_IDX=0;   // TRIAL_IDX counts decision trials over the whole session
+// Per-trial layout and momentary evidence (summed over the motion window) of a motionTrial result.
+const motionCols = r => ({left_shape:r.left, applied_angle_bias:r.applied, evidence_sum:r.sumEvidence});
+function log(o){ const r=Object.assign({participant:CFG.participant, session:1, block_idx:BLOCK_IDX, trial_idx:++TRIAL_IDX}, o);
   // every decision trial is scored; a timeout has no rating and scores 0 (same as PsychoPy)
   r.wp3_score=wp3Score(o.wp3_confidence, o.accuracy===true||o.accuracy===1); SCORES.push(r.wp3_score);
   rows.push(r); }
@@ -414,37 +431,63 @@ function toCSV(){
     "prop_used","prop_post","accuracy","true_shape","resp_shape","rt_choice","is_timeout",
     "wp3_confidence","wp3_prob","wp3_conf_rt","wp3_score","prop_high_clipped","med_live","trial_type","delta_live","display_fps","low_move_ratio",
     "bonus_quiz_attempts","bonus_quiz_attempts_evidence","bonus_motivation_1to5",
-    "wp3_mean_score","wp3_bonus","fullscreen_exits","pointer_lock_exits","input_device","pointer_lock","prolific_study_id","prolific_session_id"];
+    "wp3_mean_score","wp3_bonus","fullscreen_exits","pointer_lock_exits","input_device","pointer_lock","prolific_study_id","prolific_session_id",
+    // layout and momentary evidence of the decision trial and of the second look (design doc §10l):
+    // check_wp3_replay_invariant.py needs left_shape / applied_angle_bias of both to run on web data
+    "block_idx","trial_idx","left_shape","applied_angle_bias","evidence_sum",
+    "post_true_shape","post_left_shape","post_applied_angle_bias","post_evidence_sum","post_display_fps","post_low_move_ratio",
+    "seed","build","started_at","duration_min","screen_w","screen_h","window_w","window_h","dpr","user_agent"];
   // Every META key must be listed here or it is silently dropped from the file: the four
   // fields after wp3_bonus were collected for weeks without ever being written.
-  const esc=v=>v===undefined||v===null||(typeof v==="number"&&isNaN(v))?"":String(v);
+  // Quote fields that contain a comma, quote or newline (user_agent does): unquoted they shift every later column.
+  const esc=v=>{ if(v===undefined||v===null||(typeof v==="number"&&isNaN(v))) return "";
+    const t=String(v); return /[",\n\r]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t; };
   return cols.join(",")+"\n"+rows.map(r=>cols.map(c=>esc(r[c])).join(",")).join("\n");
 }
-// Returns "" on success, or an error string. The participant must never silently lose a
-// session: if the upload fails we say so on screen and still offer the local download.
-async function saveData(){
+// One upload to DataPipe, retried: transient network errors are common online. "" = success.
+async function upload(name, csv){
+  if(!CFG.DATAPIPE_ID) return "no DATAPIPE_ID configured — data not uploaded";
+  let err="upload failed";
+  for(let attempt=1; attempt<=3; attempt++){
+    try{
+      const r=await fetch("https://pipe.jspsych.org/api/data/",{method:"POST",
+        headers:{"Content-Type":"application/json","Accept":"*/*"},
+        body:JSON.stringify({experimentID:CFG.DATAPIPE_ID,filename:name,data:csv})});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      return "";
+    }catch(e){ err="upload failed: "+e.message; if(attempt<3) await wait(1500); }
+  }
+  return err;
+}
+function sessionMeta(){
   META.prolific_study_id = PROLIFIC_STUDY; META.prolific_session_id = PROLIFIC_SESSION;
+  META.duration_min = +((Date.now()-T_START)/60000).toFixed(1);
+}
+// Interim copy after each block, so a crash or a closed tab late in a ~57-minute session does not
+// lose everything. Named *.csv.partial so the analysis' *.csv glob never picks it up twice; silent,
+// and a failure here never interrupts the participant (the final save reports problems).
+async function saveInterim(blockIdx){
+  if(!CFG.DATAPIPE_ID) return;
+  sessionMeta();
+  await upload(`CDT_wp3_${CFG.participant}_block${blockIdx}.csv.partial`, toCSV());
+}
+// Returns "" on success, or an error string. The participant must never silently lose a
+// session: if the upload fails we say so on screen and offer the local download. The download
+// is only the fallback (and the only copy when piloting without DataPipe): on a successful
+// upload Prolific participants get no unexpected file.
+async function saveData(){
+  sessionMeta();
   const csv=toCSV(), name=`CDT_wp3_${CFG.participant}.csv`;
-  let err="";
-  if(CFG.DATAPIPE_ID){
-    err="upload failed";
-    for(let attempt=1; attempt<=3; attempt++){          // transient network errors are common online
-      try{
-        const r=await fetch("https://pipe.jspsych.org/api/data/",{method:"POST",
-          headers:{"Content-Type":"application/json","Accept":"*/*"},
-          body:JSON.stringify({experimentID:CFG.DATAPIPE_ID,filename:name,data:csv})});
-        if(!r.ok) throw new Error("HTTP "+r.status);
-        err=""; break;
-      }catch(e){ err="upload failed: "+e.message; if(attempt<3) await wait(1500); }
-    }
-  } else { err="no DATAPIPE_ID configured — data not uploaded"; }
-  // Always offer the local copy as a fallback (and the only copy when piloting locally).
+  const err=await upload(name, csv);
+  if(err) downloadCSV(name, csv);
+  if(err) document.getElementById("err").textContent=err;
+  return err;
+}
+function downloadCSV(name, csv){
   try{
     const blob=new Blob([csv],{type:"text/csv"}); const url=URL.createObjectURL(blob);
     const a=document.createElement("a"); a.href=url; a.download=name; a.click();
   }catch(e){ /* a blocked download must not break the completion screen */ }
-  if(err) document.getElementById("err").textContent=err;
-  return err;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -462,7 +505,7 @@ async function calibration(angle){
     // trial, and without these the strength of the strong evidence sample is extrapolated
     // from a narrower range. Pushed directly, NOT through log(): unrated rows must not enter
     // the confidence score.
-    rows.push({participant:CFG.participant, session:1, phase:"calibration", angle_bias:angle,
+    rows.push({participant:CFG.participant, session:1, block_idx:BLOCK_IDX, trial_idx:++TRIAL_IDX, ...motionCols(r), phase:"calibration", angle_bias:angle,
       prop_used:p, accuracy:r.correct, true_shape:r.true_shape, resp_shape:r.resp_shape,
       rt_choice:r.rt, is_timeout:r.timeout, display_fps:r.display_fps, low_move_ratio:r.low_move_ratio});
     if(!r.timeout){ sc.update(p, r.correct); n++;
@@ -477,6 +520,7 @@ async function calibration(angle){
 }
 
 async function block(angle, blockIdx){
+  BLOCK_IDX=blockIdx;
   showScreen(`<h1>Block ${blockIdx} of 2</h1><p>A short calibration, then the main task.</p>
     <p class="go">press SPACE</p>`); await waitKeys([" "]);
   const sc = await calibration(angle);
@@ -505,7 +549,7 @@ async function block(angle, blockIdx){
     log({phase:`wp3_task${task}`,wp3_task:task,evidence_level:0,angle_bias:angle,prop_used:pDec,
       accuracy:r.correct,true_shape:r.true_shape,resp_shape:r.resp_shape,rt_choice:r.rt,
       is_timeout:r.timeout,wp3_confidence:c.rating,wp3_prob:c.prob,wp3_conf_rt:c.rt,
-      prop_high_clipped:pHigh>=0.899, med_live:clampProp(sc.threshold()), display_fps:r.display_fps, low_move_ratio:r.low_move_ratio, trial_type:"strength", delta_live:dUsed});
+      prop_high_clipped:pHigh>=0.899, med_live:clampProp(sc.threshold()), display_fps:r.display_fps, low_move_ratio:r.low_move_ratio, trial_type:"strength", delta_live:dUsed, ...motionCols(r)});
     showCanvas();
   };
 
@@ -520,7 +564,7 @@ async function block(angle, blockIdx){
     for(let i=0;i<CFG.D0_N;i++){
       const [pDec,pHigh,dUsed]=nextProps(true);
       const r=await motionTrial(pDec,angle,{});
-      rows.push({participant:CFG.participant, session:1, phase:"calibration_strength", angle_bias:angle,
+      rows.push({participant:CFG.participant, session:1, block_idx:BLOCK_IDX, trial_idx:++TRIAL_IDX, ...motionCols(r), phase:"calibration_strength", angle_bias:angle,
         prop_used:pDec, accuracy:r.correct, true_shape:r.true_shape, resp_shape:r.resp_shape,
         rt_choice:r.rt, is_timeout:r.timeout, trial_type:"strength", delta_live:dUsed,
         display_fps:r.display_fps, low_move_ratio:r.low_move_ratio});
@@ -542,7 +586,7 @@ async function block(angle, blockIdx){
       accuracy:r.correct,true_shape:r.true_shape,resp_shape:r.resp_shape,rt_choice:r.rt,
       is_timeout:r.timeout,wp3_confidence:c.rating,wp3_prob:c.prob,wp3_conf_rt:c.rt,
       prop_high_clipped:pHigh>=0.899, med_live:clampProp(sc.threshold()), display_fps:r.display_fps, low_move_ratio:r.low_move_ratio,
-      trial_type:"standard", delta_live:dt?dUsed:NaN});
+      trial_type:"standard", delta_live:dt?dUsed:NaN, ...motionCols(r)});
     showCanvas();
   }
 
@@ -564,12 +608,12 @@ async function block(angle, blockIdx){
   for(const {lev,strength} of seq2){
     if(strength){ await strengthTrial(2); continue; }
     const [pDec,pHigh,dUsed]=nextProps();
-    const r=await motionTrial(pDec,angle,{}); let c={}, postProp=NaN;
+    const r=await motionTrial(pDec,angle,{}); let c={}, postProp=NaN, ev=null;
     track(r,pDec);
     if(!r.timeout){
       // low = exactly this trial's own decision strength; high = that + BOOST_LOGIT
       postProp = lev==="low"?pDec:pHigh;
-      await motionTrial(postProp,angle,{acceptResponse:false,dur:CFG.EV_DUR,forceTarget:r.true_shape,
+      ev=await motionTrial(postProp,angle,{acceptResponse:false,dur:CFG.EV_DUR,forceTarget:r.true_shape,
                                         forceLeft:r.left,forceApplied:r.applied});
       c=await confidence();
     }
@@ -578,13 +622,19 @@ async function block(angle, blockIdx){
       resp_shape:r.resp_shape,rt_choice:r.rt,is_timeout:r.timeout,
       wp3_confidence:c.rating,wp3_prob:c.prob,wp3_conf_rt:c.rt,
       prop_high_clipped:pHigh>=0.899, med_live:clampProp(sc.threshold()), display_fps:r.display_fps, low_move_ratio:r.low_move_ratio,
-      trial_type:"standard", delta_live:dt?dUsed:NaN});
+      trial_type:"standard", delta_live:dt?dUsed:NaN, ...motionCols(r),
+      ...(ev ? {post_true_shape:ev.true_shape, post_left_shape:ev.left, post_applied_angle_bias:ev.applied,
+                post_evidence_sum:ev.sumEvidence, post_display_fps:ev.display_fps, post_low_move_ratio:ev.low_move_ratio} : {})});
     showCanvas();
   }
 }
 
 const money = s => `${CFG.BONUS_UNIT}${(CFG.BONUS*s).toFixed(2)}`;
+const T_START=Date.now();
 async function main(){
+  Object.assign(META, {seed:SEED0, build:BUILD, started_at:new Date(T_START).toISOString(),
+    screen_w:screen.width, screen_h:screen.height, window_w:window.innerWidth, window_h:window.innerHeight,
+    dpr:window.devicePixelRatio||1, user_agent:navigator.userAgent});
   // Device check first: the task is calibrated for a mouse (as in the lab). Prolific cannot
   // filter for it, so we ask, log the answer and let trackpad users leave without penalty.
   showScreen(`<h1>Before we start</h1><p>What are you using to move the pointer?</p>
@@ -620,13 +670,25 @@ async function main(){
   while(needPause()) await wait(100);
   await bonusInstructions();     // the rule itself; the evidence questions come before Part B
   const order=shuffle([...CFG.ANGLES]);
-  for(let b=0;b<order.length;b++){ await block(order[b], b+1); }
+  for(let b=0;b<order.length;b++){ await block(order[b], b+1); await saveInterim(b+1); }
   const meanScore = SCORES.length ? SCORES.reduce((a,b)=>a+b,0)/SCORES.length : 0;
   META.wp3_mean_score=+meanScore.toFixed(4); META.wp3_bonus=+(CFG.BONUS*meanScore).toFixed(2);
   META.fullscreen_exits=FS_EXITS;   // >0 means part of the session ran outside fullscreen
   META.pointer_lock_exits=PL_EXITS; META.pointer_lock=(PL_OK && !CFG.NOLOCK)?1:0;   // 0 = ran on plain mousemove deltas
   await motivationCheck();
-  const saveErr = await saveData();
+  let saveErr = await saveData();
+  // On Prolific a failed upload must not end in an automatic redirect: the data would sit only
+  // in the participant's Downloads folder. Offer retries; continuing stays possible.
+  while(saveErr && CFG.COMPLETION_URL && CFG.DATAPIPE_ID){
+    showScreen(`<h1>Your data could not be saved yet</h1><p>${saveErr}</p>
+      <p>Please check your internet connection, then press <span class="kbd">R</span> to try again.</p>
+      <p>If it keeps failing, press <span class="kbd">C</span> to continue to Prolific and send the researcher a message
+      there; a copy of your data was saved to your Downloads folder.</p>`);
+    if(await waitKeys(["r","c"])==="c") break;
+    showScreen(`<p>Saving…</p>`);
+    saveErr = await upload(`CDT_wp3_${CFG.participant}.csv`, toCSV());
+    document.getElementById("err").textContent=saveErr;
+  }
   if(CFG.COMPLETION_URL){
     // Prolific: show the bonus briefly, then return the participant so they get credited.
     showScreen(`<h1>Done — thank you!</h1><p>Your confidence bonus: <b>${bonusText(meanScore)}</b></p>
@@ -653,6 +715,11 @@ async function main(){
     TRAJ=new Engine.TrajectoryState(new Float32Array(buf), meta.frames, meta.n, meta.n_primary, meta.n_overflow);
     // main() must be awaited: an un-awaited rejection mid-study showed the
     // participant a blank page with no clue what happened.
+    if(CONFIG_ERRORS.length){
+      showScreen(`<h1>This study link is not set up correctly</h1><p>Please return the study on Prolific and
+        let the researcher know. Nothing has been recorded.</p><p style="color:#8a8f98;font-size:.95rem">${CONFIG_ERRORS.join("<br>")}</p>`);
+      return;
+    }
     await main();
   }catch(e){ showScreen(`<h1>Something went wrong</h1><p>Please tell the researcher what you see here.<br><code>${e.message}</code></p>`);
     document.getElementById("err").textContent=e.stack||e.message; }
