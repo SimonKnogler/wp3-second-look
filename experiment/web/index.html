@@ -38,7 +38,7 @@
 <div id="err"></div>
 <!-- ?v= is a cache-buster: Pavlovia (and browsers) cache engine.js aggressively.
      Bump it whenever engine.js changes, or participants keep the stale copy. -->
-<script src="engine.js?v=2"></script>
+<script src="engine.js?v=6"></script>
 <script>
 "use strict";
 // ─────────────────────────────────────────────────────────────────────────────
@@ -51,6 +51,7 @@ const Q = new URLSearchParams(location.search);
 const PROLIFIC_PID     = Q.get("PROLIFIC_PID")     || Q.get("participant") || "";
 const PROLIFIC_STUDY   = Q.get("STUDY_ID")         || "";
 const PROLIFIC_SESSION = Q.get("SESSION_ID")       || "";
+const qn = (k, d) => Q.get(k) === null || Q.get(k) === "" ? d : +Q.get(k);
 const CFG = {
   participant: PROLIFIC_PID || Q.get("pid") || String(Math.floor(Math.random()*1e6)),
   T1_N: +(Q.get("t1") || 30),          // Task-1 trials per angle
@@ -58,7 +59,14 @@ const CFG = {
   CAL_MIN: +(Q.get("calmin") || 40),   // staircase min / max trials
   CAL_MAX: +(Q.get("calmax") || 80),
   CAL_REVERSALS: 12,
-  BOOST_LOGIT: +(Q.get("boost") || 1.2),
+  BOOST_LOGIT: +(Q.get("boost") || 1.2),   // fixed high offset; only used when there are no strength trials
+  // Two-track design (design doc §10j): strength trials are Part-A-style trials (choose, rate, no second
+  // look) whose FIRST look is at the high strength. They drive a weighted up-down track on the high
+  // offset (up/down = .85/.15 -> 85 % correct) and measure what that strength supports. All 0 = old design.
+  D0_N: qn("d0", 20),                  // strength-calibration block per angle (choice only, no feedback): the person's start value
+  D1_N: qn("d1", 10),                  // interleaved in Task 1: indistinguishable from the other trials
+  D2_N: qn("d2", 25),                  // interleaved in Task 2: no extra evidence, rating right after the choice
+  DELTA0: 0.8, DELTA_DOWN: 0.08, DELTA_UP: 0.453, DELTA_LO: 0.3, DELTA_HI: 1.8,
   // Fixed motion window, response collected afterwards. Self-terminated sampling made
   // evidence-per-trial vary with confidence (fast exits on easy-feeling trials) and
   // possibly with angle — the two things the weighting model must not confound.
@@ -75,6 +83,8 @@ const CFG = {
   DATAPIPE_ID: Q.get("datapipe") || "",
   // Where Prolific sends participants when they finish. Leave empty outside Prolific.
   COMPLETION_URL: Q.get("completion") || "",
+  // TESTING ONLY: run without pointer lock (cursor visible, deltas from plain mousemove).
+  NOLOCK: Q.get("nolock") === "1",
 };
 const clampProp = p => Math.min(Math.max(p, 0.02), 0.90);
 const logit = x => { x = Math.min(Math.max(x,1e-6),1-1e-6); return Math.log(x/(1-x)); };
@@ -102,19 +112,36 @@ class Staircase {
   get nRev(){ return this.rev.length; }
 }
 
+// Weighted up-down (Kaernbach 1991) on the high-evidence offset delta (logit units). It is updated by
+// strength trials only; the 1-up-2-down above by standard trials only.
+class DeltaTrack {
+  constructor(){ this.v=CFG.DELTA0; }
+  update(correct){ this.v=Math.min(Math.max(correct ? this.v-CFG.DELTA_DOWN : this.v+CFG.DELTA_UP, CFG.DELTA_LO), CFG.DELTA_HI); }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Rendering + DOM screens
 // ─────────────────────────────────────────────────────────────────────────────
 const stage=document.getElementById("stage"), screenEl=document.getElementById("screen");
 let canvas=null, ctx=null, cx=0, cy=0;
-const mouse={x:0,y:0,moved:false};
+// Mouse input = RELATIVE movement under Pointer Lock (as the WP1 online port): the system cursor
+// is hidden by the OS, cannot leave the window, cannot reach a second monitor and cannot be
+// enlarged by macOS "shake to locate". There is also no screen edge where the circles would
+// freeze. Deltas are the OS-accelerated ones (no unadjustedMovement), which is what PsychoPy read
+// in the lab. Movement accumulates between frames and is drained once per rendered frame.
+let accX=0, accY=0;
+document.addEventListener("mousemove", e=>{
+  if(document.pointerLockElement || CFG.NOLOCK){ accX+=e.movementX; accY-=e.movementY; }
+});
+function drainMotion(){ const r=[accX,accY]; accX=0; accY=0; return r; }
+let PL_OK=true;            // false once the browser has refused the lock for good -> run without it
+function requestLock(){
+  if(CFG.NOLOCK || !canvas || document.pointerLockElement) return;
+  try{ const p=document.body.requestPointerLock(); if(p && p.catch) p.catch(()=>{}); }catch(e){}
+}
 function makeCanvas(){
   canvas=document.createElement("canvas"); ctx=canvas.getContext("2d");
   resize(); window.addEventListener("resize",resize);
-  canvas.addEventListener("mousemove", e=>{
-    const r=canvas.getBoundingClientRect();
-    mouse.x=(e.clientX-r.left)-cx; mouse.y=-((e.clientY-r.top)-cy); mouse.moved=true;
-  });
 }
 function resize(){ if(!canvas)return; canvas.width=window.innerWidth; canvas.height=window.innerHeight; cx=canvas.width/2; cy=canvas.height/2; }
 function showCanvas(){ stage.innerHTML=""; stage.appendChild(canvas); }
@@ -139,43 +166,50 @@ let EVIDENCE_ON=false;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 function waitKeys(keys){ return new Promise(res=>{ const h=e=>{ const k=e.key.toLowerCase(); if(keys.includes(k)){ window.removeEventListener("keydown",h); res(k); } }; window.addEventListener("keydown",h); }); }
 
-// Fullscreen has to hold for the whole session: outside it the window is smaller than
-// the layout assumes and the desktop cursor comes back. Esc cannot be intercepted, so
-// we detect the exit and require a click to return — re-entering needs a user gesture.
-// Guarded by FS_OK: if the browser refused fullscreen at the start, never nag.
-let FS_OK=false, FS_EXITS=0, fsBlock=null;
-function fsRecover(){
+// Fullscreen and pointer lock have to hold for the whole session. Esc drops both and cannot be
+// intercepted, so we detect the loss, pause (the trial clock freezes, nothing is lost) and ask
+// for a click — re-entering either needs a user gesture. Guarded by FS_OK / PL_OK: if the
+// browser refused one of them at the start, never nag about it.
+let FS_OK=false, FS_EXITS=0, PL_WANTED=false, PL_EXITS=0, PL_FAILS=0, fsBlock=null;
+const needPause = () => (FS_OK && !document.fullscreenElement) || (PL_WANTED && PL_OK && !CFG.NOLOCK && !document.pointerLockElement);
+function fsRecover(title="Paused", text="The task has to run in fullscreen with the mouse captured. Nothing is lost."){
   if(fsBlock) return;
-  FS_EXITS++;
   fsBlock=document.createElement("div"); fsBlock.id="fsblock";
-  fsBlock.innerHTML=`<div><h1>Please return to fullscreen</h1>
-    <p>The task has to stay in fullscreen. It is paused — nothing is lost.</p>
+  fsBlock.innerHTML=`<div><h1>${title}</h1><p>${text}</p>
     <p class="go">click anywhere to continue</p></div>`;
   document.body.appendChild(fsBlock);
   fsBlock.addEventListener("click", async()=>{
-    try{ await Promise.race([document.documentElement.requestFullscreen(), wait(1000)]); }catch(e){}
-    // Clear it either way. If the browser refuses fullscreen we must not trap the
-    // participant behind an overlay they can never dismiss; the exit is in the data.
-    if(fsBlock){ fsBlock.remove(); fsBlock=null; }
+    if(FS_OK && !document.fullscreenElement){
+      try{ await Promise.race([document.documentElement.requestFullscreen(), wait(1000)]); }catch(e){}
+    }
+    if(PL_WANTED && !document.pointerLockElement){
+      requestLock(); await wait(250);
+      // Chrome refuses a re-lock for ~1 s after an Esc exit; the next click will succeed.
+      // Several failures in a row mean the browser will not lock at all: run without it,
+      // the fact is in the data (pointer_lock = 0), rather than trap the participant.
+      if(!document.pointerLockElement && ++PL_FAILS>=4){ PL_OK=false; }
+    }
+    // Clear it either way; if the condition still holds, the change event re-raises it.
+    if(fsBlock && !needPause()){ fsBlock.remove(); fsBlock=null; }
+    else if(fsBlock){ fsBlock.remove(); fsBlock=null; setTimeout(()=>{ if(needPause()) fsRecover(); }, 300); }
   }, {once:true});
 }
 document.addEventListener("fullscreenchange", ()=>{
-  if(!document.fullscreenElement && FS_OK) fsRecover();
-  else if(document.fullscreenElement && fsBlock){ fsBlock.remove(); fsBlock=null; }
+  if(!document.fullscreenElement && FS_OK) { FS_EXITS++; fsRecover(); }
+  else if(fsBlock && !needPause()){ fsBlock.remove(); fsBlock=null; }
 });
+document.addEventListener("pointerlockchange", ()=>{
+  if(document.pointerLockElement){ PL_FAILS=0; if(fsBlock && !needPause()){ fsBlock.remove(); fsBlock=null; } }
+  else if(PL_WANTED && PL_OK && !CFG.NOLOCK){ PL_EXITS++; fsRecover(); }
+});
+document.addEventListener("pointerlockerror", ()=>{ if(++PL_FAILS>=4) PL_OK=false; });
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Motion trial (decision) / evidence sample
 // ─────────────────────────────────────────────────────────────────────────────
-let POOL=null;
-const usedIdx=new Set();
-function pickPair(){
-  const avail=[]; for(let i=0;i<POOL.n;i++) if(!usedIdx.has(i)) avail.push(i);
-  const pool = avail.length>=2 ? avail : [...Array(POOL.n).keys()];   // recycle if exhausted
-  const ti=pool[Math.floor(rnd()*pool.length)]; let di=pool[Math.floor(rnd()*pool.length)];
-  let guard=0; while(di===ti && guard++<50) di=pool[Math.floor(rnd()*pool.length)];
-  usedIdx.add(ti); usedIdx.add(di); return [ti,di];
-}
+// The pool file holds the lab's validity-filtered, speed-normalised snippets in universal-set
+// order (export_pool_for_web.py). TRAJ picks matched pairs and tracks use, as the lab does.
+let TRAJ=null;
 // returns {resp_shape, correct, rt, true_shape, timeout, sumEvidence}
 // forceLeft / forceApplied: the WP3 evidence sample MUST inherit the decision
 // trial's layout. Both objects are identical circles, so the participant
@@ -184,15 +218,20 @@ function pickPair(){
 function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forceTarget=null, forceLeft=null, forceApplied=null}={}){
   return new Promise(res=>{
     EVIDENCE_ON = !acceptResponse;
-    const [ti,di]=pickPair();
+    const [ti,di]=TRAJ.pair(rnd);
+    const [tSnip,dSnip]=Engine.applyConsistentSmoothing(TRAJ.snip(ti),TRAJ.snip(di));
     const target = forceTarget || (rnd()<0.5?"square":"dot");
     const left = forceLeft || (rnd()<0.5?"square":"dot");
     const applied = forceApplied!==null ? forceApplied : (angle===90 ? (rnd()<0.5?90:-90) : 0);
-    const eng=new Engine.TrialEngine(POOL,ti,di,prop,applied,target,left);
+    const eng=new Engine.TrialEngine(tSnip,dSnip,prop,applied,target,left);
     const squareCx = left==="square"?-Engine.OFFSET_X:Engine.OFFSET_X;
     const dotCx = left==="square"?Engine.OFFSET_X:-Engine.OFFSET_X;
-    mouse.moved=false;
-    let started=false, t0=0, resp=null, rt=NaN, keyH=null, tPrompt=0;
+    drainMotion();
+    // Physics runs in fixed 120 Hz steps (Engine.SimClock, the rate the WP1 lab data show) however
+    // fast the display renders, and a rendered frame's mouse movement is spread evenly over the
+    // steps it covers: the same hand movement produces the same motion on a 60, 120 or 144 Hz screen.
+    const NSTEP=Math.round(dur/Engine.SIM_DT);   // the motion window in whole physics steps (3 s = 360)
+    let started=false, clock=null, rendered=0, t0=0, resp=null, rt=NaN, keyH=null, tPrompt=0;
     // Keys are armed only once the motion window has elapsed: every decision trial
     // therefore delivers exactly MOTION_DUR of evidence. rt_choice is measured from
     // the prompt, not from motion onset — it is deliberation time, not sampling time.
@@ -205,17 +244,27 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
     };
     let pausedAt=0, prompted=false;
     function frame(now){
-      // Fullscreen lost mid-trial: freeze the trial clock until it is restored, so the
-      // participant does not lose movement time to an accidental Esc.
-      if(fsBlock){ if(!pausedAt) pausedAt=performance.now(); requestAnimationFrame(frame); return; }
-      if(pausedAt){ if(started) t0+=performance.now()-pausedAt; pausedAt=0; }
-      if(!started){ if(mouse.moved){ started=true; t0=performance.now(); } drawShapes(eng.squarePos,eng.dotPos,squareCx,dotCx); requestAnimationFrame(frame); return; }
-      const el=(performance.now()-t0)/1000;
+      // Fullscreen or pointer lock lost mid-trial: freeze the trial clock until it is restored,
+      // so the participant does not lose movement time to an accidental Esc.
+      if(fsBlock){ if(!pausedAt) pausedAt=performance.now(); drainMotion(); requestAnimationFrame(frame); return; }
+      if(pausedAt){ if(started){ t0+=performance.now()-pausedAt; clock.resume(performance.now()/1000); } pausedAt=0; }
+      if(!started){
+        const [mx,my]=drainMotion();
+        if(mx!==0||my!==0){ started=true; t0=performance.now(); clock=new Engine.SimClock(t0/1000); }
+        drawShapes(eng.squarePos,eng.dotPos,squareCx,dotCx); requestAnimationFrame(frame); return;
+      }
       // The MOTION window is fixed (every trial delivers the same amount of evidence).
       // The RESPONSE is not: once the motion ends the display freezes and we keep
       // waiting. Running past the window no longer discards the trial.
-      if(el<dur){ const st=eng.step(mouse.x,mouse.y); drawShapes(st.square,st.dot,squareCx,dotCx); }
-      else if(acceptResponse && !prompted){
+      if(clock.k<NSTEP){
+        rendered++;
+        const n=clock.steps(performance.now()/1000); const [mx,my]=drainMotion();
+        let st=null;
+        for(let k=0;k<n && clock.k<NSTEP;k++){ st=eng.stepDelta(mx/n,my/n); clock.advance(); }
+        if(st) drawShapes(st.square,st.dot,squareCx,dotCx);
+      }
+      const motionDone = clock.k>=NSTEP;
+      if(motionDone && acceptResponse && !prompted){
         prompted=true; armKeys(); drawShapes(eng.squarePos,eng.dotPos,squareCx,dotCx);
         ctx.fillStyle="#eceae6"; ctx.font="600 24px system-ui, sans-serif";
         ctx.textAlign="center"; ctx.textBaseline="alphabetic";
@@ -223,14 +272,19 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
         ctx.fillText("which one was yours?    a = left    ·    s = right",
                      cx, Math.min(cy+Engine.BOX_HH+44, canvas.height-22));
       }
-      if(resp!==null || (!acceptResponse && el>=dur) || el>=dur+CFG.RESP_GRACE){
+      const waited = prompted ? (performance.now()-tPrompt)/1000 : 0;
+      if(resp!==null || (!acceptResponse && motionDone) || waited>=CFG.RESP_GRACE){
         if(keyH) window.removeEventListener("keydown",keyH);
         EVIDENCE_ON=false;
         const timeout = acceptResponse && resp===null;
         res({ resp_shape:timeout?"timeout":(acceptResponse?resp:"evidence"),
               correct: (acceptResponse&&!timeout)?(resp===target?1:0):null,
               rt, true_shape:target, timeout, sumEvidence:eng.sumEvidence,
-              left, applied });
+              left, applied,
+              // online quality markers (WP1 online): rendered frames per second of motion
+              // (well below the display rate = dropped frames), share of steps with the hand
+              // nearly still (also what a trackpad user tends to produce)
+              display_fps: rendered/Math.max(clock.simT,1e-6), low_move_ratio: eng.lowMoveRatio });
         return;
       }
       requestAnimationFrame(frame);
@@ -296,8 +350,12 @@ async function bonusInstructions({withEvidence=false}={}){
     you were right <b>and</b> you rated <b>9</b> &nbsp;·&nbsp; you were wrong <b>and</b> you rated <b>1</b></p>
     <p>So being wrong costs you nothing, as long as you notice it. It only costs you to be
     wrong <b>and convinced</b> — or to be right and not trust yourself.</p>
-    <p>Always pressing 5 earns a middling amount. Random pressing earns little.
-    The best strategy is simple: <b>report honestly what you believe.</b><br>
+    ${CFG.BONUS>0?`<p><b>In money:</b> every rating earns a score between 0 and 1, and your bonus is
+    <b>${money(1)} × your average score</b>, paid through Prolific. For example: ratings that
+    <b>track whether you were right</b> typically average 0.80–0.90 → <b>${money(.80)}–${money(.90)}</b>;
+    always pressing 5 gives exactly 0.75 → ${money(.75)}; pressing at random averages about 0.65 → ${money(.65)}.</p>`
+    :`<p>Always pressing 5 earns a middling amount (0.75 per trial). Random pressing earns less (about 0.65).</p>`}
+    <p>The best strategy is simple: <b>report honestly what you believe.</b><br>
     You will <b>not</b> see your score during the task — only your total at the end.</p>
     <p class="go">press SPACE for two quick questions</p>`;
   // Answered on the 1–9 scale itself: an earlier version used 1/2/3 answer keys that
@@ -354,9 +412,9 @@ function toCSV(){
   rows.forEach(r=>Object.assign(r, META));
   const cols=["participant","session","phase","wp3_task","evidence_level","angle_bias",
     "prop_used","prop_post","accuracy","true_shape","resp_shape","rt_choice","is_timeout",
-    "wp3_confidence","wp3_prob","wp3_conf_rt","wp3_score","prop_high_clipped","med_live",
+    "wp3_confidence","wp3_prob","wp3_conf_rt","wp3_score","prop_high_clipped","med_live","trial_type","delta_live","display_fps","low_move_ratio",
     "bonus_quiz_attempts","bonus_quiz_attempts_evidence","bonus_motivation_1to5",
-    "wp3_mean_score","wp3_bonus","fullscreen_exits","prolific_study_id","prolific_session_id"];
+    "wp3_mean_score","wp3_bonus","fullscreen_exits","pointer_lock_exits","input_device","pointer_lock","prolific_study_id","prolific_session_id"];
   // Every META key must be listed here or it is silently dropped from the file: the four
   // fields after wp3_bonus were collected for weeks without ever being written.
   const esc=v=>v===undefined||v===null||(typeof v==="number"&&isNaN(v))?"":String(v);
@@ -406,7 +464,7 @@ async function calibration(angle){
     // the confidence score.
     rows.push({participant:CFG.participant, session:1, phase:"calibration", angle_bias:angle,
       prop_used:p, accuracy:r.correct, true_shape:r.true_shape, resp_shape:r.resp_shape,
-      rt_choice:r.rt, is_timeout:r.timeout});
+      rt_choice:r.rt, is_timeout:r.timeout, display_fps:r.display_fps, low_move_ratio:r.low_move_ratio});
     if(!r.timeout){ sc.update(p, r.correct); n++;
       // Same colour for both: this is the only feedback in the study, and green/red
       // adds a valence signal the main (feedback-free) task deliberately lacks —
@@ -427,23 +485,64 @@ async function block(angle, blockIdx){
   // strength derived from it (exactly +BOOST_LOGIT apart, per trial). With tracking on,
   // the 1u2d that calibrated this block keeps running through BOTH tasks, so practice
   // or fatigue cannot shift accuracy between the phases the slopes run over.
-  const nextProps = () => { const p = CFG.TRACK ? clampProp(sc.next()) : med0;
-    return [p, clampProp(invLogit(logit(p)+CFG.BOOST_LOGIT))]; };
-  // decision trials only — the evidence sample never feeds the staircase
-  const track = (r,used) => { if(CFG.TRACK && !r.timeout) sc.update(used, r.correct); };
+  // Two-track: the high strength is the standard prop plus the tracked offset delta. A strength trial
+  // takes its FIRST look at that high strength; its outcome moves delta, never the 1-up-2-down.
+  const dt = (CFG.D0_N + CFG.D1_N + CFG.D2_N > 0) ? new DeltaTrack() : null;
+  const nextProps = (strength=false) => { const p = CFG.TRACK ? clampProp(sc.next()) : med0;
+    const dUsed = dt ? dt.v : CFG.BOOST_LOGIT, pHigh = clampProp(invLogit(logit(p)+dUsed));
+    return [strength ? pHigh : p, pHigh, dUsed]; };
+  // decision trials only — the evidence sample never feeds either track
+  const track = (r,used,strength=false) => { if(r.timeout) return;
+    if(strength) dt.update(r.correct); else if(CFG.TRACK) sc.update(used, r.correct); };
+  const mix = (nStd, nStr) => shuffle([...Array(nStd).fill(false), ...Array(nStr).fill(true)]);
+  // A strength trial is a Part-A trial at the high strength: choose, rate, no second look. Rated and
+  // scored like every other trial, so there is nothing to recognise and nothing to skimp on.
+  const strengthTrial = async (task) => {
+    const [pDec,pHigh,dUsed]=nextProps(true);
+    const r=await motionTrial(pDec,angle,{}); let c={};
+    track(r,pDec,true);
+    if(!r.timeout){ c=await confidence(); }
+    log({phase:`wp3_task${task}`,wp3_task:task,evidence_level:0,angle_bias:angle,prop_used:pDec,
+      accuracy:r.correct,true_shape:r.true_shape,resp_shape:r.resp_shape,rt_choice:r.rt,
+      is_timeout:r.timeout,wp3_confidence:c.rating,wp3_prob:c.prob,wp3_conf_rt:c.rt,
+      prop_high_clipped:pHigh>=0.899, med_live:clampProp(sc.threshold()), display_fps:r.display_fps, low_move_ratio:r.low_move_ratio, trial_type:"strength", delta_live:dUsed});
+    showCanvas();
+  };
+
+  // Strength calibration: the person's own start for the high offset. Choice only and WITHOUT
+  // feedback: the track needs the outcomes, not the participant, and twenty mostly-"Right" messages
+  // right before Part A would lift the baseline confidence measured there. Feeds the psychometric
+  // fit, not the measured level.
+  if(dt && CFG.D0_N>0){
+    showScreen(`<h1>Calibration, part 2</h1><p>Same as before: move, then choose the circle you control
+      (a = left, s = right).</p><p>No feedback from here on.</p><p class="go">press SPACE to start</p>`);
+    await waitKeys([" "]); showCanvas();
+    for(let i=0;i<CFG.D0_N;i++){
+      const [pDec,pHigh,dUsed]=nextProps(true);
+      const r=await motionTrial(pDec,angle,{});
+      rows.push({participant:CFG.participant, session:1, phase:"calibration_strength", angle_bias:angle,
+        prop_used:pDec, accuracy:r.correct, true_shape:r.true_shape, resp_shape:r.resp_shape,
+        rt_choice:r.rt, is_timeout:r.timeout, trial_type:"strength", delta_live:dUsed,
+        display_fps:r.display_fps, low_move_ratio:r.low_move_ratio});
+      if(!r.timeout) dt.update(r.correct);
+      else { showScreen(`<p style="color:#e0713a">No response recorded</p>`); await wait(900); showCanvas(); }
+    }
+  }
 
   // Task 1
   showScreen(`<h1>Part A</h1><p>Choose the circle you control (a = left, s = right), then rate your confidence.</p>
-    <p>No feedback from here on.</p><p class="go">press SPACE</p>`); await waitKeys([" "]); showCanvas();
-  for(let i=0;i<CFG.T1_N;i++){
-    const [pDec,pHigh]=nextProps();
+    <p>${CFG.D0_N>0?"Still no feedback.":"No feedback from here on."}</p><p class="go">press SPACE</p>`); await waitKeys([" "]); showCanvas();
+  for(const strength of mix(CFG.T1_N, CFG.D1_N)){
+    if(strength){ await strengthTrial(1); continue; }
+    const [pDec,pHigh,dUsed]=nextProps();
     const r=await motionTrial(pDec,angle,{}); let c={};
     track(r,pDec);
     if(!r.timeout){ c=await confidence(); }
     log({phase:"wp3_task1",wp3_task:1,evidence_level:0,angle_bias:angle,prop_used:pDec,
       accuracy:r.correct,true_shape:r.true_shape,resp_shape:r.resp_shape,rt_choice:r.rt,
       is_timeout:r.timeout,wp3_confidence:c.rating,wp3_prob:c.prob,wp3_conf_rt:c.rt,
-      prop_high_clipped:pHigh>=0.899, med_live:clampProp(sc.threshold())});
+      prop_high_clipped:pHigh>=0.899, med_live:clampProp(sc.threshold()), display_fps:r.display_fps, low_move_ratio:r.low_move_ratio,
+      trial_type:"standard", delta_live:dt?dUsed:NaN});
     showCanvas();
   }
 
@@ -457,11 +556,14 @@ async function block(angle, blockIdx){
     It is bonus information — no response during it.</p>
     <p>Then rate how likely it is that your <b>first</b> choice was correct. If the extra
     evidence shows your choice was wrong, a <b>low</b> rating is what earns you the most.</p>
+    ${CFG.D2_N>0?"<p>Some trials have <b>no</b> extra evidence: you rate right after your choice, as in Part A.</p>":""}
     <p class="go">press SPACE</p>`);
   await waitKeys([" "]); showCanvas();
   const levels=shuffle([...Array(Math.floor(CFG.T2_N/2)).fill("low"),...Array(CFG.T2_N-Math.floor(CFG.T2_N/2)).fill("high")]);
-  for(const lev of levels){
-    const [pDec,pHigh]=nextProps();
+  const seq2=shuffle([...levels.map(l=>({lev:l,strength:false})), ...Array(CFG.D2_N).fill({lev:null,strength:true})]);
+  for(const {lev,strength} of seq2){
+    if(strength){ await strengthTrial(2); continue; }
+    const [pDec,pHigh,dUsed]=nextProps();
     const r=await motionTrial(pDec,angle,{}); let c={}, postProp=NaN;
     track(r,pDec);
     if(!r.timeout){
@@ -475,18 +577,35 @@ async function block(angle, blockIdx){
       prop_used:pDec,prop_post:postProp,accuracy:r.correct,true_shape:r.true_shape,
       resp_shape:r.resp_shape,rt_choice:r.rt,is_timeout:r.timeout,
       wp3_confidence:c.rating,wp3_prob:c.prob,wp3_conf_rt:c.rt,
-      prop_high_clipped:pHigh>=0.899, med_live:clampProp(sc.threshold())});
+      prop_high_clipped:pHigh>=0.899, med_live:clampProp(sc.threshold()), display_fps:r.display_fps, low_move_ratio:r.low_move_ratio,
+      trial_type:"standard", delta_live:dt?dUsed:NaN});
     showCanvas();
   }
 }
 
+const money = s => `${CFG.BONUS_UNIT}${(CFG.BONUS*s).toFixed(2)}`;
 async function main(){
+  // Device check first: the task is calibrated for a mouse (as in the lab). Prolific cannot
+  // filter for it, so we ask, log the answer and let trackpad users leave without penalty.
+  showScreen(`<h1>Before we start</h1><p>What are you using to move the pointer?</p>
+    <p><span class="kbd">1</span> a computer mouse &nbsp; <span class="kbd">2</span> a trackpad / touchpad &nbsp; <span class="kbd">3</span> something else</p>`);
+  META.input_device = parseInt(await waitKeys(["1","2","3"]),10);
+  if(META.input_device!==1){
+    showScreen(`<h1>This study needs a computer mouse</h1>
+      <p>The task measures fine hand movements and is calibrated for a mouse; a trackpad gives different results.</p>
+      <p>If you have a mouse, please plug it in now and press <span class="kbd">M</span> to continue.</p>
+      <p>If not, please <b>return</b> the study on Prolific — there is no penalty for that — and close this window.</p>`);
+    await waitKeys(["m"]); META.input_device = 1;   // continued with a mouse after all
+  }
   showScreen(`<h1>Control Detection Task</h1>
     <p>You will see two identical circles, one on the <b>left</b> and one on the <b>right</b>.
     One follows your mouse; the other does not. Keep the mouse moving while they move.
     When the circles <b>stop</b>, say which one was yours (<b>a</b> = left, <b>s</b> = right) —
     there is no rush, take the time you need.</p>
-    <p>Please use a <b>mouse</b> (not a trackpad) and stay in fullscreen.</p>
+    ${CFG.BONUS>0?`<p><b>Payment:</b> the base payment shown on Prolific, plus a <b>bonus of up to ${money(1)}</b> that
+    depends on your confidence ratings. The next screen explains exactly how.</p>`:""}
+    <p>Please use <b>one screen only</b> (no second monitor) and stay in fullscreen. The task hides and
+    captures the mouse pointer; if you ever need to pause, press <span class="kbd">Esc</span>.</p>
     <p class="go">click to begin (fullscreen)</p>`);
   await new Promise(r=>{ const h=()=>{ stage.removeEventListener("click",h); r(); }; stage.addEventListener("click",h); });
   // Some embeddings neither grant nor reject fullscreen — the promise just never
@@ -494,12 +613,18 @@ async function main(){
   try{ await Promise.race([document.documentElement.requestFullscreen(), wait(1000)]); }catch(e){}
   FS_OK = !!document.fullscreenElement;   // only police fullscreen if we ever had it
   makeCanvas();
+  // Pointer lock needs its own click (the fullscreen request used this one). The pause overlay
+  // doubles as that prompt; it clears itself once the lock is held, or gives up after 4 refusals.
+  PL_WANTED = !CFG.NOLOCK;
+  if(needPause()) fsRecover("One more click", "The task hides and captures the mouse pointer. Click once to continue.");
+  while(needPause()) await wait(100);
   await bonusInstructions();     // the rule itself; the evidence questions come before Part B
   const order=shuffle([...CFG.ANGLES]);
   for(let b=0;b<order.length;b++){ await block(order[b], b+1); }
   const meanScore = SCORES.length ? SCORES.reduce((a,b)=>a+b,0)/SCORES.length : 0;
   META.wp3_mean_score=+meanScore.toFixed(4); META.wp3_bonus=+(CFG.BONUS*meanScore).toFixed(2);
   META.fullscreen_exits=FS_EXITS;   // >0 means part of the session ran outside fullscreen
+  META.pointer_lock_exits=PL_EXITS; META.pointer_lock=(PL_OK && !CFG.NOLOCK)?1:0;   // 0 = ran on plain mousemove deltas
   await motivationCheck();
   const saveErr = await saveData();
   if(CFG.COMPLETION_URL){
@@ -519,9 +644,13 @@ async function main(){
 // boot: load the motion pool, then run
 (async()=>{
   try{
-    const meta=await (await fetch("motion_pool.json")).json();
-    const buf=await (await fetch("motion_pool.bin")).arrayBuffer();
-    POOL={data:new Float32Array(buf), F:meta.frames, n:meta.n};
+    // ?v= and no-store: Pavlovia and browsers cache these files aggressively, and a stale pool file
+    // with a newer engine crashes the first trial (seen 2026-10-05: old .json without n_primary).
+    const meta=await (await fetch("motion_pool.json?v=4",{cache:"no-store"})).json();
+    const buf=await (await fetch("motion_pool.bin?v=4",{cache:"no-store"})).arrayBuffer();
+    if(!meta.n_primary || buf.byteLength!==meta.n*meta.frames*2*4)
+      throw new Error(`motion pool files do not match this build (json n=${meta.n}, frames=${meta.frames}, primary=${meta.n_primary}; bin ${buf.byteLength} bytes). Please hard-reload (Cmd/Ctrl+Shift+R).`);
+    TRAJ=new Engine.TrajectoryState(new Float32Array(buf), meta.frames, meta.n, meta.n_primary, meta.n_overflow);
     // main() must be awaited: an un-awaited rejection mid-study showed the
     // participant a blank page with no clue what happened.
     await main();

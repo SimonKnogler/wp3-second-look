@@ -44,12 +44,16 @@ def main():
     ap.add_argument("outdir")
     ap.add_argument("--n", type=int, default=10)
     ap.add_argument("--seed", type=int, default=20260929)
+    ap.add_argument("--d0", type=int, default=0, help="strength-calibration block per mapping (two-track design: 20)")
+    ap.add_argument("--d1", type=int, default=0, help="strength trials per mapping in Task 1 (two-track design: 10)")
+    ap.add_argument("--d2", type=int, default=0, help="strength trials per mapping in Task 2 (two-track design: 25)")
     a = ap.parse_args()
     out = pathlib.Path(a.outdir); (out / "data").mkdir(parents=True, exist_ok=True)
     cond = dict(pool=a.n, mu_delta=float(np.log(WD0_OVER_WD90)), sd_delta=0.30, b_mean=0.40, b_sd=0.30,
                 b_shift0=0.0, noise=1.2, t1=30, t2=60, boost=1.2)
     P = PW.draw_pool(cond, a.seed)
     S.T1_N, S.T2_N, S.BOOST = cond["t1"], cond["t2"], cond["boost"]
+    S.D0_N, S.D1_N, S.D2_N = a.d0, a.d1, a.d2
     ids = [f"sim{i + 1:02d}" for i in range(a.n)]
     for i in range(a.n):
         rng = np.random.default_rng(a.seed * 1000 + i)

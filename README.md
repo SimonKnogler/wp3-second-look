@@ -133,8 +133,10 @@ applied.
 python3 experiment/analysis/fit_wp3_model.py experiment/data/real/raw --pdi pdi.csv
 ```
 
-Fits each participant's psychometric function, converts every evidence sample to a
-log-likelihood ratio, and estimates confirmatory / disconfirmatory weights (w_c, w_d)
+Converts every evidence sample to a log-likelihood ratio (the level of the strong sample is the
+measured accuracy on the strength trials; the psychometric function supplies the variation
+around it — design doc §10j; files without strength trials fall back to the psychometric
+function alone) and estimates confirmatory / disconfirmatory weights (w_c, w_d)
 with a censored-Gaussian likelihood; compares null / weighting / choice-bias models by
 BIC. **The primary test is the 0° vs 90° contrast on w_d** — w_c is not identified per
 person (correct trials sit at the scale ceiling), and the raw β difference has the wrong
@@ -159,6 +161,22 @@ task's exact file layout, with the truth kept in `ground_truth.csv`:
 python3 experiment/analysis/make_validation_data.py experiment/analysis/validation
 python3 experiment/analysis/wp3_paper_analysis.py experiment/analysis/validation/data
 python3 experiment/analysis/wp3_report.py experiment/analysis/validation/results.json experiment/documents/WP3_validation_results.html
+```
+
+The same with the two-track design (`--d0 20 --d1 10 --d2 25`; output in `validation_two_track/`):
+
+```bash
+python3 experiment/analysis/make_validation_data.py experiment/analysis/validation_two_track --d0 20 --d1 10 --d2 25
+python3 experiment/analysis/wp3_paper_analysis.py experiment/analysis/validation_two_track/data
+```
+
+**Learning drift** — does the mapping contrast survive an observer whose threshold or slope
+changes during the session, one mapping learning faster than the other? Old design vs two-track
+design, with and without a built-in effect (design doc §10j):
+
+```bash
+python3 experiment/analysis/drift_robustness_wp3.py --n 150      # ~35 min on 8 cores -> drift_robustness_report.md
+python3 experiment/analysis/test_two_track.py                    # the small unit checks
 ```
 
 **Power before you recruit:**
@@ -203,11 +221,17 @@ python3 experiment/analysis/check_wp3_replay_invariant.py <kinematics.csv> [...]
   the feedback-free design. One total at the end only.
 - **`prop` is capped at 0.90.** If a participant's medium converges above ~0.72 the boost
   clips and high ≈ low; those blocks are flagged (`prop_high_clipped`) and excluded.
-- **Do not test w_d against 1.** The strength of the strong evidence sample lies outside the
-  range the staircase visits and is over-estimated, which pulls every fitted w_d down by a
-  quarter to a third — the same factor at both mappings. The contrast between mappings is
-  unaffected; the *level* is tested against an ideal observer passed through the same pipeline
+- **Do not test w_d against 1.** Fitted w_d is a shift per unit of evidence, so its level
+  inherits any bias in the estimated evidence strength (previously a quarter to a third too
+  low, the same factor at both mappings). The contrast between mappings is the primary test;
+  the *level* is tested against an ideal observer passed through the same pipeline
   (`wp3_paper_analysis.py`, design doc §10i).
+- **The high evidence is measured, not inferred.** Strength trials (Task-1-style trials whose first
+  look is at the high strength; `trial_type`, `delta_live`) hold it at ≈ 85 % with a second
+  adaptive track, and the analysis anchors the level of e to their accuracy (design doc §10j).
+  Without this, a learning effect that differs between the mappings produces a spurious
+  contrast of about the size of the smallest effect we can detect. Do not drop the strength
+  trials from the data or the model's `e_mode` without re-running `drift_robustness_wp3.py`.
 - **Do not read the bias off the raw β slopes.** On simulated data with a strong built-in
   bias at 0°, the descriptive index comes out with the *wrong sign* (scale ceiling on
   correct trials). The model-based fit (`fit_wp3_model.py`) is the primary analysis, and
@@ -222,10 +246,13 @@ python3 experiment/analysis/check_wp3_replay_invariant.py <kinematics.csv> [...]
 - [x] Primary test on the **both** model's w_d, with a parametric-bootstrap null (`wp3_paper_analysis.py`)
 - [x] Validation run: the planned analysis recovers a built-in mode effect from files in the task's own layout (§10i)
 - [x] Online task writes calibration trials and every collected field to the data file
+- [x] Two-track evidence design: strength trials, measured high-evidence level, drift robustness (§10j; `drift_robustness_wp3.py`, `test_two_track.py`)
+- [ ] Mirror the strength trials in the PsychoPy lab task (`CDT_windows_blockwise_fast_response.py`)
 - [ ] Hierarchical meta-d′ for the comparison between mappings — 30 Task-1 trials per mapping do not support a per-person ratio
 - [ ] Hierarchical (Stan/PyMC) version of the fit — the two-stage fit bounds and winsorises instead
+- [x] Web port parity with the lab / WP1 online: pointer lock, fixed 60 Hz physics, matched trajectory pairs (§10k)
 - [ ] Human feel-test of scale, evidence marker and scoring-rule instructions
-- [ ] Pilot: what accuracy does the +1.2-logit boost actually induce? (Rollwage: 81 %)
+- [ ] Pilot: do strength trials land at ≈ 85 % at both mappings, does δ converge, is the rating distribution on incorrect high-evidence trials graded (not a spike at 1), do the live thresholds drift differently at 0° and 90°? (Rollwage's boost gave 81 %)
 - [ ] Consent / instruction / demographics screens for the online version
 - [ ] Hosting: Pavlovia + Prolific + OSF DataPipe (`DATAPIPE_ID` in `web/index.html`)
 - [ ] Preregistration

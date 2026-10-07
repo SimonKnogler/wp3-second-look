@@ -544,7 +544,7 @@ analysis (`wp3_paper_analysis.py`). Report: `WP3_validation_results.html`; poste
    evidence strength is compensated by an under-estimated weight: fitted/true = 0.75 with
    calibration trials in the fit, 0.66 without (120 simulated participants per cell). The factor is
    the same at both mappings, which is why the contrast survives. A weaker boost (0.8) does not
-   change it.
+   change it. (§10j: the new design measures the strength of the strong sample instead.)
 3. **The fix: an ideal-observer benchmark.** Each participant's session is re-simulated from
    their fitted parameters with w_d = 1 and refitted. Through this pipeline an ideal observer
    returns w_d = 0.83, not 1. Against that benchmark the run gave the correct answer at both
@@ -563,6 +563,192 @@ analysis (`wp3_paper_analysis.py`). Report: `WP3_validation_results.html`; poste
 The effect built in here (about 50 % reduction) is more than twice the smallest effect the full
 study can detect. Ten participants show that the analysis returns what was put in, not that an
 effect of realistic size will be found.
+
+## 10j. Learning drift, and the two-track evidence design (2026-10-02)
+
+**Problem.** The primary test compares w_d between the 0° and 90° mappings, and w_d is a shift per
+unit of evidence e. e was inferred from a psychometric function fitted once per person and mapping
+and treated as constant over the session. If the observer's threshold or slope *changes* during the
+session (learning, a drop once feedback stops) and does so differently at the two mappings, e is
+wrong by a different amount at each and the error appears as a mode contrast. 90° is harder and has
+more room to learn, so this is plausible. Simulated (`drift_robustness_wp3.py`, 150 observers per
+cell, true w_d ratio 1.0): the old design returns a spurious contrast of **−0.12** when 90°
+learns faster (threshold drift −0.2 vs −0.6 logit) and **−0.34** when that is combined with a rising
+slope at 90°; against a smallest relevant effect of −0.22. Keeping the staircase running or freezing
+it makes no difference (−0.25 vs −0.21 in an earlier 60-per-cell run): both feed the same static function.
+
+Why it concerns e_high and not e_low: with the 1-up-2-down running throughout, first looks and low
+second looks sit at ≈ 70.7 % by construction at any time, so e_low is drift-proof. e_high lies outside
+the range the staircase visits and rests on the fitted slope, which is over-estimated on adaptive
+data, flattened when pooled over a moving threshold, and itself able to change with learning.
+
+**Design: stop inferring the high level, pin it and measure it.** Per mapping, two adaptive tracks run
+through Task 1 and Task 2:
+
+| | first look / low second look | high second look |
+|---|---|---|
+| controlled by | prop p (1-up-2-down, 70.7 %, unchanged) | offset δ (logit): p_high = σ(logit p + δ) |
+| rule | unchanged | weighted up-down (Kaernbach 1991), up/down = .85/.15: +0.453 after an error, −0.08 after a correct, δ ∈ [0.3, 1.8], start 0.8 |
+| updated by | standard trials only | strength trials only |
+
+*Strength trials* are Task-1-style trials whose first look is already at p_high: move, choose, rate —
+no second look (`trial_type = "strength"`, all others `"standard"`; `evidence_level = 0`). Three places:
+- **strength calibration**, 20 per mapping right after the 1-up-2-down calibration, choice only and
+  **without feedback** (`phase = calibration_strength`): δ's start for this person;
+- **interleaved**, 10 among Task 1 and 25 among Task 2: keep δ tracking through the session and
+  *measure* what the high strength supports under the conditions of the second looks.
+They never move the staircase; standard trials never move δ. New columns: `trial_type`, `delta_live`
+(the offset in force on that trial). `?d0=0&d1=0&d2=0` restores the old design. In Task 1 a strength
+trial is indistinguishable from any other; in Task 2 participants are told that some trials have no
+extra evidence and are rated right after the choice. Budget: 370–450 decision trials plus 120 second
+looks, about 57 minutes (was ≈ 50); 980–1140 trajectory draws against a pool of 1200, so no recycling.
+
+Two choices here were made against the first build and are worth keeping in mind:
+- *Rated and scored, not choice-only.* A choice-only strength trial has no consequence for the
+  participant. Anyone who notices "very clear trial → ends after the choice → does not count" can answer
+  carelessly on clear-feeling trials, which lowers the measured strength and inflates w_d — at both
+  mappings, so mostly in the level, but in the contrast if the clarity cue differs between mappings.
+  With a rating the trial counts toward the bonus, there is nothing to recognise and nothing to skimp
+  on. The ratings themselves are not used (a high-strength Task-1 cell, analysable later). Cost ≈ 2 s per trial.
+- *No feedback in the strength calibration.* The track needs the outcomes, not the participant.
+  Twenty mostly-"Right" messages immediately before Part A would lift the baseline confidence L0
+  measured there; the feedback-free stretch now starts with this block instead of with Part A.
+
+Why interleaved rather than a block alone: a block measures the strength once, before Task 2, while
+the second looks it calibrates come 85 trials later. The 1-up-2-down carries a threshold shift into
+p_high on its own (δ is a distance to the live value); a later change in the slope it does not, and
+only trials during Task 2 can. Why not a second absolute staircase: it would have to rediscover the
+threshold shift the 1-up-2-down already knows from many more trials; tracking the *distance* leaves
+it only the slow part. The first build of this design gave the interleaved trials a second look and a
+rating so that every Task-2 trial looked alike; dropped, since neither is used and they cost ≈ 100
+trajectories and 5 minutes.
+
+Step sizes were chosen by simulation (100 observers, starts of δ = 0.4, 0.8, 1.4): 0.08 / 0.453 reaches
+86–87 % delivered accuracy from every start within the 35 strength trials; 0.05 / 0.28 jitters less but
+converges more slowly from a poor start. The delivered accuracy is 86–87 % rather than 85 % because of the floor on δ and its
+jitter (SD ≈ 0.3 logit): `test_two_track.py`.
+
+**Analysis (`fit_wp3_model.fit_participant`, default `e_mode="anchored"`).** The model and the primary
+test are unchanged; only the source of e changes, and strength trials stay out of the confidence model
+and out of the exclusion criteria.
+- The **level** of e comes from measured accuracy: e_low = logit(accuracy on standard first looks),
+  e_high = logit(accuracy on the *interleaved* strength trials; the calibration block has feedback and
+  precedes Task 1, so it only sets δ and widens the psychometric fit), the latter shrunk toward the group value per mapping
+  (beta-binomial, method of moments, `acc_priors`): with ~35 trials the person-level binomial SE
+  (≈ 6 points) exceeds the plausible spread, so this is close to complete pooling.
+- **Trial-to-trial variation within a level** comes from the psychometric function (fitted on all
+  decision trials, strength trials included, so the high range is observed, not extrapolated) and
+  enters only as deviations around the measured level.
+- Considered and rejected, same data (100 per cell, four scenarios): *one constant e per level* is
+  unbiased under drift but throws away real trial-level variation (SD of the contrast 1.0–1.17 against
+  0.65–0.83; r(w_d) .35–.49 against .58–.70): about half the power. *The psychometric e alone* (strength
+  trials just widen its range) gains nothing against drift (combined scenario: −0.32).
+
+**Result** (150 simulated observers per cell; bias = recovered − built-in contrast in log w_d, SE ≈ 0.06;
+null = true contrast 0, effect = −0.49). Every cell uses the same participant pool and seeds, so a pool's
+own sampling error (± 1 SE) is shared by all cells: differences between scenarios are more precise than
+the absolute numbers, and a bias that is the same in every cell is that shared error, not a design effect
+(a 200-observer pool drawn afresh gave +0.06 ± 0.05 for the two-track design and +0.01 ± 0.06 for the old
+one with no drift at all).
+
+| scenario | old, null | old, effect | two-track, null | two-track, effect |
+|---|---|---|---|---|
+| no change | +0.08 | −0.01 | +0.01 | −0.06 |
+| learning, both mappings | −0.01 | −0.02 | +0.03 | −0.01 |
+| drop once feedback stops | 0.00 | −0.01 | +0.02 | +0.01 |
+| learning, 90° faster | **−0.12** | **−0.17** | +0.02 | −0.02 |
+| slope rises, 90° only | −0.10 | **−0.18** | −0.08 | **−0.14** |
+| 90° faster learning + slope | **−0.34** | **−0.39** | −0.02 | −0.06 |
+
+Mapping-specific threshold drift is removed (−0.12 → +0.02; −0.34 → −0.02; −0.39 → −0.06). Power is
+unchanged or better where the old design is unbiased (d_z −0.58 to −0.82 against −0.54 to −0.76 old; in
+the three drift cells the old d_z of −0.73 to −1.03 is inflated by the bias; r(w_d) .63–.72 against .56–.71).
+Delivered strength-trial accuracy 87–90 % at both mappings in every cell; the floor on incorrect
+high-evidence trials 12–20 % against 22–39 %. With the first build (second look and rating on the
+interleaved trials, δ starting at 0.8 for everyone) the picture was the same within sampling error.
+
+**Validation run in the new design** (10 simulated observers, same seed and generating values as §10i;
+`analysis/validation_two_track/`, report `WP3_validation_two_track.html`). Contrast put in −0.67, recovered
+−0.58, 95 % CI [−1.11, −0.05], t(9) = −2.47, p = .035, d_z = −0.78; bootstrap null p = .023. The level
+is recovered: w_d 0.43 / 0.77 against 0.47 / 0.92 put in, and the ideal-observer benchmark comes out at
+w_d = 1.02 (was 0.83); against it 0° is under-used (p = .005), 90° not reliably (p = .13), as built in.
+Strength-trial accuracy 86.8 % / 87.0 % (TOST within ±5 points p = .008). Individual weights r = .59.
+Three builds of this design were run on these same ten observers (the random stream differs between
+builds); they returned contrasts of −0.88, −0.77 and −0.58 and r(w_d) of .74, .86 and .59 around a truth
+of −0.67. That spread is what ten observers give (SE of the contrast ≈ 0.3), not a difference between
+builds; the 150-observer grid is the evidence on bias and precision. Two of the preregistered checks
+fired here by chance with nothing built in (live-threshold drift 0° vs 90° p = .03, w_d first vs second
+half of Task 2 p = .02): they are group-level diagnostics for N ≈ 127, not per-pilot pass/fail tests.
+Keep testing the *level* against the benchmark rather than against 1.
+
+**Not solved.**
+- A *slope* change that differs between the mappings is only halved (−0.08 / −0.09, about 1.5 SE;
+  a third of the smallest relevant effect, in the hypothesised direction).
+- The floor on incorrect high-evidence trials fell from 22–39 % to 13–21 %, not to the ≈ 10 % hoped for.
+- The simulation cannot test implicit feedback from either staircase (trials get easier after errors);
+  the pilot's rating distributions are the check. Nor does it say whether a strong sample triggers
+  categorical "obviously wrong" ratings instead of graded updating; the pilot must show that the
+  rating distribution on incorrect high-evidence trials is graded, not a spike at 1.
+- δ jitters by about ±0.3 logit; the average accuracy is what enters, so this costs a little precision, not bias.
+- Drift *in w_d itself* over the session is a different question and not addressed.
+
+**Preregistration statements.** The high evidence is held at ≈ 85 % by a weighted up-down track; the
+primary measure is the paired contrast of log w_d from the model with weights and commitment, with e
+anchored to measured strength-trial accuracy; checks reported (and now in the results report as
+"Evidence levels as delivered"): strength-trial accuracy 0° vs 90° with a TOST equivalence margin of ±5
+points, convergence of δ (first vs last ten strength trials), drift of the live threshold per mapping and
+its difference between mappings, floor and ceiling rates, and w_d in the first vs second half of Task 2.
+
+**Files.** `web/index.html` (`DeltaTrack`, `CFG.D0_N/D1_N/D2_N`, `trial_type`, `delta_live`), `simulate_wp3.py`
+(`D0_N, D1_N, D2_N, DELTA_*`, `STEP, DRIFT, SLOPE_DRIFT`), `fit_wp3_model.py` (`strength_counts`, `acc_priors`,
+`e_mode`), `wp3_paper_analysis.py` (`strength_checks`, `half_stability`, design-aware bootstrap),
+`wp3_report.py`, `drift_robustness_wp3.py` (+ `drift_robustness_report.md/.csv`), `test_two_track.py`,
+`make_validation_data.py --d0 20 --d1 10 --d2 25` (`analysis/validation_two_track/`). Old files (no `trial_type`)
+still load and fit exactly as before. Not yet mirrored in the PsychoPy lab task.
+
+## 10k. Web port parity with the lab and with WP1 online (2026-10-05)
+
+Simon's own pilot of the online version: the cursor flashed up large when the mouse was shaken
+(macOS "shake to locate"), could stray to a second monitor, and as the staircase made trials harder
+the circles seemed to run along the edges of their boxes. Comparison with the WP1 online port
+(`metasoa/CDT_online`) showed three things the WP3 port lacked and WP1 had built in deliberately:
+
+1. **Pointer Lock** — relative mouse deltas, system cursor hidden by the OS, no screen edge, no
+   second monitor, no shake-to-locate. Deltas are the OS-accelerated ones (as PsychoPy read them).
+2. **Fixed-rate physics at the lab's rate.** The lab loop takes one physics step per `win.flip()`,
+   so its rate is the display's. The WP3 port did the same in the browser, which made the stimulus
+   depend on the participant's monitor. Now a `SimClock` turns wall time into fixed steps and spreads
+   a frame's mouse movement over them. **The rate is 120 steps/s**, because that is what the WP1 lab
+   actually ran: the WP1 kinematics files (three real participants, ~510 trials each) show 118.8–119.6
+   frames per second, a 297-frame snippet playing in 2.5 s, median hand speed 10–17 px per step
+   (1200–2000 px/s, 36–49 % of steps above the 20 px cap), median trial 2.3–2.9 s (response-terminated)
+   — and the circles on a box wall **28–33 % of the time**. My first fix used 60 steps/s on the
+   assumption the lab ran at 60 Hz (the WP1 online README says so; it is wrong): at 60 steps/s the
+   same constants give slow motion — directions persist twice as long, the cap bites at 1200 instead
+   of 2400 px/s — and the circles crawl along the walls; that is what Simon saw and the lab never had.
+3. **The lab's trajectory handling.** The pool is exported with the lab's preprocessing (validity
+   filter, speed normalisation to 7.5 px/step, universal set of 1240 + 40 ranked by quality) and
+   trials use matched pairs with consistent smoothing (`find_matched_trajectory_pair`,
+   `apply_consistent_smoothing`), not random raw snippets.
+
+The box confinement itself is identical in lab, WP1 online and WP3 (hard clamp, ±200 × ±250 px),
+and the lab data show wall contact a third of the time; it is part of the design. Pool and physics
+of the WP3 port were checked against WP1's `cdt-core.js` on identical inputs (pool: max difference
+3·10⁻⁶ over all 1280 snippets; positions: 10⁻¹³ over 180 steps). The WP1 **online** port is a
+different matter: it steps once per rendered frame with a floor of one step, so on a 60 Hz screen it
+runs at 60 steps/s (half the lab's speed, twice the wall contact) and on 120 Hz at 120; its
+`display_fps` column tells which. It has never been used for data collection.
+
+Also from the pilot: a device check at the start (`input_device`; trackpad users are asked to
+return the study), one screen only, the bonus quoted in money with a worked example on the first
+screens (`?bonus=` must be set for Prolific), timeout kept as a safety net (response is after the
+motion with 20 s grace), 3 s motion window kept. New columns: `display_fps`, `low_move_ratio`
+(per trial), `input_device`, `pointer_lock`, `pointer_lock_exits`. Checks: `test_engine.js`
+(control signal; 360 steps per 3 s at 30/60/120/144 Hz; matched pairs more alike than random;
+recycling), a browser run of the unpatched motion loop (360 steps in 3.00 s wall time,
+`display_fps` ≈ display rate), and the refused-lock fallback. The PsychoPy task needs nothing: it
+is the reference, provided it runs on a 120 Hz display as in the WP1 lab (on a 60 Hz monitor it
+would give the slow-motion stimulus; check `frame`/`timestamp` in its kinematics file).
 
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 

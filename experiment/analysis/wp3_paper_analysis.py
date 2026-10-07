@@ -17,6 +17,10 @@ Runs unchanged on real or simulated data (lab or web layout):
        secondary: commitment b, 0 vs 90 deg (the competing account)
   6. Validation                    only if ground_truth.csv is present: recovered vs generating values
 
+Two-track data (trial_type column, design doc §10j): strength trials are analysed separately. They give
+the MEASURED strength of the high evidence (and are checked for equality across mappings, convergence
+and drift); everything else, including the exclusion criteria, uses the standard trials only.
+
   python wp3_paper_analysis.py DATA_DIR [--truth ground_truth.csv] [--boot 300] [--out results.json]
 """
 import argparse, json, pathlib, sys, warnings
@@ -124,14 +128,64 @@ def descriptives(df):
     return out, pd.DataFrame(betas)
 
 
+def strength_checks(dstr, dstd):
+    """Did the high strength land where the design aims, equally at both mappings, and stay there?"""
+    if dstr.empty:
+        return None
+    v = dstr[~dstr.is_timeout & dstr.accuracy.notna()]
+    g = v.groupby(["participant", "angle_bias"]).accuracy.mean().unstack().dropna()
+    n = v.groupby(["participant", "angle_bias"]).accuracy.count().unstack().mean()
+    diff = g[0] - g[90]; m, se, k = diff.mean(), diff.std(ddof=1) / np.sqrt(len(diff)), len(diff) - 1
+    margin = 0.05                                   # equivalence margin: 5 percentage points
+    out = dict(acc={str(a): dict(mean=float(g[a].mean()), sd=float(g[a].std(ddof=1)), n_trials=float(n[a])) for a in ANGLES},
+               diff=paired(g[0], g[90]),
+               tost=dict(margin=margin, p=float(max(1 - stats.t.cdf((m + margin) / se, k), stats.t.cdf((m - margin) / se, k)))))
+    dl = v.groupby(["participant", "angle_bias"]).delta_live
+    out["delta"] = {str(a): dict(first10=float(dl.apply(lambda x: x.iloc[:10].mean()).unstack()[a].mean()),
+                                 last10=float(dl.apply(lambda x: x.iloc[-10:].mean()).unstack()[a].mean())) for a in ANGLES}
+    s = dstd[~dstd.is_timeout]
+    mm = s.groupby(["participant", "angle_bias"]).med_live.apply(
+        lambda x: float(logit(x.iloc[-10:]).mean() - logit(x.iloc[:10]).mean())).unstack().dropna()
+    out["threshold_drift"] = dict(by_angle={str(a): dict(mean=float(mm[a].mean()), sd=float(mm[a].std(ddof=1))) for a in ANGLES},
+                                  diff=paired(mm[0], mm[90]))
+    t2 = s[(s.wp3_task == 2) & (s.evidence_level == 2) & s.wp3_confidence.notna()]
+    out["floor_ceiling"] = {str(a): dict(floor=float((t2[(t2.angle_bias == a) & (t2.accuracy == 0)].wp3_confidence == 1).mean()),
+                                         ceiling=float((t2[(t2.angle_bias == a) & (t2.accuracy == 1)].wp3_confidence == 9).mean()))
+                            for a in ANGLES}
+    return out
+
+
+def half_stability(fits, df):
+    """w_d from the first vs second half of Task 2 (same e, same baseline): is the weight stable over the session?"""
+    rows = []
+    for pid, dp in df.groupby("participant", sort=False):
+        for a in ANGLES:
+            f = fits[(fits.participant == pid) & (fits.angle == a) & (fits.fail == "")]
+            if f.empty:
+                continue
+            f = f.iloc[0]
+            t2 = dp[(dp.angle_bias == a) & (dp.wp3_task == 2) & (dp.trial_type != "strength") & dp.wp3_confidence.notna()
+                    & ~dp.is_timeout & ~dp.prop_high_clipped & dp.prop_post.notna()]
+            h = len(t2) // 2
+            for k, part in enumerate((t2.iloc[:h], t2.iloc[h:]), 1):
+                if (part.accuracy == 0).sum() < 3:
+                    continue
+                e = np.where(part.evidence_level.values == 1, f.e_low, f.e_high)
+                m = F.fit_models(e, part.accuracy.values == 1, part.wp3_confidence.values, f.L0_correct, f.L0_incorrect)
+                rows.append(dict(participant=pid, half=k, angle=a, lwd=float(np.log(np.clip(m["w_d_both"], W_LO, W_HI)))))
+    r = pd.DataFrame(rows)
+    w = r.groupby(["participant", "half"]).lwd.mean().unstack().dropna()
+    return dict(half1=float(w[1].mean()), half2=float(w[2].mean()), test=paired(w[1], w[2]))
+
+
 # ── 5: the model ────────────────────────────────────────────────────────────────
 
 def fit_all(df):
-    rows = []
+    rows, prior = [], F.acc_priors(F.strength_counts(df))
     for _, dp in df.groupby("participant", sort=False):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            rows += F.fit_participant(dp)
+            rows += F.fit_participant(dp, prior)
     r = pd.DataFrame(rows)
     r["participant"] = r["participant"].astype(str)
     for c in ("w_d_both", "w_c_both"):
@@ -164,14 +218,15 @@ def model_tests(fits):
 # ── parametric bootstrap under H0 (w_d equal across mappings) ───────────────────
 
 def _boot_one(args):
-    pdict, seed = args
+    pdict, seed, design, prior = args
+    S.D0_N, S.D1_N, S.D2_N = design                # strength trials per mapping (calibration block, Task 1, Task 2), as in the real data
     rng = np.random.default_rng(seed)
     df = S.simulate_participant(pd.Series(pdict), rng, "web", 0.005, 1)
     df["phase"] = df["phase"].astype(str); df["participant"] = df["participant"].astype(str)
     df["is_timeout"] = F._bool(df["is_timeout"]); df["prop_high_clipped"] = F._bool(df["prop_high_clipped"])
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        rows = F.fit_participant(df)
+        rows = F.fit_participant(df, prior)
     out = {}
     for r in rows:
         if r.get("fail", "x") == "":
@@ -179,7 +234,7 @@ def _boot_one(args):
     return out
 
 
-def bootstrap(fits, n_boot, seed, procs, wd="equal"):
+def bootstrap(fits, n_boot, seed, procs, wd="equal", design=(0, 0, 0), prior=None):
     """Re-simulate every participant's whole session from their FITTED parameters and refit,
     so the reference distribution carries whatever bias the design and estimator have.
       wd="equal"  w_d equalised across mappings (each person's own geometric mean): null for H2
@@ -197,7 +252,7 @@ def bootstrap(fits, n_boot, seed, procs, wd="equal"):
                       f"pre{a}": float((r.L0_correct + r.L0_incorrect) / 2), f"meta{a}": float((r.L0_correct - r.L0_incorrect) / 2),
                       f"wc{a}": float(r.w_c_both), f"b{a}": float(r.b_both), f"noise{a}": float(r.sd_both)})
         people.append(p)
-    tasks = [(p, seed * 1_000_003 + b * 1009 + i) for b in range(n_boot) for i, p in enumerate(people)]
+    tasks = [(p, seed * 1_000_003 + b * 1009 + i, design, prior) for b in range(n_boot) for i, p in enumerate(people)]
     with Pool(procs) as pool:
         res = pool.map(_boot_one, tasks, chunksize=4)
     n = len(people); ts, ds, ms, m0, m90 = [], [], [], [], []
@@ -252,12 +307,15 @@ def main():
     ap.add_argument("--boot", type=int, default=300, help="replicates, null for H2 (0 = skip both bootstraps)")
     ap.add_argument("--boot-ideal", type=int, default=200, help="replicates, ideal-observer benchmark for H1")
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--no-stability", dest="stability", action="store_false", help="skip the half-split refit of w_d")
     ap.add_argument("--procs", type=int, default=cpu_count())
     a = ap.parse_args()
-    allrows = load(a.path)                                   # calibration + rated trials: for the psychometric fit
-    df = allrows[allrows.phase.str.startswith("wp3_task")]   # rated trials: for everything else
-    q = quality(df); keep = set(q[~q.excluded].participant)
-    dfk = df[df.participant.isin(keep)]
+    allrows = load(a.path)                                   # calibration + all rated trials
+    df = allrows[allrows.phase.str.startswith("wp3_task")]
+    dstd = df[df.trial_type != "strength"]                   # standard trials: exclusions, checks, descriptives
+    q = quality(dstd); keep = set(q[~q.excluded].participant)
+    dfk = dstd[dstd.participant.isin(keep)]
+    dstr = df[(df.trial_type == "strength") & df.participant.isin(keep)]
     R = dict(n_total=int(len(q)), n_excluded=int(q.excluded.sum()), n_included=len(keep),
              n_trials=int(len(dfk)), quality=q.to_dict("records"))
 
@@ -278,7 +336,17 @@ def main():
     bw = betas.pivot_table(index="participant", columns="angle", values="beta_disc").dropna()
     R["beta_disc"] = paired(bw[0], bw[90])
 
-    fits = fit_all(allrows[allrows.participant.isin(keep)]); R["fits"] = json.loads(fits.to_json(orient="records"))
+    kept = allrows[allrows.participant.isin(keep)]
+    fits = fit_all(kept); R["fits"] = json.loads(fits.to_json(orient="records"))
+    R["strength"] = strength_checks(dstr, dfk)
+    prior = F.acc_priors(F.strength_counts(kept))
+    cnt = dstr.groupby(["participant", "angle_bias", "wp3_task"]).size().groupby("wp3_task").median()
+    blk = allrows[(allrows.phase == "calibration_strength") & allrows.participant.isin(keep)]
+    d0 = int(blk.groupby(["participant", "angle_bias"]).size().median()) if len(blk) else 0
+    design = (d0, int(cnt.get(1, 0)), int(cnt.get(2, 0)))    # strength trials per mapping: calibration block, Task 1, Task 2
+    R["design"] = dict(strength_calibration=design[0], strength_task1=design[1], strength_task2=design[2])
+    if a.stability:
+        R["half"] = half_stability(fits, dfk)
     R["n_calibration_rows"] = int((allrows.phase.str.startswith("calibration")).sum())
     R["model_fail"] = fits[fits.fail != ""][["participant", "angle", "fail"]].to_dict("records")
     ok = fits[fits.fail == ""]
@@ -291,8 +359,8 @@ def main():
     R["meta_predicts_sens"] = dict(r=float(j.corr().iloc[0, 1]), n=int(len(j)))
 
     if a.boot > 0:
-        B = bootstrap(fits, a.boot, a.seed, a.procs, "equal"); ts, ds = B["t"], B["d"]
-        I = bootstrap(fits, a.boot_ideal, a.seed + 7, a.procs, "ideal")
+        B = bootstrap(fits, a.boot, a.seed, a.procs, "equal", design, prior); ts, ds = B["t"], B["d"]
+        I = bootstrap(fits, a.boot_ideal, a.seed + 7, a.procs, "ideal", design, prior)
         obs = R["tests"]["H1_wd_both"]["mean"]; wdw = wide(fits, "w_d_both")
         R["ideal"] = dict(n=int(len(I["m"])), obs=obs, null_mean=float(I["m"].mean()), null_sd=float(I["m"].std(ddof=1)),
                           p=float((np.sum(np.abs(I["m"] - I["m"].mean()) >= abs(obs - I["m"].mean())) + 1) / (len(I["m"]) + 1)),

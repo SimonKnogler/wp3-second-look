@@ -31,6 +31,19 @@ import pandas as pd
 BOOST = 1.2
 PROP_MIN, PROP_MAX = 0.02, 0.90
 T1_N, T2_N = 30, 60
+# Threshold drift after calibration, per angle, in logit(prop) units (0 = the observer never changes):
+#   STEP  = jump at the first decision trial (p99: no feedback -> harder than in calibration)
+#   DRIFT = linear change over Task 1 + Task 2 (negative = learning)
+STEP, DRIFT = {0: 0.0, 90: 0.0}, {0: 0.0, 90: 0.0}
+SLOPE_DRIFT = {0: 0.0, 90: 0.0}      # relative change of the psychometric slope over the session
+# Two-track design (§10j): "strength trials" are Task-1-style decision trials (choose, rate, no second
+# look) whose FIRST look is at the high strength. They drive a weighted up-down track on the high
+# offset delta (target accuracy up/down -> 85 %) and measure what that strength supports.
+#   D0_N  a short calibration block right after the 1-up-2-down calibration (choice only, no feedback): per-person start of delta
+#   D1_N / D2_N  interleaved in Task 1 / Task 2: keep delta tracking, and measure
+# All 0 = old design: fixed offset BOOST, nothing measured.
+D0_N, D1_N, D2_N = 0, 0, 0
+DELTA0, DELTA_DOWN, DELTA_UP, DELTA_LO, DELTA_HI = 0.8, 0.08, 0.453, 0.3, 1.8
 CAL_MIN, CAL_MAX, CAL_REV = 40, 80, 12
 
 sig = lambda x: 1.0 / (1.0 + np.exp(-x))
@@ -66,6 +79,16 @@ class Staircase:
 
     def threshold(self):
         return self.p if not self.rev else float(np.mean(self.rev[-8:]))
+
+
+class DeltaTrack:
+    """Weighted up-down (Kaernbach 1991) on the high-evidence offset delta, in logit units.
+    down*P = up*(1-P) at equilibrium, so up/down = .85/.15 holds the strength trials at 85 % correct."""
+    def __init__(self):
+        self.v = DELTA0
+
+    def update(self, correct):
+        self.v = float(np.clip(self.v - DELTA_DOWN if correct else self.v + DELTA_UP, DELTA_LO, DELTA_HI))
 
 
 def draw_participants(n, rng, wd0, wd90, choice_bias):
@@ -130,32 +153,55 @@ def simulate_participant(p, rng, fmt, timeout_rate, track):
                              rt_choice=float(rng.uniform(0.8, 2.5)), true_shape=true, resp_shape=resp))
         med0 = clamp(sc.threshold())
 
-        def decision_trial(task, lev):
-            nonlocal trial_no
+        k = 0
+        dt = DeltaTrack() if D0_N + D1_N + D2_N else None
+        total = T1_N + D1_N + T2_N + D2_N
+
+        # ── strength calibration: delta's per-person start (feedback, like the calibration above) ──
+        for i in range(D0_N):
+            p_std = clamp(sc.next()) if track else med0
+            prop = clamp(sig(logit(p_std) + dt.v)); d_used = dt.v
+            correct = rng.random() < p_correct(prop, t + STEP[ang], sl)
+            true = rng.choice(["square", "dot"]); resp = true if correct else ("dot" if true == "square" else "square")
+            dt.update(correct)
+            rows.append(dict(base, phase="calibration_strength", trial_num=i + 1, angle_bias=float(ang),
+                             prop_used=prop, trial_type="strength", delta_live=d_used, accuracy=float(correct),
+                             is_timeout=False, rt_choice=float(rng.uniform(0.8, 2.5)), true_shape=true, resp_shape=resp))
+
+        def decision_trial(task, lev, strength=False):
+            nonlocal trial_no, k
             trial_no += 1
-            prop = clamp(sc.next()) if track else med0
-            p_high = clamp(sig(logit(prop) + BOOST))
+            te = t + STEP[ang] + DRIFT[ang] * k / total                 # the observer's threshold now
+            sle = sl * (1 + SLOPE_DRIFT[ang] * k / total); k += 1       # ... and slope
+            d_used = dt.v if dt else BOOST
+            p_std = clamp(sc.next()) if track else med0
+            p_high = clamp(sig(logit(p_std) + d_used))
+            prop = p_high if strength else p_std
             clipped = p_high >= 0.899
+            ttype = "strength" if strength else "standard"
             timeout = rng.random() < timeout_rate
             true = rng.choice(["square", "dot"])
             if timeout:
                 rows.append(dict(base, phase=f"wp3_task{task}", trial_num=trial_no, wp3_task=task,
                                  evidence_level=lev, angle_bias=float(ang), prop_used=prop, prop_post=np.nan,
-                                 med_live=clamp(sc.threshold()), prop_high_clipped=clipped, accuracy=np.nan,
+                                 med_live=clamp(sc.threshold()), trial_type=ttype,
+                                 delta_live=dt.v if dt else np.nan, prop_high_clipped=clipped, accuracy=np.nan,
                                  is_timeout=True, rt_choice=np.nan, true_shape=true, resp_shape="timeout",
                                  wp3_confidence=np.nan, wp3_prob=np.nan, wp3_conf_rt=np.nan, wp3_score=0.0))
                 scores.append(0.0); return
-            correct = rng.random() < p_correct(prop, t, sl)
+            correct = rng.random() < p_correct(prop, te, sle)
             resp = true if correct else ("dot" if true == "square" else "square")
-            if track:
-                sc.update(correct)
+            if strength:
+                dt.update(correct)                  # strength trials move delta only ...
+            elif track:
+                sc.update(correct)                  # ... standard trials move the prop only
             L0 = pre + meta * (1 if correct else -1)
             post = np.nan
-            if lev == 0:
+            if lev == 0:                            # Task 1, and every strength trial: rated right after the choice
                 L = L0
             else:
                 post = prop if lev == 1 else p_high
-                e = logit(p_correct(post, t, sl))          # log-LR of a truth-pointing sample
+                e = logit(p_correct(post, te, sle))        # log-LR of a truth-pointing sample
                 L = L0 + b + (wc * e if correct else -wd * e)
             conf = rating_from_logodds(L, noise, rng)
             pc = (conf - 1) / 8
@@ -163,16 +209,23 @@ def simulate_participant(p, rng, fmt, timeout_rate, track):
             scores.append(score)
             rows.append(dict(base, phase=f"wp3_task{task}", trial_num=trial_no, wp3_task=task,
                              evidence_level=lev, angle_bias=float(ang), prop_used=prop, prop_post=post,
-                             med_live=clamp(sc.threshold()), prop_high_clipped=clipped, accuracy=float(correct),
+                             med_live=clamp(sc.threshold()), trial_type=ttype, delta_live=d_used if dt else np.nan,
+                             prop_high_clipped=clipped, accuracy=float(correct),
                              is_timeout=False, rt_choice=float(rng.lognormal(0.2, 0.35)), true_shape=true,
                              resp_shape=resp, wp3_confidence=float(conf), wp3_prob=pc * 100,
                              wp3_conf_rt=float(rng.lognormal(0.5, 0.4)), wp3_score=score))
 
-        for _ in range(T1_N):
-            decision_trial(1, 0)
+        seq1 = [(0, False)] * T1_N + [(0, True)] * D1_N
+        if D1_N:
+            rng.shuffle(seq1)
         levels = [1] * (T2_N // 2) + [2] * (T2_N - T2_N // 2); rng.shuffle(levels)
-        for lev in levels:
-            decision_trial(2, lev)
+        seq2 = [(lev, False) for lev in levels] + [(0, True)] * D2_N
+        if D2_N:
+            rng.shuffle(seq2)
+        for lev, st in seq1:
+            decision_trial(1, lev, st)
+        for lev, st in seq2:
+            decision_trial(2, lev, st)
 
     mean_score = float(np.mean(scores))
     rows.append(dict(base, phase="wp3_summary", wp3_mean_score=round(mean_score, 4),
@@ -184,14 +237,17 @@ def simulate_participant(p, rng, fmt, timeout_rate, track):
         cols = ["participant", "session", "phase", "wp3_task", "evidence_level", "angle_bias",
                 "prop_used", "prop_post", "accuracy", "true_shape", "resp_shape", "rt_choice",
                 "is_timeout", "wp3_confidence", "wp3_prob", "wp3_conf_rt", "wp3_score",
-                "prop_high_clipped", "med_live", "bonus_quiz_attempts", "bonus_quiz_attempts_evidence",
+                "prop_high_clipped", "med_live", "trial_type", "delta_live", "display_fps", "low_move_ratio",
+                "bonus_quiz_attempts", "bonus_quiz_attempts_evidence",
                 "bonus_motivation_1to5", "wp3_mean_score", "wp3_bonus", "fullscreen_exits",
-                "prolific_study_id", "prolific_session_id"]      # = toCSV() in web/index.html
+                "pointer_lock_exits", "input_device", "pointer_lock", "prolific_study_id", "prolific_session_id"]      # = toCSV() in web/index.html
         df["phase"] = df["phase"].replace("calibration_interleaved", "calibration")
-        w = df[df.phase.str.startswith("wp3_task") | (df.phase == "calibration")].copy()
+        w = df[df.phase.str.startswith("wp3_task") | df.phase.str.startswith("calibration")].copy()
         for c in ("bonus_quiz_attempts", "bonus_motivation_1to5", "wp3_mean_score", "wp3_bonus"):
             w[c] = df[c].dropna().iloc[-1]
         w["bonus_quiz_attempts_evidence"] = int(rng.integers(1, 3)); w["fullscreen_exits"] = 0
+        w["display_fps"] = np.nan; w["low_move_ratio"] = np.nan        # browser-only quality markers
+        w["pointer_lock_exits"] = 0; w["input_device"] = 1; w["pointer_lock"] = 1
         w["prolific_study_id"] = ""; w["prolific_session_id"] = ""
         return w.reindex(columns=cols)
     return df

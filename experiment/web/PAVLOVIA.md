@@ -83,8 +83,10 @@ Query parameters work the same as locally:
 
 | Parameter | Purpose |
 |---|---|
-| `?t1=6&t2=12&calmin=10&calmax=15` | short run for a feel test |
-| `?bonus=1.00` | quadratic scoring rule with a £1 maximum |
+| `?t1=6&t2=12&d0=6&d1=4&d2=6&calmin=10&calmax=15` | short run for a feel test |
+| `?d0=0&d1=0&d2=0` | old design: no strength trials, fixed +1.2-logit boost |
+| `?bonus=3.00` | quadratic scoring rule with a £3 maximum — **required for Prolific**: the instructions quote the amount and a worked example |
+| `?nolock=1` | TESTING ONLY: no pointer lock, cursor visible — never give to participants |
 | `?datapipe=<id>` | DataPipe id without a redeploy |
 | `?pid=<id>` | participant id |
 
@@ -103,7 +105,7 @@ https://run.pavlovia.org/Knoglersimon/wp3-second-look/?PROLIFIC_PID={{%PROLIFIC_
 `completion` is set, redirects there after showing the bonus for four seconds — that is
 what credits the participant. Prolific settings that matter: desktop only (Prolific cannot
 filter mouse vs. trackpad — the instructions ask for a mouse and low movement is flagged
-in the data), 18–50, no neurological/psychiatric history, ~75 min allowance.
+in the data), 18–50, no neurological/psychiatric history, ~75 min allowance (the session has about 370–450 decision trials, roughly 57 minutes). Screening on Prolific: desktop/laptop only, and ask for a computer mouse (the task asks again at the start, logs `input_device`, and lets trackpad users return the study without penalty). The task captures the pointer (Pointer Lock) and runs in fullscreen on one screen.
 
 ## Everyday workflow
 

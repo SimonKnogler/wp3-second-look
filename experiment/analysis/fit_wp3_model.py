@@ -3,9 +3,15 @@ analyze_wp3.py cannot replace (raw slopes are distorted by the bounded scale, se
 design doc §10d / briefing §11).
 
 Per participant x angle:
-  1. Psychometric function from ALL decision trials with a prop and an outcome
-     (calibration + Task 1 + Task 2):  P(correct|prop) = .5 + .5*sigmoid(a*(logit(prop)-t)).
-     -> evidence strength of a sample at prop p:  e(p) = logit(P(correct|p)).
+  1. Evidence strength e = logit(P(correct)) of a sample.
+     Two-track design (trial_type column, design doc §10j): MEASURED. e_low = accuracy on the
+     standard first looks, e_high = accuracy on the interleaved strength trials (choice-only trials
+     whose first look is at the high strength; empirical-Bayes shrunk toward the group). The
+     psychometric function, fitted on every decision trial including the strength-calibration
+     block, only supplies the trial-to-trial variation around those levels ("anchored").
+     Old files without strength trials: INFERRED from a psychometric function fitted on all
+     decision trials (calibration + Task 1 + Task 2):  P(correct|prop) = .5 + .5*sigmoid(a*(logit(prop)-t)).
+     The psychometric fit is always kept as a diagnostic.
   2. Baseline log-odds from Task 1 (level 0), separately for correct / incorrect trials:
      L0_c, L0_i = logit((mean rating - 1)/8).
   3. Task-2 ratings are fit by maximum likelihood (Gaussian on the 1-9 scale) under
@@ -59,6 +65,7 @@ def load_dir(path):
     df["is_timeout"] = _bool(df["is_timeout"]) if "is_timeout" in df.columns else False
     df["prop_high_clipped"] = _bool(df["prop_high_clipped"]) if "prop_high_clipped" in df.columns else False
     df["participant"] = df["participant"].astype(str)
+    df["trial_type"] = df["trial_type"].fillna("standard") if "trial_type" in df.columns else "standard"
     return df
 
 
@@ -154,34 +161,92 @@ def fit_models(e, correct, rating, L0c, L0i):
     return out
 
 
+# ── measured evidence strength (two-track design) ───────────────────────────────
+
+def strength_counts(df):
+    """Correct / total strength trials per participant x angle: the interleaved ones in Task 1 + 2
+    (no feedback, concurrent with the second looks they calibrate). The strength-calibration block
+    only sets delta's start and feeds the psychometric fit."""
+    if "trial_type" not in df.columns:
+        return pd.DataFrame(columns=["participant", "angle_bias", "k", "n"])
+    d = df[(df["trial_type"] == "strength") & df["accuracy"].notna() & ~df["is_timeout"] & df["wp3_task"].isin([1, 2])]
+    return d.groupby(["participant", "angle_bias"])["accuracy"].agg(k="sum", n="count").reset_index()
+
+
+def acc_priors(counts):
+    """Beta prior per angle by method of moments from the people's strength accuracies.
+    Between-person variance = observed variance of k/n minus the binomial noise expected anyway;
+    if that is <= 0 the people are indistinguishable and we pool completely (pseudo-count 1000)."""
+    out = {}
+    for ang, g in counts.groupby("angle_bias"):
+        p = g.k.sum() / g.n.sum()
+        v = np.var(g.k / g.n, ddof=1) - np.mean(p * (1 - p) / g.n) if len(g) > 2 else 0.0
+        m = np.clip(p * (1 - p) / v - 1, 1.0, 1000.0) if v > 0 else 1000.0
+        out[int(ang)] = (p * m, (1 - p) * m)
+    return out
+
+
 # ── per participant x angle ─────────────────────────────────────────────────────
 
-def fit_participant(dp):
+def fit_participant(dp, acc_prior=None, e_mode="anchored"):
+    """acc_prior: {angle: (a0, b0)} Beta prior for the strength accuracy (see acc_priors);
+    None = a flat Beta(.5, .5), i.e. the raw accuracy.
+    e_mode (only with strength trials):
+      "anchored" (default) = the LEVEL of e is the measured accuracy (drift-proof, not extrapolated);
+                 trial-to-trial variation within a level comes from the psychometric function and only
+                 scales deviations around that mean. Simulation (design doc §10j): as precise as the
+                 old route, and removes ~80 % of the spurious contrast that mapping-specific drift causes.
+      "measured" = one constant e per level. Unbiased under drift but discards real trial-level variation:
+                 the contrast is 40-60 % noisier.
+      "inferred" = the psychometric e alone: no protection against drift."""
     rows = []
     for ang in ANGLES:
         da = dp[dp["angle_bias"] == ang]
         if da.empty:
             continue
         dec = da[da["accuracy"].notna() & da["prop_used"].notna() & ~da["is_timeout"]]
-        pf = fit_psychometric(dec["prop_used"], dec["accuracy"])
+        pf = fit_psychometric(dec["prop_used"], dec["accuracy"])         # always: it is the old route to e
         row = dict(participant=dp["participant"].iloc[0], angle=ang, n_psychometric=len(dec),
                    pf_slope=np.nan, pf_thresh_prop=np.nan)
-        if pf is None:
+        if pf is not None:
+            row.update(pf_slope=pf["slope"], pf_thresh_prop=float(sig(pf["thresh"])))
+        std = da[da["trial_type"] != "strength"] if "trial_type" in da.columns else da
+        strn = (da[(da["trial_type"] == "strength") & da["accuracy"].notna() & ~da["is_timeout"] & da["wp3_task"].isin([1, 2])]
+                if "trial_type" in da.columns else da.iloc[0:0])
+        measured = len(strn) > 0
+        if (not measured or e_mode != "measured") and pf is None:
             row["fail"] = "psychometric"; rows.append(row); continue
-        row.update(pf_slope=pf["slope"], pf_thresh_prop=float(sig(pf["thresh"])))
-        t1 = da[(da["wp3_task"] == 1) & da["wp3_confidence"].notna() & ~da["is_timeout"]]
-        t2 = da[(da["wp3_task"] == 2) & da["wp3_confidence"].notna() & ~da["is_timeout"]
-                & ~da["prop_high_clipped"] & da["prop_post"].notna()]
+        t1 = std[(std["wp3_task"] == 1) & std["wp3_confidence"].notna() & ~std["is_timeout"]]
+        t2 = std[(std["wp3_task"] == 2) & std["wp3_confidence"].notna() & ~std["is_timeout"]
+                 & ~std["prop_high_clipped"] & std["prop_post"].notna()]
         n_inc = int((t2["accuracy"] == 0).sum())
-        row.update(n_task1=len(t1), n_task2=len(t2), n_task2_incorrect=n_inc,
-                   n_clipped=int(da["prop_high_clipped"].sum()))
-        if len(t1) < 10 or n_inc < MIN_INCORRECT:
+        row.update(n_task1=len(t1), n_task2=len(t2), n_task2_incorrect=n_inc, n_strength=len(strn),
+                   n_clipped=int(std["prop_high_clipped"].sum()))
+        if len(t1) < 10 or n_inc < MIN_INCORRECT or (measured and len(strn) < 8):
             row["fail"] = "too_few_trials"; rows.append(row); continue
         L0c = float(logit((t1.loc[t1["accuracy"] == 1, "wp3_confidence"].mean() - 1) / 8))
         L0i = float(logit((t1.loc[t1["accuracy"] == 0, "wp3_confidence"].mean() - 1) / 8))
-        e = evidence_logit(t2["prop_post"].values, pf)
-        row.update(L0_correct=L0c, L0_incorrect=L0i, e_low=float(np.mean(e[t2["evidence_level"] == 1])),
-                   e_high=float(np.mean(e[t2["evidence_level"] == 2])))
+        if measured:
+            a0, b0 = (acc_prior or {}).get(ang, (0.5, 0.5))
+            first = std[std["accuracy"].notna() & ~std["is_timeout"] & std["wp3_task"].isin([1, 2])]
+            acc_low = float(first["accuracy"].mean())
+            acc_high = float((strn["accuracy"].sum() + a0) / (len(strn) + a0 + b0))
+            e_low, e_high = max(float(logit(acc_low)), 0.0), max(float(logit(acc_high)), 0.0)
+            e = np.where(t2["evidence_level"].values == 1, e_low, e_high)
+            if e_mode != "measured":
+                e_inf = evidence_logit(t2["prop_post"].values, pf)
+                if e_mode == "anchored":
+                    for lev, target in ((1, e_low), (2, e_high)):
+                        m = t2["evidence_level"].values == lev
+                        e = np.where(m, e_inf - e_inf[m].mean() + target, e)
+                    e = np.maximum(e, 0.0)
+                else:
+                    e = e_inf
+            row.update(acc_low=acc_low, acc_high=acc_high, acc_high_raw=float(strn["accuracy"].mean()))
+        else:
+            e = evidence_logit(t2["prop_post"].values, pf)
+            e_low, e_high = float(np.mean(e[t2["evidence_level"] == 1])), float(np.mean(e[t2["evidence_level"] == 2]))
+        row.update(L0_correct=L0c, L0_incorrect=L0i, e_low=e_low, e_high=e_high)
         row.update(fit_models(e, t2["accuracy"].values == 1, t2["wp3_confidence"].values, L0c, L0i))
         row["log_ratio"] = np.log(row["w_d"] / row["w_c"])
         row["fail"] = ""
@@ -247,9 +312,9 @@ def main():
     a = ap.parse_args()
     df = load_dir(a.path)
     print(f"loaded {df['participant'].nunique()} participants, {len(df)} rows, phases: {sorted(df.phase.unique())}")
-    rows = []
+    rows, prior = [], acc_priors(strength_counts(df))
     for _, dp in df.groupby("participant", sort=False):
-        rows += fit_participant(dp)
+        rows += fit_participant(dp, prior)
     res = pd.DataFrame(rows)
     out = pathlib.Path(a.out) if a.out else pathlib.Path(a.path) / "wp3_model_fits.csv"
     res.to_csv(out, index=False); print(f"[out] {out}")
