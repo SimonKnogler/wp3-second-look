@@ -109,16 +109,36 @@ in the data), 18–50, no neurological/psychiatric history, ~75 min allowance (t
 
 ## Everyday workflow
 
+**GitHub `main` is the only push.** `.github/workflows/deploy-pavlovia.yml` runs on every push
+to `main` that touches `experiment/web/` (or the deploy script): it runs `node test_engine.js`,
+clones the Pavlovia repo, and calls `tools/deploy_pavlovia.sh` on it, so the Pavlovia commit
+names the GitHub commit it came from (`Deploy <sha> from GitHub: …`). A red self-test stops the
+deploy; no change to the four files means no Pavlovia commit. The same holds for pushes from
+the Mac and from Claude's cloud sessions, which cannot reach gitlab.pavlovia.org themselves.
+
 ```bash
 # 1. edit experiment/web/index.html (or engine.js) in the main repo
 # 2. test locally
 cd experiment/web && python3 -m http.server 8000     # → http://localhost:8000
-# 3. commit to the main repo
+node test_engine.js
+# 3. commit and push to GitHub main — the Action deploys to Pavlovia
 git add -A && git commit -m "..." && git push
-# 4. deploy to Pavlovia (default path ~/Desktop/PhD/Experiments/wp3-pavlovia)
-./tools/deploy_pavlovia.sh
+# 4. check the run under GitHub → Actions → "Deploy to Pavlovia"
 # 5. hard-reload the run URL — Pavlovia caches aggressively (Cmd+Shift+R)
 ```
+
+Re-deploy without a code change: GitHub → Actions → Deploy to Pavlovia → *Run workflow*.
+
+**Fallback from the Mac** (Action broken, token expired): `./tools/deploy_pavlovia.sh`
+deploys into `~/Desktop/PhD/Experiments/wp3-pavlovia` as before. Run `git pull` there first:
+the Action commits to the same `master`, so the Mac copy is otherwise behind and the push is
+rejected.
+
+**The token.** Repository secret `PAVLOVIA_TOKEN` (GitHub → Settings → Secrets and variables
+→ Actions): a personal access token of the **Knoglersimon** account on gitlab.pavlovia.org
+(Edit profile → Access Tokens), scope `write_repository`, with an expiry date. When it
+expires the Action fails at the clone step with an authentication error; create a new token
+and replace the secret.
 
 ## Known pitfalls
 

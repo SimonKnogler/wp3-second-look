@@ -102,7 +102,10 @@ URL parameters mirror the env flags: `?t1=6&t2=12&calmin=10&calmax=15&bonus=1.00
 Short version — Pavlovia hosts the files from the repo root on branch `master`
 (project `Knoglersimon/wp3-second-look`, run URL
 `https://run.pavlovia.org/Knoglersimon/wp3-second-look/`), but its native data saving
-only works for PsychoJS/jsPsych, so this study saves via OSF DataPipe. Deploy with:
+only works for PsychoJS/jsPsych, so this study saves via OSF DataPipe. Deploying is
+automatic: a push to `main` that changes `experiment/web/` runs the GitHub Action
+`Deploy to Pavlovia`, which tests the engine and pushes the four files to Pavlovia
+(secret `PAVLOVIA_TOKEN`). Fallback from the Mac:
 
 ```bash
 ./tools/deploy_pavlovia.sh ~/path/to/pavlovia-repo "what changed"
