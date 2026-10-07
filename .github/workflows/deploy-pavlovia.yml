@@ -1,0 +1,71 @@
+# Deploy the online task to Pavlovia whenever experiment/web/ changes on main.
+#
+# GitHub (whole project) and Pavlovia (four files at the repo root, branch master) are
+# separate repositories; tools/deploy_pavlovia.sh is the bridge, here as on the Mac.
+# Needs the repository secret PAVLOVIA_TOKEN: a gitlab.pavlovia.org personal access token
+# of the Knoglersimon account with scope write_repository. See experiment/web/PAVLOVIA.md.
+name: Deploy to Pavlovia
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "experiment/web/**"
+      - "tools/deploy_pavlovia.sh"
+      - ".github/workflows/deploy-pavlovia.yml"
+  workflow_dispatch:
+
+# One deploy at a time, in push order; never cancel one halfway through a push.
+concurrency:
+  group: pavlovia-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PAVLOVIA_REPO: gitlab.pavlovia.org/Knoglersimon/wp3-second-look.git
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # A failing engine self-test stops the deploy: participants never get a broken engine.
+      - name: Engine self-test
+        working-directory: experiment/web
+        run: node test_engine.js
+
+      - name: Check the Pavlovia token
+        env:
+          PAVLOVIA_TOKEN: ${{ secrets.PAVLOVIA_TOKEN }}
+        run: |
+          if [ -z "$PAVLOVIA_TOKEN" ]; then
+            echo "::error::Repository secret PAVLOVIA_TOKEN is not set (see experiment/web/PAVLOVIA.md)"
+            exit 1
+          fi
+
+      - name: Clone the Pavlovia repository
+        env:
+          PAVLOVIA_TOKEN: ${{ secrets.PAVLOVIA_TOKEN }}
+        run: |
+          git clone --depth 1 --branch master \
+            "https://oauth2:${PAVLOVIA_TOKEN}@${PAVLOVIA_REPO}" "$RUNNER_TEMP/pavlovia"
+          cd "$RUNNER_TEMP/pavlovia"
+          # Same transport settings as the Mac checkout: HTTP/2 framing flakes, 3 MB pool.
+          git config http.version HTTP/1.1
+          git config http.postBuffer 524288000
+          git config user.name "Simon Knogler (via GitHub Actions)"
+          git config user.email "simon.knogler@lmu.de"
+
+      - name: Deploy
+        run: |
+          SUBJECT="$(git log -1 --format=%s "$GITHUB_SHA")"
+          ./tools/deploy_pavlovia.sh "$RUNNER_TEMP/pavlovia" \
+            "Deploy ${GITHUB_SHA::7} from GitHub: ${SUBJECT}"
+          echo "Pavlovia master is now $(git -C "$RUNNER_TEMP/pavlovia" rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
