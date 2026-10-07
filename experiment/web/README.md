@@ -90,7 +90,12 @@ block), not part of the confidence model. `delta_live` is the offset in force on
   The local download happens only when the upload fails or no DataPipe id is set. On Prolific a
   failed final upload shows a retry screen instead of redirecting.
 - **Prolific guard:** a URL with `PROLIFIC_PID` but no DataPipe id or no `bonus` refuses to start.
-- **No consent / demographics screens yet** — add before real data.
+- **Consent and debrief** (design doc §10m): consent is the first screen (Y/N; N ends the session and
+  nothing is saved), closing self-report and a debrief come at the end. Both texts are **placeholders**
+  (`CONSENT_HTML`, `DEBRIEF_HTML` in `index.html`) until the ethics-approved wording is in.
+- **Instruction checks:** three instruction screens ask for K instead of SPACE (`imc_1..3`, `imc_failed`); no
+  trial is spent on them. Prolific allows a rejection after two failures; the analysis excludes on one.
+- No demographics screen: Prolific supplies age and sex in its export.
 - **Motor task online caveat:** trackpad vs mouse / DPI / frame-rate variance. Mouse is asked for,
   fullscreen and pointer lock enforced, `display_fps` and `low_move_ratio` logged; exclusion
   thresholds for these still need to go into the preregistration.

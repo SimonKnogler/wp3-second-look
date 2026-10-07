@@ -30,6 +30,16 @@
   /* Fullscreen-recovery overlay (see fsRecover). */
   #fsblock{position:fixed;inset:0;z-index:50;background:#0e0f12;cursor:none;
     display:flex;align-items:center;justify-content:center;text-align:center;}
+  /* Consent and the closing questions need the pointer (checkbox-free, but scrolling and a text box). */
+  body.showcursor, body.showcursor *{cursor:auto;}
+  .consent{text-align:left;max-height:62vh;overflow-y:auto;border:1px solid #3a3e46;border-radius:8px;
+    padding:6px 22px;background:#15171c;}
+  .consent p{font-size:1rem !important;margin:10px 0 !important;}
+  #screen p.ph{color:#e0b03a;}
+  textarea{width:100%;height:110px;background:#15171c;color:#eceae6;border:1px solid #3a3e46;border-radius:8px;
+    font:inherit;font-size:1rem;padding:8px;box-sizing:border-box;}
+  button{font:inherit;font-size:1rem;padding:8px 22px;border-radius:8px;border:1px solid #3a3e46;
+    background:#22262c;color:#eceae6;margin-top:14px;}
   #err{position:fixed;bottom:8px;left:8px;color:#c0603a;font-size:12px;font-family:monospace;}
 </style>
 </head>
@@ -87,13 +97,48 @@ const CFG = {
   NOLOCK: Q.get("nolock") === "1",
 };
 // Identifies the deployed version in the data (bump with every change to index.html or engine.js).
-const BUILD = "2026-10-07a";
+const BUILD = "2026-10-07b";
 // A Prolific link that would run without saving or without the promised bonus wastes a full
 // session per participant. Refuse to start instead; the researcher sees it on the first test.
 const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
   ...(CFG.DATAPIPE_ID ? [] : ["no DataPipe id (set DATAPIPE_ID in index.html or add &datapipe=… to the study URL)"]),
   ...(CFG.BONUS>0 ? [] : ["no bonus amount (add &bonus=3.00 to the study URL)"]),
 ] : [];
+// ── Consent text ────────────────────────────────────────────────────────────
+// PLACEHOLDER until the text approved by the ethics committee is in. Built from the LMU template for
+// online studies; every [bracketed] part must be checked against the approved version.
+const CONSENT_HTML = `
+  <p class="ph"><b>[DRAFT — replace with the text approved by the ethics committee]</b></p>
+  <p><b>Who we are.</b> This study is run by [Simon Knogler, Ludwig-Maximilians-Universität München (LMU),
+  Faculty of Psychology and Educational Sciences, Chair of …]. Contact: [e-mail].</p>
+  <p><b>What the study is about.</b> We study how people sense control over movements they see on a screen,
+  and how they judge their own decisions about it.</p>
+  <p><b>What you will do.</b> Move your computer mouse while two circles move on the screen, decide which one
+  follows your hand, and rate how confident you are. The task runs in fullscreen and takes about [60] minutes,
+  and you can pause between its parts. There are no risks beyond those of ordinary computer work.</p>
+  <p><b>Payment.</b> The base payment shown on Prolific, plus a bonus that depends on your confidence ratings.</p>
+  <p><b>Voluntary.</b> Taking part is voluntary. You can stop at any time without giving a reason, by pressing
+  Esc and closing this window, and returning the study on Prolific. This has no disadvantage for you.</p>
+  <p><b>Your data.</b> We record your answers, response times, summary measures of your mouse movements, your
+  Prolific ID and technical details of your browser and screen. No name, e-mail or IP address is stored. The
+  data are stored pseudonymously [on servers of the Open Science Framework (OSF), region Germany] and kept for
+  [10] years. Before publication the Prolific ID is replaced by a code; anonymised data may be shared in open
+  repositories. Until then you can ask for your data to be deleted by sending us your Prolific ID.
+  Legal basis is your consent (Art. 6(1)(a) GDPR). You have the right to information, correction, deletion,
+  restriction and data portability, and to complain to a supervisory authority. Data protection officer of
+  LMU: [contact].</p>
+  <p><b>By pressing <span class="kbd">Y</span> you confirm that</b> you are at least 18 years old, have read this
+  information, and agree to take part and to the processing of your data as described.</p>`;
+
+// Instruction checks (Prolific-compliant instructional manipulation checks): on three instruction screens the
+// text asks for K instead of SPACE. No trial is spent on them. Failing two of three allows a rejection on
+// Prolific; the analysis excludes on any failure (design doc §10m).
+const IMC_LINE = `<p>To show that you read the instructions, press <b>K</b> instead of SPACE on this screen.</p>`;
+async function waitGo(imcId=null){
+  if(!imcId){ await waitKeys([" "]); return; }
+  const k = await waitKeys([" ","k"]);
+  META[`imc_${imcId}`] = k==="k" ? 1 : 0;
+}
 const clampProp = p => Math.min(Math.max(p, 0.02), 0.90);
 const logit = x => { x = Math.min(Math.max(x,1e-6),1-1e-6); return Math.log(x/(1-x)); };
 const invLogit = z => 1/(1+Math.exp(-z));
@@ -407,6 +452,39 @@ async function bonusInstructions({withEvidence=false}={}){
   }
   META[withEvidence?"bonus_quiz_attempts_evidence":"bonus_quiz_attempts"]=attempts;
 }
+// Closing self-report. Stated to have no effect on payment, which is what makes honest answers likely;
+// the answers feed the analysis exclusions only (design doc §10m).
+async function closingQuestions(){
+  const q = async (id, html, keys) => { showScreen(`<h1>A few last questions</h1>
+      <p style="color:#8a8f98">Your answers do <b>not</b> affect your payment or bonus. Please answer honestly.</p>${html}`);
+    META[id] = parseInt(await waitKeys(keys),10); };
+  await q("selfreport_device", `<p>Did you use a computer mouse for the <b>whole</b> task?</p>
+    <p><span class="kbd">1</span> yes, all the time &nbsp; <span class="kbd">2</span> partly a trackpad or something else &nbsp; <span class="kbd">3</span> no</p>`, ["1","2","3"]);
+  await q("selfreport_focus_1to5", `<p>How focused were you on the task overall?</p>
+    <p><span class="kbd">1</span> not at all &nbsp; <span class="kbd">2</span> a little &nbsp; <span class="kbd">3</span> moderately &nbsp; <span class="kbd">4</span> mostly &nbsp; <span class="kbd">5</span> fully</p>`, ["1","2","3","4","5"]);
+  await q("selfreport_interrupted", `<p>Were you interrupted or did you do something else during the task?</p>
+    <p><span class="kbd">1</span> no &nbsp; <span class="kbd">2</span> yes, briefly &nbsp; <span class="kbd">3</span> yes, for a longer time</p>`, ["1","2","3"]);
+  await q("selfreport_tech_problems", `<p>Did you have technical problems (stuttering motion, leaving fullscreen, other)?</p>
+    <p><span class="kbd">1</span> no &nbsp; <span class="kbd">2</span> yes</p>`, ["1","2"]);
+  // Optional free text: release the pointer so the box and button can be used.
+  PL_WANTED=false;   // first, so the lock release below does not raise the pause overlay
+  try{ if(document.pointerLockElement) document.exitPointerLock(); }catch(e){}
+  document.body.classList.add("showcursor");
+  showScreen(`<h1>Anything else?</h1><p>Optional: any comments, strategies you used, or problems you noticed.</p>
+    <textarea id="comments" maxlength="2000"></textarea><br><button id="cbtn">Continue</button>`);
+  await new Promise(r=>document.getElementById("cbtn").addEventListener("click", r, {once:true}));
+  META.selfreport_comments = document.getElementById("comments").value.trim();
+  document.body.classList.remove("showcursor");
+}
+// PLACEHOLDER wording like the consent text; check against the ethics application.
+const DEBRIEF_HTML = `
+  <p><b>What this study was about.</b> We study how people revise their confidence in a decision when new
+  evidence arrives afterwards — and whether this differs when the link between hand and screen is natural or
+  unusual. In one of the two blocks the circle you controlled moved at a 90° angle to your hand.</p>
+  <p>In Part B the extra evidence sometimes showed that your first choice was wrong. That was intended: we
+  measure how strongly people take such evidence into account. Nothing in the study was hidden from you.</p>
+  <p><b>Questions or withdrawal.</b> Contact [e-mail] with your Prolific ID. Until the data are anonymised you
+  can ask for them to be deleted.</p>`;
 async function motivationCheck(){   // before the reveal, so the amount cannot bias it
   showScreen(`<h1>One last question</h1><p>How much did the bonus rule affect how carefully you chose your confidence ratings?</p>
     <p><span class="kbd">1</span> not at all &nbsp; <span class="kbd">2</span> a little &nbsp; <span class="kbd">3</span> somewhat &nbsp; <span class="kbd">4</span> quite a bit &nbsp; <span class="kbd">5</span> very much</p>`);
@@ -436,7 +514,10 @@ function toCSV(){
     // check_wp3_replay_invariant.py needs left_shape / applied_angle_bias of both to run on web data
     "block_idx","trial_idx","left_shape","applied_angle_bias","evidence_sum",
     "post_true_shape","post_left_shape","post_applied_angle_bias","post_evidence_sum","post_display_fps","post_low_move_ratio",
-    "seed","build","started_at","duration_min","screen_w","screen_h","window_w","window_h","dpr","user_agent"];
+    "seed","build","started_at","duration_min","screen_w","screen_h","window_w","window_h","dpr","user_agent",
+    // consent, instruction checks and closing self-report (design doc §10m)
+    "consent","consent_at","imc_1","imc_2","imc_3","imc_failed",
+    "selfreport_device","selfreport_focus_1to5","selfreport_interrupted","selfreport_tech_problems","selfreport_comments"];
   // Every META key must be listed here or it is silently dropped from the file: the four
   // fields after wp3_bonus were collected for weeks without ever being written.
   // Quote fields that contain a comma, quote or newline (user_agent does): unquoted they shift every later column.
@@ -522,7 +603,8 @@ async function calibration(angle){
 async function block(angle, blockIdx){
   BLOCK_IDX=blockIdx;
   showScreen(`<h1>Block ${blockIdx} of 2</h1><p>A short calibration, then the main task.</p>
-    <p class="go">press SPACE</p>`); await waitKeys([" "]);
+    ${blockIdx===2?IMC_LINE:""}
+    <p class="go">press SPACE</p>`); await waitGo(blockIdx===2?3:null);
   const sc = await calibration(angle);
   const med0 = clampProp(sc.threshold());   // seed; also the fixed prop when tracking is off
   // Props for one decision trial: the live staircase value plus the boosted evidence
@@ -575,7 +657,8 @@ async function block(angle, blockIdx){
 
   // Task 1
   showScreen(`<h1>Part A</h1><p>Choose the circle you control (a = left, s = right), then rate your confidence.</p>
-    <p>${CFG.D0_N>0?"Still no feedback.":"No feedback from here on."}</p><p class="go">press SPACE</p>`); await waitKeys([" "]); showCanvas();
+    <p>${CFG.D0_N>0?"Still no feedback.":"No feedback from here on."}</p>${blockIdx===1?IMC_LINE:""}<p class="go">press SPACE</p>`);
+  await waitGo(blockIdx===1?1:null); showCanvas();
   for(const strength of mix(CFG.T1_N, CFG.D1_N)){
     if(strength){ await strengthTrial(1); continue; }
     const [pDec,pHigh,dUsed]=nextProps();
@@ -601,8 +684,8 @@ async function block(angle, blockIdx){
     <p>Then rate how likely it is that your <b>first</b> choice was correct. If the extra
     evidence shows your choice was wrong, a <b>low</b> rating is what earns you the most.</p>
     ${CFG.D2_N>0?"<p>Some trials have <b>no</b> extra evidence: you rate right after your choice, as in Part A.</p>":""}
-    <p class="go">press SPACE</p>`);
-  await waitKeys([" "]); showCanvas();
+    ${blockIdx===1?IMC_LINE:""}<p class="go">press SPACE</p>`);
+  await waitGo(blockIdx===1?2:null); showCanvas();
   const levels=shuffle([...Array(Math.floor(CFG.T2_N/2)).fill("low"),...Array(CFG.T2_N-Math.floor(CFG.T2_N/2)).fill("high")]);
   const seq2=shuffle([...levels.map(l=>({lev:l,strength:false})), ...Array(CFG.D2_N).fill({lev:null,strength:true})]);
   for(const {lev,strength} of seq2){
@@ -635,7 +718,19 @@ async function main(){
   Object.assign(META, {seed:SEED0, build:BUILD, started_at:new Date(T_START).toISOString(),
     screen_w:screen.width, screen_h:screen.height, window_w:window.innerWidth, window_h:window.innerHeight,
     dpr:window.devicePixelRatio||1, user_agent:navigator.userAgent});
-  // Device check first: the task is calibrated for a mouse (as in the lab). Prolific cannot
+  // Consent before anything else. Declining ends the session and nothing is saved or uploaded.
+  document.body.classList.add("showcursor");
+  showScreen(`<h1>Information and consent</h1><div class="consent">${CONSENT_HTML}</div>
+    <p class="go">scroll to read all of it &nbsp;·&nbsp; <span class="kbd">Y</span> I agree and want to take part &nbsp;·&nbsp; <span class="kbd">N</span> I do not agree</p>`);
+  const agreed = (await waitKeys(["y","n"]))==="y";
+  document.body.classList.remove("showcursor");
+  if(!agreed){
+    showScreen(`<h1>Thank you</h1><p>You chose not to take part. Nothing has been recorded.</p>
+      <p>Please <b>return</b> the study on Prolific and close this window.</p>`);
+    return;
+  }
+  META.consent=1; META.consent_at=new Date().toISOString();
+  // Device check next: the task is calibrated for a mouse (as in the lab). Prolific cannot
   // filter for it, so we ask, log the answer and let trackpad users leave without penalty.
   showScreen(`<h1>Before we start</h1><p>What are you using to move the pointer?</p>
     <p><span class="kbd">1</span> a computer mouse &nbsp; <span class="kbd">2</span> a trackpad / touchpad &nbsp; <span class="kbd">3</span> something else</p>`);
@@ -675,7 +770,10 @@ async function main(){
   META.wp3_mean_score=+meanScore.toFixed(4); META.wp3_bonus=+(CFG.BONUS*meanScore).toFixed(2);
   META.fullscreen_exits=FS_EXITS;   // >0 means part of the session ran outside fullscreen
   META.pointer_lock_exits=PL_EXITS; META.pointer_lock=(PL_OK && !CFG.NOLOCK)?1:0;   // 0 = ran on plain mousemove deltas
+  // Instruction checks failed (0 = passed all that were shown; a short test run may show fewer than 3)
+  META.imc_failed = [1,2,3].filter(i=>META[`imc_${i}`]===0).length;
   await motivationCheck();
+  await closingQuestions();
   let saveErr = await saveData();
   // On Prolific a failed upload must not end in an automatic redirect: the data would sit only
   // in the participant's Downloads folder. Offer retries; continuing stays possible.
@@ -689,18 +787,13 @@ async function main(){
     saveErr = await upload(`CDT_wp3_${CFG.participant}.csv`, toCSV());
     document.getElementById("err").textContent=saveErr;
   }
-  if(CFG.COMPLETION_URL){
-    // Prolific: show the bonus briefly, then return the participant so they get credited.
-    showScreen(`<h1>Done — thank you!</h1><p>Your confidence bonus: <b>${bonusText(meanScore)}</b></p>
-      ${saveErr?`<p style="color:#e0713a">${saveErr} — please tell the researcher.</p>`:""}
-      <p class="go">returning you to Prolific…</p>`);
-    await wait(4000);
-    location.href = CFG.COMPLETION_URL;
-    return;
-  }
-  showScreen(`<h1>Done — thank you!</h1><p>Your confidence bonus: <b>${bonusText(meanScore)}</b></p>
-    <p>${saveErr?saveErr:"Your data has been saved"}.</p>
-    <p class="go">you may close this window</p>`);
+  // Debrief: what the study was about, the bonus, contact. On Prolific the participant leaves with a
+  // keypress (an automatic redirect after a few seconds left no time to read it).
+  showScreen(`<h1>Done — thank you!</h1><p>Your confidence bonus: <b>${bonusText(meanScore)}</b>${CFG.BONUS>0?" (paid through Prolific)":""}</p>
+    ${saveErr?`<p style="color:#e0713a">${saveErr} — please tell the researcher.</p>`:(CFG.COMPLETION_URL?"":"<p>Your data has been saved.</p>")}
+    <div class="consent">${DEBRIEF_HTML}</div>
+    <p class="go">${CFG.COMPLETION_URL?"press SPACE to return to Prolific":"you may close this window"}</p>`);
+  if(CFG.COMPLETION_URL){ await waitKeys([" "]); location.href = CFG.COMPLETION_URL; }
 }
 
 // boot: load the motion pool, then run

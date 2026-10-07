@@ -772,6 +772,28 @@ No change to the task, the schedule or the stimulus.
   pause screen counted as answers. The response clock now pauses with the motion clock, and choice
   and rating keys are ignored while paused.
 
+## 10m. Consent, debrief, instruction checks and online exclusions (2026-10-07)
+
+Research on Prolific's rules and online best practice:
+`/mnt/project-files/wp3-setup/online-standards-consent-exclusions.md` (project files). Prolific allows a
+rejection only after two failed attention checks of an allowed type (instructional manipulation checks or
+nonsensical items), never for performance and never for failed comprehension checks. Hence two levels:
+few Prolific-compliant checks decide payment; stricter preregistered criteria decide the analysis only.
+
+- **Attention checks cost no trials** (Simon, 2026-10-07: trials are too scarce for catch trials). Three
+  instruction screens (Part A and Part B of block 1, start of block 2) ask for K instead of SPACE.
+  Logged `imc_1..3`, `imc_failed`.
+- **Consent** first (Y/N, decline ends the session without saving), **closing self-report** (mouse whole
+  time, focus 1–5, interruptions, technical problems, optional comment; stated not to affect payment) and a
+  **debrief** at the end; on Prolific the participant leaves with a keypress instead of a 4 s redirect.
+  Consent and debrief texts are placeholders until the ethics-approved wording is in.
+- **No CAPTCHA:** without a server to verify the token it is bypassable, it adds a third party to the
+  consent, and the task itself filters bots (chance accuracy fails the 0.60–0.85 band).
+- **Analysis:** `exclusion_flags` adds, where the columns exist, failed instruction check, self-reported
+  non-mouse use, no pointer lock, median `display_fps` < 50 and median `low_move_ratio` > 0.30. The last two
+  thresholds are provisional, to be fixed on pilot data and preregistered. Still to preregister: trial-level
+  exclusions (hand still, dropped frames) and a check that their rate does not differ between 0° and 90°.
+
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
 To reconnect WP3 with the proposal's "expectations of control" moderator, we

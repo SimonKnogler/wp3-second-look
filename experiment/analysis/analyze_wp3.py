@@ -46,6 +46,11 @@ ACC_LO, ACC_HI = 0.60, 0.85
 CONF_MODE_MAX = 0.90
 CONF_RT_MIN = 0.850
 TIMEOUT_MAX = 0.05
+# Online-only criteria (design doc §10m). Applied only when the column exists (web build), so lab and
+# simulated data are unaffected. PROVISIONAL thresholds: to be fixed on pilot data and preregistered.
+IMC_FAILED_MAX = 0          # instruction checks ("press K instead of SPACE"): any failure excludes
+FPS_MIN = 50.0              # PROVISIONAL: median display_fps over decision trials
+LOW_MOVE_MAX = 0.30         # PROVISIONAL: median low_move_ratio over decision trials
 
 
 # ── meta-d' (MLE, Maniscalco & Lau 2012) ────────────────────────────────────────
@@ -179,6 +184,18 @@ def exclusion_flags(df_p):
                  conf_degenerate=bool(mode_share > CONF_MODE_MAX) if not np.isnan(mode_share) else True,
                  conf_rt_too_fast=bool(med_rt < CONF_RT_MIN) if not np.isnan(med_rt) else False,
                  too_many_timeouts=bool(to_rate > TIMEOUT_MAX))
+    first = df_p.iloc[0]
+    has = lambda c: c in df_p.columns and pd.notna(first.get(c))
+    if has('imc_failed'):
+        flags['failed_instruction_check'] = bool(first['imc_failed'] > IMC_FAILED_MAX)
+    if has('selfreport_device'):
+        flags['no_mouse_selfreport'] = bool(first['selfreport_device'] != 1)
+    if has('pointer_lock'):
+        flags['no_pointer_lock'] = bool(first['pointer_lock'] == 0)
+    if 'display_fps' in df_p.columns and valid['display_fps'].notna().any():
+        flags['low_frame_rate'] = bool(valid['display_fps'].median() < FPS_MIN)
+    if 'low_move_ratio' in df_p.columns and valid['low_move_ratio'].notna().any():
+        flags['too_little_movement'] = bool(valid['low_move_ratio'].median() > LOW_MOVE_MAX)
     flags['exclude'] = any(flags.values())
     return flags
 
