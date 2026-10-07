@@ -91,8 +91,9 @@ block), not part of the confidence model. `delta_live` is the offset in force on
   failed final upload shows a retry screen instead of redirecting.
 - **Prolific guard:** a URL with `PROLIFIC_PID` but no DataPipe id or no `bonus` refuses to start.
 - **Consent and debrief** (design doc §10m): consent is the first screen (Y/N; N ends the session and
-  nothing is saved), closing self-report and a debrief come at the end. Both texts are **placeholders**
-  (`CONSENT_HTML`, `DEBRIEF_HTML` in `index.html`) until the ethics-approved wording is in.
+  nothing is saved), then the form's two optional YES/NO items (`consent_followup`, `consent_recontact`);
+  closing self-report and a debrief come at the end. The consent text is the LMU form used for WP1, with the
+  WP3 title and online adaptations (`CONSENT_HTML`, `STUDY_TITLE`, `CONTACT_EMAIL` in `index.html`).
 - **Instruction checks:** three instruction screens ask for K instead of SPACE (`imc_1..3`, `imc_failed`); no
   trial is spent on them. Prolific allows a rejection after two failures; the analysis excludes on one.
 - No demographics screen: Prolific supplies age and sex in its export.

@@ -97,7 +97,7 @@ const CFG = {
   NOLOCK: Q.get("nolock") === "1",
 };
 // Identifies the deployed version in the data (bump with every change to index.html or engine.js).
-const BUILD = "2026-10-07b";
+const BUILD = "2026-10-07c";
 // A Prolific link that would run without saving or without the promised bonus wastes a full
 // session per participant. Refuse to start instead; the researcher sees it on the first test.
 const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
@@ -105,30 +105,50 @@ const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
   ...(CFG.BONUS>0 ? [] : ["no bonus amount (add &bonus=3.00 to the study URL)"]),
 ] : [];
 // ── Consent text ────────────────────────────────────────────────────────────
-// PLACEHOLDER until the text approved by the ethics committee is in. Built from the LMU template for
-// online studies; every [bracketed] part must be checked against the approved version.
+// The LMU consent form Simon used for WP1 ("Who's in control?"), with the WP3 title and the changes an
+// online study needs: no name or signature (consent by keypress), the participant information that the
+// paper form refers to as a separate sheet is given here, questions go by e-mail or Prolific message, and
+// re-contact goes through Prolific (we hold no names or e-mail addresses).
+const CONTACT_EMAIL = "simon.knogler@lmu.de";
+const STUDY_TITLE = "A second look — Judging control over moving objects";
 const CONSENT_HTML = `
-  <p class="ph"><b>[DRAFT — replace with the text approved by the ethics committee]</b></p>
-  <p><b>Who we are.</b> This study is run by [Simon Knogler, Ludwig-Maximilians-Universität München (LMU),
-  Faculty of Psychology and Educational Sciences, Chair of …]. Contact: [e-mail].</p>
-  <p><b>What the study is about.</b> We study how people sense control over movements they see on a screen,
-  and how they judge their own decisions about it.</p>
-  <p><b>What you will do.</b> Move your computer mouse while two circles move on the screen, decide which one
-  follows your hand, and rate how confident you are. The task runs in fullscreen and takes about [60] minutes,
-  and you can pause between its parts. There are no risks beyond those of ordinary computer work.</p>
-  <p><b>Payment.</b> The base payment shown on Prolific, plus a bonus that depends on your confidence ratings.</p>
-  <p><b>Voluntary.</b> Taking part is voluntary. You can stop at any time without giving a reason, by pressing
-  Esc and closing this window, and returning the study on Prolific. This has no disadvantage for you.</p>
-  <p><b>Your data.</b> We record your answers, response times, summary measures of your mouse movements, your
-  Prolific ID and technical details of your browser and screen. No name, e-mail or IP address is stored. The
-  data are stored pseudonymously [on servers of the Open Science Framework (OSF), region Germany] and kept for
-  [10] years. Before publication the Prolific ID is replaced by a code; anonymised data may be shared in open
-  repositories. Until then you can ask for your data to be deleted by sending us your Prolific ID.
-  Legal basis is your consent (Art. 6(1)(a) GDPR). You have the right to information, correction, deletion,
-  restriction and data portability, and to complain to a supervisory authority. Data protection officer of
-  LMU: [contact].</p>
-  <p><b>By pressing <span class="kbd">Y</span> you confirm that</b> you are at least 18 years old, have read this
-  information, and agree to take part and to the processing of your data as described.</p>`;
+  <p style="color:#8a8f98">Ludwig-Maximilians-Universität München · Fakultät für Psychologie und Pädagogik ·
+  Department Psychologie · Allgemeine und Experimentelle Psychologie</p>
+  <p style="font-size:1.1rem !important"><b>Consent form: ‘${STUDY_TITLE}’</b></p>
+  <p><b>Information for participants.</b> In this study you move your computer mouse while two circles move on
+  the screen, decide which one follows your hand, and rate how confident you are in that decision. The task
+  runs in fullscreen in your browser and takes about 60 minutes; you can pause between its parts. You receive
+  the base payment shown on Prolific plus a bonus that depends on your confidence ratings. There are no risks
+  beyond those of ordinary computer work. The study is run by Simon Knogler, LMU Munich; questions can be sent
+  to ${CONTACT_EMAIL} or via a Prolific message.</p>
+  <p>I voluntarily take part in this study. I have read and understood the information for participants above,
+  which is part of this consent form. I was informed about the procedure, goals and duration of the experiment.
+  I understand my task in this experiment. I had the possibility to ask questions.</p>
+  <p>Data collection in this study will be anonymized. All personal data will be saved and processed
+  confidentially. Personal data which cannot be anonymized will be deleted as soon as it is not needed anymore
+  for follow-up questions or recruitment. Personal data will be deleted according to the guidelines of
+  Ludwig-Maximilians-Universität München. I am aware that I can demand the removal of all personal data up until
+  the point it is fully anonymized. In this online study the only identifier stored with the data is my
+  Prolific ID; no name, e-mail or IP address is recorded.</p>
+  <p>Results and primary data of this study might be published in a scientific publication. This will only be
+  done for anonymized data which does not allow to identify individual participants. The full set of anonymised
+  data from this study might be made accessible as „open data“ in a safe online repository called Open Science
+  Framework. This procedure is based on the recommendations of Ludwig-Maximilians-Universität München regarding
+  quality control and reproducibility of scientific research.</p>
+  <p>I know that participation is voluntary and that I can stop participating at any time and without having to
+  justify this decision (press Esc, close the window and return the study on Prolific). I know that in this case
+  I am still eligible for reimbursement for my time spent up until this point.</p>
+  <p><b>Data protection rights of participants</b> (official German data protection law applies; this
+  translation only serves as guidance). According to Art. 13 II b of the Datenschutzgrundverordnung (DSGVO) I have
+  a right to information (Art. 15 DSGVO, §34 BDSG), objection (Art. 21 DSGVO, §36 BDSG), data transfer (Art. 20
+  DSGVO), deletion (Art. 17 DSGVO, §35 BDSG), limiting data processing (Art. 18 DSGVO) and correction (Art. 16
+  DSGVO). To make use of any of these rights, please contact the data protection officer of the LMU:
+  Dr. jur. Rolf Gemmeke, +49 (0)89 2180-2414, Datenschutz@Verwaltung.uni-muenchen.de. Additionally, you have the
+  right to file a complaint with the Bayerisches Landesamt für Datenschutzaufsicht (BayLDA), Promenade 27,
+  91522 Ansbach, +49 (0)981 53 1300, poststelle@lda.bayern.de, www.lda.bayern.de/de/beschwerde.html.</p>
+  <p><b>By pressing <span class="kbd">Y</span></b> I confirm that I am at least 18 years old, that I had sufficient
+  time to decide and am willing to take part in this study, and I consent that my data will be collected and
+  processed as described.</p>`;
 
 // Instruction checks (Prolific-compliant instructional manipulation checks): on three instruction screens the
 // text asks for K instead of SPACE. No trial is spent on them. Failing two of three allows a rejection on
@@ -476,14 +496,13 @@ async function closingQuestions(){
   META.selfreport_comments = document.getElementById("comments").value.trim();
   document.body.classList.remove("showcursor");
 }
-// PLACEHOLDER wording like the consent text; check against the ethics application.
 const DEBRIEF_HTML = `
   <p><b>What this study was about.</b> We study how people revise their confidence in a decision when new
   evidence arrives afterwards — and whether this differs when the link between hand and screen is natural or
   unusual. In one of the two blocks the circle you controlled moved at a 90° angle to your hand.</p>
   <p>In Part B the extra evidence sometimes showed that your first choice was wrong. That was intended: we
   measure how strongly people take such evidence into account. Nothing in the study was hidden from you.</p>
-  <p><b>Questions or withdrawal.</b> Contact [e-mail] with your Prolific ID. Until the data are anonymised you
+  <p><b>Questions or withdrawal.</b> Contact ${CONTACT_EMAIL} or send a Prolific message, with your Prolific ID. Until the data are anonymised you
   can ask for them to be deleted.</p>`;
 async function motivationCheck(){   // before the reveal, so the amount cannot bias it
   showScreen(`<h1>One last question</h1><p>How much did the bonus rule affect how carefully you chose your confidence ratings?</p>
@@ -516,7 +535,7 @@ function toCSV(){
     "post_true_shape","post_left_shape","post_applied_angle_bias","post_evidence_sum","post_display_fps","post_low_move_ratio",
     "seed","build","started_at","duration_min","screen_w","screen_h","window_w","window_h","dpr","user_agent",
     // consent, instruction checks and closing self-report (design doc §10m)
-    "consent","consent_at","imc_1","imc_2","imc_3","imc_failed",
+    "consent","consent_at","consent_followup","consent_recontact","imc_1","imc_2","imc_3","imc_failed",
     "selfreport_device","selfreport_focus_1to5","selfreport_interrupted","selfreport_tech_problems","selfreport_comments"];
   // Every META key must be listed here or it is silently dropped from the file: the four
   // fields after wp3_bonus were collected for weeks without ever being written.
@@ -730,6 +749,17 @@ async function main(){
     return;
   }
   META.consent=1; META.consent_at=new Date().toISOString();
+  // The two YES/NO items of the paper form. Re-contact goes through the Prolific ID (Prolific messages).
+  document.body.classList.add("showcursor");
+  showScreen(`<h1>Two optional questions</h1>
+    <p>May we contact you via Prolific with follow-up questions about this study?</p>
+    <p><span class="kbd">1</span> yes &nbsp; <span class="kbd">2</span> no</p>`);
+  META.consent_followup = (await waitKeys(["1","2"]))==="1" ? 1 : 0;
+  showScreen(`<h1>Two optional questions</h1>
+    <p>May we invite you via Prolific to further experiments? Participation is always voluntary.</p>
+    <p><span class="kbd">1</span> yes &nbsp; <span class="kbd">2</span> no</p>`);
+  META.consent_recontact = (await waitKeys(["1","2"]))==="1" ? 1 : 0;
+  document.body.classList.remove("showcursor");
   // Device check next: the task is calibrated for a mouse (as in the lab). Prolific cannot
   // filter for it, so we ask, log the answer and let trackpad users leave without penalty.
   showScreen(`<h1>Before we start</h1><p>What are you using to move the pointer?</p>

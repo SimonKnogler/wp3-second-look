@@ -786,7 +786,9 @@ few Prolific-compliant checks decide payment; stricter preregistered criteria de
 - **Consent** first (Y/N, decline ends the session without saving), **closing self-report** (mouse whole
   time, focus 1–5, interruptions, technical problems, optional comment; stated not to affect payment) and a
   **debrief** at the end; on Prolific the participant leaves with a keypress instead of a 4 s redirect.
-  Consent and debrief texts are placeholders until the ethics-approved wording is in.
+  The consent text is Simon's WP1 LMU consent form ("Who's in control?"), retitled for WP3 and adapted for
+  online use: keypress instead of name and signature, the participant information shown on screen, questions
+  by e-mail or Prolific message, the two YES/NO items asked separately and re-contact via Prolific.
 - **No CAPTCHA:** without a server to verify the token it is bypassable, it adds a third party to the
   consent, and the task itself filters bots (chance accuracy fails the 0.60–0.85 band).
 - **Analysis:** `exclusion_flags` adds, where the columns exist, failed instruction check, self-reported
