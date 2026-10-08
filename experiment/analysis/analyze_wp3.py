@@ -220,6 +220,10 @@ def load_wp3(path):
             continue
         if 'phase' in d.columns and d['phase'].astype(str).str.startswith('wp3').any():
             w = d[d['phase'].astype(str).str.startswith('wp3_task')].copy()
+            # Two-track strength trials (design doc §10j) are not standard decision trials: they stay out
+            # of exclusions, meta-d' and the evidence betas, as in wp3_paper_analysis.py.
+            if 'trial_type' in w.columns:
+                w = w[w['trial_type'].fillna('standard') != 'strength']
             w['__file'] = f.name
             frames.append(w)
     if not frames:
