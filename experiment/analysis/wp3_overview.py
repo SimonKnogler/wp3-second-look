@@ -9,12 +9,14 @@ team checks after every new data set). Works from the first pilot file on.
   4. Behaviour          mean confidence by evidence level x correctness x mapping (Rollwage Fig 4B analog)
   5. Planned tests      wp3_paper_analysis.py on the included participants (H1, H2 primary, b, checks);
                         shown as "waiting" until enough people are in
+  6. Canvas posters     poster 2 ("What we expect") with observed data and the ideal observer, and poster 3
+                        (wp3_poster.py on the results; the simulated one from --sim-results until then)
 
 Descriptives use every participant with data (excluded ones drawn hollow); the planned tests use only
 the included ones. Test runs (participant id starting with "test", or no Prolific id) are labelled as
 such and never counted toward the study sample.
 
-  python wp3_overview.py DATA_DIR OUT.html [--boot 300]
+  python wp3_overview.py DATA_DIR OUT.html [--boot 300] [--sim-results results.json]
 """
 import argparse, datetime as dt, html, json, pathlib, subprocess, sys, tempfile, warnings
 import numpy as np
@@ -325,6 +327,148 @@ def planned_section(R, n_inc, log):
             + rows + "</tbody></table></div>" + extra + logblk)
 
 
+# ── posters from the "Second Look Poster" canvas, rebuilt from the data ─────────
+# Poster 2 (Main: "What we expect") and poster 3 (results, made by wp3_poster.py). Both keep the print look of
+# the canvas: their own paper ground and literal colours, in either theme.
+
+PAPER, P_INK, P_SEC, P_MUT, P_GRID, P_AXIS = "#FAFAF7", "#15181C", "#2B3036", "#4A5058", "#DDE0E3", "#9AA1A9"
+P_COL = {0: "#2A78D6", 90: "#D95926"}
+P_MONO, P_SANS = "'IBM Plex Mono', Menlo, monospace", "'IBM Plex Sans', Helvetica, sans-serif"
+EXP_X = (62, 154, 246)                     # none / low / high, as on the canvas
+EXP_Y = lambda p: 148 - 140 * p            # 0-100 % on a 140-px axis
+
+
+def expectation_cells(df, keep):
+    """Observed and ideal-observer confidence (probability scale) per mapping, correctness and evidence level.
+    Ideal observer = the model's null (w_c = w_d = 1, b = 0): logit conf = L0 +/- e, with L0 from Task 1 and
+    e from the measured accuracies (standard first looks -> low, strength trials -> high), as in fit_wp3_model
+    but without the group shrinkage."""
+    v = df[df.phase.str.startswith("wp3_task") & ~df.is_timeout & df.accuracy.notna() & df.participant.isin(keep)]
+    std, strn = v[v.trial_type != "strength"], v[v.trial_type == "strength"]
+    rated = std[std.wp3_confidence.notna()].assign(pr=lambda d: (d.wp3_confidence - 1) / 8)
+    out = {}
+    for ang in ANGLES:
+        obs = {1: [], 0: []}; ide = {1: [], 0: []}; n = 0
+        for pid, d in rated[rated.angle_bias == ang].groupby("participant"):
+            n += 1
+            for acc in (1, 0):
+                m = d[d.accuracy == acc].groupby("evidence_level").pr.mean()
+                obs[acc].append([m.get(lev, np.nan) for lev in (0, 1, 2)])
+            t1 = d[d.wp3_task == 1]
+            first = std[(std.participant == pid) & (std.angle_bias == ang)].accuracy.mean()
+            sa = strn[(strn.participant == pid) & (strn.angle_bias == ang)].accuracy
+            el = max(float(F.logit(np.clip(first, .5, .99))), 0.0)
+            eh = max(float(F.logit(np.clip(sa.mean(), .5, .99))), 0.0) if len(sa) else np.nan
+            for acc, sg in ((1, 1), (0, -1)):
+                q = t1[t1.accuracy == acc].pr.mean()
+                L0 = float(F.logit(np.clip(q, .01, .99))) if np.isfinite(q) else np.nan
+                ide[acc].append([float(F.sig(L0)), float(F.sig(L0 + sg * el)), float(F.sig(L0 + sg * eh))])
+        out[ang] = dict(n=n, obs={a: np.nanmean(np.array(obs[a], float), axis=0) if obs[a] else np.full(3, np.nan) for a in (1, 0)},
+                        ideal={a: np.nanmean(np.array(ide[a], float), axis=0) if ide[a] else np.full(3, np.nan) for a in (1, 0)})
+    return out
+
+
+def expectation_svg(c, ang):
+    col = P_COL[ang]
+    el = []
+    for k, t in enumerate((1, .75, .5, .25, 0)):
+        y = EXP_Y(t)
+        el.append(f'<line x1="44" y1="{f1(y)}" x2="256" y2="{f1(y)}" stroke="{P_AXIS if t == 0 else P_GRID}" stroke-width="1"></line>')
+        el.append(f'<text x="38" y="{f1(y + 4)}" text-anchor="end" font-family="{P_MONO}" font-size="12" fill="{P_MUT}">{100 * t:.0f} %</text>')
+    for x, lab in zip(EXP_X, ("none", "low", "high")):
+        el.append(f'<text x="{x}" y="165" text-anchor="middle" font-family="{P_SANS}" font-size="12" fill="{P_SEC}">{lab}</text>')
+    el.append(f'<text x="154" y="182" text-anchor="middle" font-family="{P_MONO}" font-size="12" fill="{P_MUT}">evidence after the choice</text>')
+    def poly(vals, stroke, sw, dash):
+        pts = [(x, EXP_Y(v)) for x, v in zip(EXP_X, vals) if np.isfinite(v)]
+        if len(pts) < 2:
+            return ""
+        d = " ".join(("M" if i == 0 else "L") + f"{f1(x)} {f1(y)}" for i, (x, y) in enumerate(pts))
+        da = ' stroke-dasharray="6 5"' if dash else ""
+        return f'<path d="{d}" fill="none" stroke="{stroke}" stroke-width="{sw}" stroke-linecap="round" stroke-linejoin="round"{da}></path>'
+    for acc in (1, 0):
+        el.append(poly(c["ideal"][acc], P_AXIS, 1.25, acc == 0))
+    for acc in (1, 0):
+        el.append(poly(c["obs"][acc], col, 2, acc == 0))
+    labs = []
+    for acc in (1, 0):
+        for x, val in zip(EXP_X, c["obs"][acc]):
+            if np.isfinite(val):
+                fill, stroke = (col, PAPER) if acc else (PAPER, col)
+                el.append(f'<circle cx="{x}" cy="{f1(EXP_Y(val))}" r="4" fill="{fill}" stroke="{stroke}" stroke-width="2">'
+                          f'<title>{"correct" if acc else "incorrect"}: {100 * val:.0f} %</title></circle>')
+        last = c["obs"][acc][2]
+        if np.isfinite(last):
+            labs.append([EXP_Y(last), "correct" if acc else "incorrect", f"{100 * last:.0f} %"])
+    if len(labs) == 2 and abs(labs[0][0] - labs[1][0]) < 34:                    # keep the end labels apart
+        mid = (labs[0][0] + labs[1][0]) / 2; labs[0][0], labs[1][0] = mid - 17, mid + 17
+    for y, name, val in labs:
+        el.append(f'<text x="258" y="{f1(y)}" font-family="{P_SANS}" font-size="12" fill="{P_INK}">{name}</text>')
+        el.append(f'<text x="258" y="{f1(y + 15)}" font-family="{P_SANS}" font-size="12" font-weight="600" fill="{P_INK}">{val}</text>')
+    return (f'<svg width="342" height="186" viewBox="0 0 342 186" role="img" aria-label="Observed confidence at {ang} degrees by '
+            f'evidence after the choice, correct and incorrect first choices, with the ideal observer.">' + "".join(el) + "</svg>")
+
+
+def expectation_caption(c):
+    w = c["obs"][0][2]; i = c["ideal"][0][2]
+    if not np.isfinite(w):
+        return "No wrong choice followed by strong evidence yet."
+    gap = (f" Ideal observer: {100 * i:.0f} %." if np.isfinite(i) else "")
+    return f"Confidence in a wrong choice ends at {100 * w:.0f} %.{gap}"
+
+
+def poster2_section(df, keep, label):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)          # empty cells (no errors yet) stay NaN
+        C = expectation_cells(df, keep)
+    leg = (f'<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px;line-height:16px;color:{P_SEC}">'
+           + "".join(f'<div style="display:flex;gap:6px;align-items:center"><svg width="22" height="8" viewBox="0 0 22 8" fill="none" aria-hidden="true">'
+                     f'<line x1="1" y1="4" x2="21" y2="4" stroke="{s}" stroke-width="{w}" stroke-linecap="round"{d}></line></svg><div>{t}</div></div>'
+                     for t, s, w, d in (("correct", P_INK, 2, ""), ("incorrect", P_INK, 2, ' stroke-dasharray="6 4"'),
+                                        ("ideal observer", P_AXIS, 1.25, ""))) + "</div>")
+    cols = []
+    for ang, name in ((0, "0° · prediction-based"), (90, "90° · regularity-based")):
+        cols.append(f'<div style="flex:1 1 342px;min-width:0;display:flex;flex-direction:column;gap:4px">'
+                    f'<div style="display:flex;gap:8px;align-items:center"><div style="width:12px;height:12px;border-radius:3px;background:{P_COL[ang]};flex-shrink:0"></div>'
+                    f'<div style="font-size:14px;line-height:18px;font-weight:600">{name}</div>'
+                    f'<div style="font-family:{P_MONO};font-size:11px;color:{P_MUT}">n = {C[ang]["n"]}</div></div>'
+                    f'{expectation_svg(C[ang], ang)}<div style="font-size:13px;line-height:17px;color:{P_SEC}">{expectation_caption(C[ang])}</div></div>')
+    return (f'<div class="sheet"><div style="display:flex;flex-direction:column;gap:8px">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">'
+            f'<div style="font-family:{P_MONO};font-size:12px;line-height:16px;letter-spacing:.08em;text-transform:uppercase;color:{P_MUT}">'
+            f'What we expect · observed · {esc(label)}</div>{leg}</div>'
+            f'<div style="display:flex;gap:14px;flex-wrap:wrap">{"".join(cols)}</div></div></div>')
+
+
+def poster3_markup(results_json):
+    """Runs wp3_poster.py on a results.json and returns the artboard's markup for embedding."""
+    with tempfile.TemporaryDirectory() as td:
+        out = pathlib.Path(td) / "poster.dc.html"
+        r = subprocess.run([sys.executable, str(pathlib.Path(__file__).parent / "wp3_poster.py"), str(results_json), str(out)],
+                           capture_output=True, text=True)
+        if r.returncode != 0 or not out.exists():
+            return None, (r.stdout + r.stderr)[-1200:]
+        s = out.read_text()
+    body = s.split("</helmet>", 1)[1].split("</x-dc>", 1)[0]
+    return body, ""
+
+
+def poster3_section(R, sim_results):
+    if R is not None:
+        with tempfile.TemporaryDirectory() as td:
+            pj = pathlib.Path(td) / "results.json"; pj.write_text(json.dumps(R, default=float))
+            body, log = poster3_markup(pj)
+        note = "Aus den eingeschlossenen Studienteilnehmenden, mit <code>wp3_poster.py</code> wie auf dem Canvas."
+    elif sim_results and pathlib.Path(sim_results).exists():
+        body, log = poster3_markup(sim_results)
+        note = ("<b>SIMULATED.</b> Noch keine echten Ergebnisse: hier steht das Poster aus der Validierungssimulation, "
+                "erzeugt mit demselben Skript. Sobald 3 Personen eingeschlossen sind, ersetzen die echten Daten es.")
+    else:
+        return "<p class='waiting'>Erscheint, sobald die geplanten Tests laufen.</p>"
+    if body is None:
+        return f"<p class='waiting'>wp3_poster.py ist fehlgeschlagen.</p><pre class='log'>{esc(log)}</pre>"
+    return f"<p class='note'>{note}</p><div class='posterwrap'><div class='poster'>{body}</div></div>"
+
+
 # ── page ────────────────────────────────────────────────────────────────────────
 
 CSS = """
@@ -400,11 +544,15 @@ table.tests th[scope=row]{white-space:nowrap;font-weight:600}
 pre.log{font-family:var(--mono);font-size:11px;color:var(--mut);white-space:pre-wrap;margin:0;max-height:200px;overflow:auto}
 code{font-family:var(--mono);font-size:.92em}
 footer{color:var(--mut);font-size:12px}
+.sheet svg{width:342px;max-width:100%}
+.sheet{background:#FAFAF7;color:#15181C;border-radius:6px;padding:18px 20px;font-family:var(--sans)}
+.posterwrap{overflow-x:auto;border-radius:6px}
+.poster{width:794px;margin:0 auto}
 @media (max-width:820px){.grid{grid-template-columns:minmax(0,1fr)} .wrap{padding-inline:16px}}
 """
 
 
-def build(df, data_dir, boot):
+def build(df, data_dir, boot, sim_results=None):
     allp = list(dict.fromkeys(df.participant))
     d = pathlib.Path(data_dir)
     simulated = (d / "ground_truth.csv").exists() or (d.parent / "ground_truth.csv").exists()
@@ -486,6 +634,13 @@ def build(df, data_dir, boot):
   <p class="note">Läuft <code>wp3_paper_analysis.py</code> auf den eingeschlossenen Studienteilnehmenden (Testläufe nie).
   Primärer Test H2: Kontrast 0° vs 90° auf log w<sub>d</sub> aus dem Modell „both“, mit parametrischer Bootstrap-Null.</p>
   {planned_section(R, len(inc), log)}</section>
+<section class="wide"><h2><span class="num">8</span>Poster 2 · What we expect, mit Daten</h2>
+  <p class="note">Die Grafik vom Übersichtsposter, jetzt aus den Daten: Konfidenz (als Wahrscheinlichkeit) nach der Zusatzevidenz,
+  für richtige und falsche erste Wahl, mit dem Idealbeobachter (w<sub>c</sub> = w<sub>d</sub> = 1, kein Commitment) aus Task-1-Konfidenz
+  und gemessenen Genauigkeiten.</p>
+  {poster2_section(df, inc if inc else allp, ('eingeschlossene Studienteilnehmende' if inc else 'alle Datensätze, auch Tests'))}</section>
+<section class="wide"><h2><span class="num">9</span>Poster 3 · Ergebnisposter</h2>
+  {poster3_section(R, sim_results)}</section>
 </div>
 <footer>Erzeugt mit <code>experiment/analysis/wp3_overview.py</code> aus {files} CSV-Dateien. Rohdaten liegen nicht im Repository.</footer>
 </div>
@@ -497,9 +652,10 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("data_dir"); ap.add_argument("out")
     ap.add_argument("--boot", type=int, default=300, help="bootstrap replicates for the planned tests")
+    ap.add_argument("--sim-results", help="results.json of a validation run: shown as poster 3 until real results exist")
     a = ap.parse_args()
     df = load(a.data_dir)
-    pathlib.Path(a.out).write_text(build(df, a.data_dir, a.boot))
+    pathlib.Path(a.out).write_text(build(df, a.data_dir, a.boot, a.sim_results))
     print(f"[out] {a.out}")
 
 
