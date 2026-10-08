@@ -46,6 +46,8 @@ ACC_LO, ACC_HI = 0.60, 0.85
 CONF_MODE_MAX = 0.90
 CONF_RT_MIN = 0.850
 TIMEOUT_MAX = 0.05
+# One movement modality only (design doc §10n): the analysed sample is mouse users. Trackpad or other
+# devices, by the start question or the closing self-report, are excluded, not modelled as a covariate.
 # Online-only criteria (design doc §10m). Applied only when the column exists (web build), so lab and
 # simulated data are unaffected. PROVISIONAL thresholds: to be fixed on pilot data and preregistered.
 IMC_FAILED_MAX = 0          # instruction checks ("press K instead of SPACE"): any failure excludes
@@ -188,8 +190,13 @@ def exclusion_flags(df_p):
     has = lambda c: c in df_p.columns and pd.notna(first.get(c))
     if has('imc_failed'):
         flags['failed_instruction_check'] = bool(first['imc_failed'] > IMC_FAILED_MAX)
+    not_mouse = []
+    if has('input_device'):
+        not_mouse.append(first['input_device'] != 1)
     if has('selfreport_device'):
-        flags['no_mouse_selfreport'] = bool(first['selfreport_device'] != 1)
+        not_mouse.append(first['selfreport_device'] != 1)
+    if not_mouse:
+        flags['not_mouse_only'] = bool(any(not_mouse))
     if has('pointer_lock'):
         flags['no_pointer_lock'] = bool(first['pointer_lock'] == 0)
     if 'display_fps' in df_p.columns and valid['display_fps'].notna().any():

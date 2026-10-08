@@ -796,6 +796,30 @@ few Prolific-compliant checks decide payment; stricter preregistered criteria de
   thresholds are provisional, to be fixed on pilot data and preregistered. Still to preregister: trial-level
   exclusions (hand still, dropped frames) and a check that their rate does not differ between 0° and 90°.
 
+## 10n. One movement modality: mouse only (2026-10-08)
+
+Simon (2026-10-08): the sense-of-agency literature argues for analysing a single movement modality,
+because hand movements and their kinematics may differ with the device moved (mouse vs. trackpad).
+This supersedes the idea of allowing trackpads and modelling device as a covariate.
+
+- **Default: mouse.** It is the device the lab task and the WP1 data used, the one most agency studies
+  with cursor control use, and the one Prolific participants most often have on a desktop. Trackpad data
+  are not analysed (not even as a sensitivity analysis: a trackpad subsample would be small and self-selected).
+- **Recording.** Device question at the start (trackpad users are asked to plug in a mouse or return the
+  study; `input_device_initial` keeps the first answer, `input_device` the device used), closing self-report
+  `selfreport_device` (mouse the whole time?) stated not to affect payment. Prolific screening: desktop only.
+- **No device detection from the data.** Browsers report a trackpad as a mouse (`pointerType = "mouse"`),
+  and kinematic signatures (`low_move_ratio`, delta granularity) are not validated for this. `low_move_ratio`
+  stays an analysis criterion for too little movement, not a device test. Checked descriptively in the pilot.
+- **Analysis.** `exclusion_flags` → `not_mouse_only`: excluded when the start answer (final `input_device`)
+  or the self-report is not mouse.
+
+**Preregistration statement.** Only data from participants who used a computer mouse throughout are
+analysed. Participants are excluded if they report at the start or at the end of the session (with the
+assurance that the answer does not affect payment) that they used a trackpad or another device for any part
+of the task. Movement modality is held constant rather than modelled, because control detection relies on the
+kinematics of the moving hand, which differ between devices.
+
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
 To reconnect WP3 with the proposal's "expectations of control" moderator, we
