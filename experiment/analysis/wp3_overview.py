@@ -344,11 +344,13 @@ def expectation_cells(df, keep):
     none / low / high, the ideal observer's, and the per-person slope.
     Ideal observer = the model's null (w_c = w_d = 1, b = 0): logit conf = L0 - e, with L0 from Task-1
     confidence after wrong choices and e from the measured accuracies (standard first looks -> low,
-    strength trials -> high), as in fit_wp3_model but without the group shrinkage.
+    strength trials -> high, never below low), as in fit_wp3_model; group shrinkage from three people on.
     Slope = analyze_wp3.evidence_betas' disconfirmatory beta (rating points lost per evidence level, Task 1 + 2)."""
     v = df[df.phase.str.startswith("wp3_task") & ~df.is_timeout & df.accuracy.notna() & df.participant.isin(keep)]
     std, strn = v[v.trial_type != "strength"], v[v.trial_type == "strength"]
     rated = std[std.wp3_confidence.notna()].assign(pr=lambda d: (d.wp3_confidence - 1) / 8)
+    # group shrinkage of the strength accuracy as in fit_wp3_model, once there are enough people to estimate it
+    prior = F.acc_priors(F.strength_counts(df[df.participant.isin(keep)])) if len(set(strn.participant)) >= MIN_FOR_TESTS else {}
     rows = []
     for (pid, ang), d in rated.groupby(["participant", "angle_bias"]):
         wrong = d[d.accuracy == 0]
@@ -356,7 +358,11 @@ def expectation_cells(df, keep):
         first = d.accuracy.mean()
         sa = strn[(strn.participant == pid) & (strn.angle_bias == ang)].accuracy
         el = max(float(F.logit(np.clip(first, .5, .99))), 0.0)
-        eh = max(float(F.logit(np.clip(sa.mean(), .5, .99))), 0.0) if len(sa) else np.nan
+        a0, b0 = prior.get(int(ang), (0.0, 0.0))
+        acc_h = (sa.sum() + a0) / (len(sa) + a0 + b0) if len(sa) + a0 + b0 > 0 else np.nan
+        # the strong sample is never weaker than the first look (prop_post >= prop_used by design), so its e
+        # is at least e_low; a few strength trials alone can otherwise put it below (2026-10-08: 1 of 2 wrong)
+        eh = max(float(F.logit(np.clip(acc_h, .5, .99))) if np.isfinite(acc_h) else 0.0, el)
         q = wrong[wrong.wp3_task == 1].pr.mean()
         L0 = float(F.logit(np.clip(q, .01, .99))) if np.isfinite(q) else np.nan
         ideal = [F.sig(L0), F.sig(L0 - el), F.sig(L0 - eh)]
