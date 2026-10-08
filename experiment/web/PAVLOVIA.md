@@ -2,18 +2,16 @@
 
 ## The one thing to know first
 
-Pavlovia will **host** this study — it serves plain HTML/JS. But Pavlovia's **native data
-saving only works for PsychoJS or jsPsych** experiments: saving is done by their plugin,
-which opens a session at the start and closes it at the end. This study is hand-coded
-vanilla JS and uses neither.
+Pavlovia **hosts** this study (plain HTML/JS) and **stores its data**. Pavlovia saves results
+only through its server API: PsychoJS and the jsPsych plugin open a session at the start, post
+the results, and close the session at the end. This study is hand-coded JS, so `index.html`
+makes the same three calls itself (copied from PsychoJS' `ServerManager`; design doc §10p),
+reading the project id from the `config.json` Pavlovia serves next to `index.html`.
 
-So: **Pavlovia hosts, OSF DataPipe saves.** DataPipe is free, host-agnostic and already
-wired into `index.html`. Rewriting the task as a jsPsych plugin to get native saving would
-mean rebuilding a verified engine for no scientific gain.
-
-A consequence worth knowing: without the plugin handshake Pavlovia never "opens a session"
-for a run. The first pilot on Pavlovia is also the test of whether it serves the study
-happily that way (people do host plain HTML on it, but verify it yourself before Prolific).
+Pavlovia stores results **only while the experiment is RUNNING**. In PILOTING mode even
+PsychoJS studies just download the file, and so does this one (final screen, or D on the
+pause screen). To test saving itself, set the study to RUNNING briefly, run it with
+`?pid=test_…`, and delete those files from the dashboard afterwards.
 
 ## Repository layout Pavlovia expects
 
@@ -63,14 +61,7 @@ Two things bite when the stored credential lapses:
    master`, add the four files, `git remote add origin <url>`, `git push -u origin master`.)
 2. **Local repo** lives at `~/Desktop/PhD/Experiments/wp3-pavlovia`, tracking
    `origin/master`; the deploy script targets it by default.
-3. **DataPipe.** At https://pipe.jspsych.org connect an OSF project and create an
-   experiment; enable data collection on it; copy the experiment ID into
-   `experiment/web/index.html`:
-   ```js
-   DATAPIPE_ID: Q.get("datapipe") || "PASTE_ID_HERE",
-   ```
-   then redeploy. Until then `?datapipe=<id>` on the URL works for testing.
-4. **Activate.** pavlovia.org → Dashboard → the experiment → **PILOTING** (free, only
+3. **Activate.** pavlovia.org → Dashboard → the experiment → **PILOTING** (free, only
    you) for testing; **RUNNING** for real data. New projects start INACTIVE.
    RUNNING needs a licence or credits: check the Store for an LMU site licence; otherwise
    ~£0.20 per saved run.
@@ -87,7 +78,6 @@ Query parameters work the same as locally:
 | `?d0=0&d1=0&d2=0` | old design: no strength trials, fixed +1.2-logit boost |
 | `?bonus=3.00` | quadratic scoring rule with a £3 maximum — **required for Prolific**: the instructions quote the amount and a worked example |
 | `?nolock=1` | TESTING ONLY: no pointer lock, cursor visible — never give to participants |
-| `?datapipe=<id>` | DataPipe id without a redeploy |
 | `?pid=<id>` | participant id |
 
 The dashboard's *Pilot* button appends `&__pilotToken=…` automatically; tokens expire

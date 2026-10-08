@@ -87,21 +87,17 @@ const CFG = {
   TRACK: (Q.get("track") || "1") === "1",   // keep the 1u2d running through Task 1 + 2
   BONUS: +(Q.get("bonus") || 0),       // max confidence bonus (quadratic scoring rule); 0 = points only
   BONUS_UNIT: Q.get("unit") || "£",
-  // Pavlovia hosts hand-coded JS fine, but its NATIVE data saving requires PsychoJS or the
-  // jsPsych plugin — this study is neither, so data goes to OSF DataPipe instead.
-  // Set the id here for the deployed build; ?datapipe=... overrides it for testing.
-  DATAPIPE_ID: Q.get("datapipe") || "",
   // Where Prolific sends participants when they finish. Leave empty outside Prolific.
   COMPLETION_URL: Q.get("completion") || "",
   // TESTING ONLY: run without pointer lock (cursor visible, deltas from plain mousemove).
   NOLOCK: Q.get("nolock") === "1",
 };
 // Identifies the deployed version in the data (bump with every change to index.html or engine.js).
-const BUILD = "2026-10-08b";
+const BUILD = "2026-10-08c";
 // A Prolific link that would run without saving or without the promised bonus wastes a full
 // session per participant. Refuse to start instead; the researcher sees it on the first test.
 const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
-  ...(CFG.DATAPIPE_ID ? [] : ["no DataPipe id (set DATAPIPE_ID in index.html or add &datapipe=… to the study URL)"]),
+  ...(location.hostname==="run.pavlovia.org" ? [] : ["not running on run.pavlovia.org, so nothing would be saved"]),
   ...(CFG.BONUS>0 ? [] : ["no bonus amount (add &bonus=3.00 to the study URL)"]),
 ] : [];
 // ── Consent text ────────────────────────────────────────────────────────────
@@ -252,7 +248,7 @@ function fsRecover(title="Paused", text="The task has to run in fullscreen with 
   fsBlock=document.createElement("div"); fsBlock.id="fsblock";
   fsBlock.innerHTML=`<div><h1>${title}</h1><p>${text}</p>
     <p class="go">click anywhere to continue</p>
-    ${CFG.DATAPIPE_ID||!rows.length?"":`<p class="go">testing without DataPipe: press D to download the data so far</p>`}</div>`;
+    ${CFG.COMPLETION_URL||!rows.length?"":`<p class="go">testing: press D to download the data so far</p>`}</div>`;
   document.body.appendChild(fsBlock);
   fsBlock.addEventListener("click", async()=>{
     if(FS_OK && !document.fullscreenElement){
@@ -538,7 +534,7 @@ function toCSV(subset=rows){
     "seed","build","started_at","duration_min","screen_w","screen_h","window_w","window_h","dpr","user_agent",
     // consent, instruction checks and closing self-report (design doc §10m)
     "consent","consent_at","consent_followup","consent_recontact","imc_1","imc_2","imc_3","imc_failed",
-    "selfreport_device","selfreport_focus_1to5","selfreport_interrupted","selfreport_tech_problems","selfreport_comments","aborted"];
+    "selfreport_device","selfreport_focus_1to5","selfreport_interrupted","selfreport_tech_problems","selfreport_comments","aborted","pavlovia_status"];
   // Every META key must be listed here or it is silently dropped from the file: the four
   // fields after wp3_bonus were collected for weeks without ever being written.
   // Quote fields that contain a comma, quote or newline (user_agent does): unquoted they shift every later column.
@@ -546,20 +542,52 @@ function toCSV(subset=rows){
     const t=String(v); return /[",\n\r]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t; };
   return cols.join(",")+"\n"+subset.map(r=>cols.map(c=>esc(r[c])).join(",")).join("\n");
 }
-// One upload to DataPipe, retried: transient network errors are common online. "" = success.
+// ── Saving on Pavlovia ──────────────────────────────────────────────────────
+// Pavlovia stores results only through its server API (pavlovia.org/api/v2), which PsychoJS and the jsPsych
+// plugin call for their experiments; this hand-coded task calls the same endpoints itself (as in PsychoJS'
+// ServerManager): open a session, POST results as form fields key + value, close the session. Pavlovia
+// serves config.json next to index.html with the GitLab project id. The server keeps results only while the
+// study is RUNNING; in PILOTING (and locally) uploads are refused or skipped and the data is downloaded instead.
+const PV = { url:"", projectId:null, token:"", status:"", open:false };
+async function pvOpen(){
+  try{
+    const r=await fetch("config.json",{cache:"no-store"});
+    if(!r.ok) return "no config.json (not served by Pavlovia)";
+    const cfg=await r.json();
+    PV.url=(cfg.pavlovia&&cfg.pavlovia.URL)||"https://pavlovia.org"; PV.projectId=cfg.gitlab&&cfg.gitlab.projectId;
+    if(!PV.projectId) return "config.json has no gitlab.projectId";
+    const fd=new FormData();
+    if(Q.get("__pilotToken")) fd.append("pilotToken", Q.get("__pilotToken"));
+    const res=await fetch(`${PV.url}/api/v2/experiments/${PV.projectId}/sessions`,{method:"POST",body:fd});
+    const j=await res.json();
+    if(res.status!==200 || !j.token) return "Pavlovia refused the session: "+(j.error||res.status);
+    PV.token=j.token; PV.status=(j.experiment&&j.experiment.status2)||""; META.pavlovia_status=PV.status;
+    // Like PsychoJS: results go to the server only when RUNNING and not from a pilot link.
+    if(PV.status!=="RUNNING" || Q.get("__pilotToken")){ PV.open=true; pvClose(false); return `study is ${PV.status||"not RUNNING"}`; }
+    PV.open=true;
+    return "";
+  }catch(e){ return "Pavlovia not reachable: "+e.message; }
+}
+const pvPath = () => `${PV.url}/api/v2/experiments/${PV.projectId}/sessions/${PV.token}`;
+// One upload, retried: transient network errors are common online. "" = success.
 async function upload(name, csv){
-  if(!CFG.DATAPIPE_ID) return "no DATAPIPE_ID configured — data not uploaded";
+  if(!PV.open) return "not saved on Pavlovia (pilot or local run)";
   let err="upload failed";
   for(let attempt=1; attempt<=3; attempt++){
     try{
-      const r=await fetch("https://pipe.jspsych.org/api/data/",{method:"POST",
-        headers:{"Content-Type":"application/json","Accept":"*/*"},
-        body:JSON.stringify({experimentID:CFG.DATAPIPE_ID,filename:name,data:csv})});
-      if(!r.ok) throw new Error("HTTP "+r.status);
-      return "";
+      const fd=new FormData(); fd.append("key",name); fd.append("value",csv);
+      const r=await fetch(pvPath()+"/results",{method:"POST",body:fd});
+      if(r.ok) return "";
+      let msg=""; try{ const j=await r.json(); msg=j.error?(typeof j.error==="string"?j.error:JSON.stringify(j.error)):""; }catch(e){}
+      throw new Error("HTTP "+r.status+(msg?" "+msg:""));
     }catch(e){ err="upload failed: "+e.message; if(attempt<3) await wait(1500); }
   }
   return err;
+}
+function pvClose(completed){
+  if(!PV.open) return; PV.open=false;
+  const fd=new FormData(); fd.append("isCompleted", completed?"true":"false");
+  try{ fetch(pvPath(),{method:"DELETE",body:fd,keepalive:true}); }catch(e){}
 }
 function sessionMeta(){
   META.prolific_study_id = PROLIFIC_STUDY; META.prolific_session_id = PROLIFIC_SESSION;
@@ -567,47 +595,52 @@ function sessionMeta(){
 }
 // ── Saving during the session ───────────────────────────────────────────────
 // A session must never be lost because it ended early (closed tab, crash, a pilot stopped halfway).
-// With DataPipe: a full copy every CK_EVERY trials (CDT_wp3_<pid>_ck<NN>.csv.partial; the newest is the most
-// complete), and on leaving the page the trials since the last copy (…_ck<NN>_tail.csv.partial, sent with
-// keepalive, which caps the body at 64 kB — the tail is far smaller). *.partial stays outside the analysis'
-// *.csv glob. Without DataPipe (local piloting) the data can be downloaded with D on the pause screen (Esc)
-// and on the final screen.
+// One file per session, CDT_wp3_<pid>_<start>.csv: a full copy is uploaded under that name every CK_EVERY
+// trials and after each block, each replacing the last; on leaving the page the current state goes with
+// sendBeacon (aborted=1; beacons cap the body at 64 kB, so if the whole file is too big only the trials
+// since the last confirmed copy go, as …_tail.csv). An aborted session therefore keeps everything up to
+// at most CK_EVERY trials before the end, usually all of it; aborted=1 marks it for the analysis.
+// Without a Pavlovia session (piloting, local) D downloads the data so far on the pause screen (Esc)
+// and on the final screen, and the final screen downloads it once by itself.
 const CK_EVERY = 20;
-let CK_N = 0, CK_SENT = 0, CK_OK = 0, FINISHED = false;   // rows covered by the last copy started / confirmed
+let CK_SENT = 0, CK_OK = 0, FINISHED = false;   // rows covered by the last copy started / confirmed
+const fileName = () => `CDT_wp3_${CFG.participant}_${new Date(T_START).toISOString().slice(0,16).replace(/[-:]/g,"").replace("T","_")}`;
 function addRow(r){ rows.push(r); if(rows.length - CK_SENT >= CK_EVERY) checkpoint(); }
 function checkpoint(){
-  if(!CFG.DATAPIPE_ID || !rows.length || rows.length===CK_SENT) return;
-  sessionMeta(); CK_N++; const n=CK_N, upto=rows.length; CK_SENT=upto;
+  if(!PV.open || !rows.length || rows.length===CK_SENT) return;
+  sessionMeta(); const upto=rows.length; CK_SENT=upto;
   // never awaited: the participant does not wait for it
-  upload(`CDT_wp3_${CFG.participant}_ck${String(n).padStart(2,"0")}.csv.partial`, toCSV())
-    .then(err=>{ if(!err) CK_OK=Math.max(CK_OK, upto); });
+  upload(fileName()+".csv", toCSV()).then(err=>{ if(!err) CK_OK=Math.max(CK_OK, upto); });
 }
 window.addEventListener("pagehide", ()=>{
-  if(FINISHED || !CFG.DATAPIPE_ID || !rows.length) return;
-  sessionMeta(); META.aborted = 1;
-  const tail = toCSV(rows.slice(CK_OK));
-  try{ fetch("https://pipe.jspsych.org/api/data/", {method:"POST", keepalive:true,
-    headers:{"Content-Type":"application/json","Accept":"*/*"},
-    body:JSON.stringify({experimentID:CFG.DATAPIPE_ID,
-      filename:`CDT_wp3_${CFG.participant}_ck${String(CK_N).padStart(2,"0")}_tail.csv.partial`, data:tail})}); }catch(e){}
+  if(FINISHED || !PV.open) return;
+  if(rows.length){
+    sessionMeta(); META.aborted = 1;
+    const send=(key,csv)=>{ const fd=new FormData(); fd.append("key",key); fd.append("value",csv);
+      try{ return navigator.sendBeacon(pvPath()+"/results", fd); }catch(e){ return false; } };
+    if(!send(fileName()+".csv", toCSV()) && rows.length>CK_OK) send(fileName()+"_tail.csv", toCSV(rows.slice(CK_OK)));
+  }
+  const fd=new FormData(); fd.append("isCompleted","false");
+  try{ navigator.sendBeacon(pvPath()+"/delete", fd); }catch(e){}
+  PV.open=false;
 });
-// Pilot without DataPipe: D downloads everything recorded so far (pause screen or final screen).
+// Testing: D downloads everything recorded so far (pause screen or final screen). Not offered on Prolific.
 window.addEventListener("keydown", e=>{
-  if(CFG.DATAPIPE_ID || e.key.toLowerCase()!=="d" || !rows.length) return;
+  if(CFG.COMPLETION_URL || e.key.toLowerCase()!=="d" || !rows.length) return;
   if(!fsBlock && !FINISHED) return;
-  sessionMeta(); downloadCSV(`CDT_wp3_${CFG.participant}${FINISHED?"":"_partial"}.csv`, toCSV());
+  sessionMeta(); downloadCSV(fileName()+(FINISHED?"":"_partial")+".csv", toCSV());
 });
 
 // Returns "" on success, or an error string. The participant must never silently lose a
 // session: if the upload fails we say so on screen and offer the local download. The download
-// is only the fallback (and the only copy when piloting without DataPipe): on a successful
-// upload Prolific participants get no unexpected file.
+// is only the fallback (and the only copy when piloting): on a successful upload Prolific
+// participants get no unexpected file.
 async function saveData(){
   sessionMeta();
-  const csv=toCSV(), name=`CDT_wp3_${CFG.participant}.csv`;
+  const csv=toCSV(), name=fileName()+".csv";
   const err=await upload(name, csv);
   if(err) downloadCSV(name, csv);
-  if(err) document.getElementById("err").textContent=err;
+  if(err && PV.status==="RUNNING") document.getElementById("err").textContent=err;
   return err;
 }
 function downloadCSV(name, csv){
@@ -776,6 +809,14 @@ async function main(){
     return;
   }
   META.consent=1; META.consent_at=new Date().toISOString();
+  // Saving starts with consent: a Pavlovia session is opened only for people who agreed.
+  const pvErr = await pvOpen();
+  if(pvErr) console.info("WP3 saving:", pvErr);
+  if(pvErr && CFG.COMPLETION_URL){
+    showScreen(`<h1>This study cannot save data right now</h1><p>Please <b>return</b> the study on Prolific and
+      let the researcher know. Nothing has been recorded.</p><p style="color:#8a8f98;font-size:.95rem">${pvErr}</p>`);
+    return;
+  }
   // The two YES/NO items of the paper form. Re-contact goes through the Prolific ID (Prolific messages).
   document.body.classList.add("showcursor");
   showScreen(`<h1>Two optional questions</h1>
@@ -836,21 +877,22 @@ async function main(){
   let saveErr = await saveData();
   // On Prolific a failed upload must not end in an automatic redirect: the data would sit only
   // in the participant's Downloads folder. Offer retries; continuing stays possible.
-  while(saveErr && CFG.COMPLETION_URL && CFG.DATAPIPE_ID){
+  while(saveErr && CFG.COMPLETION_URL && PV.open){
     showScreen(`<h1>Your data could not be saved yet</h1><p>${saveErr}</p>
       <p>Please check your internet connection, then press <span class="kbd">R</span> to try again.</p>
       <p>If it keeps failing, press <span class="kbd">C</span> to continue to Prolific and send the researcher a message
       there; a copy of your data was saved to your Downloads folder.</p>`);
     if(await waitKeys(["r","c"])==="c") break;
     showScreen(`<p>Saving…</p>`);
-    saveErr = await upload(`CDT_wp3_${CFG.participant}.csv`, toCSV());
+    saveErr = await upload(fileName()+".csv", toCSV());
     document.getElementById("err").textContent=saveErr;
   }
+  pvClose(!saveErr);
   // Debrief: what the study was about, the bonus, contact. On Prolific the participant leaves with a
   // keypress (an automatic redirect after a few seconds left no time to read it).
   showScreen(`<h1>Done — thank you!</h1><p>Your confidence bonus: <b>${bonusText(meanScore)}</b>${CFG.BONUS>0&&CFG.COMPLETION_URL?" (paid through Prolific)":""}</p>
-    ${saveErr?`<p style="color:#e0713a">${saveErr} — please tell the researcher.</p>`:(CFG.COMPLETION_URL?"":"<p>Your data has been saved.</p>")}
-    ${CFG.DATAPIPE_ID?"":`<p>Testing without DataPipe: a CSV download was started; press <span class="kbd">D</span> to download it again.</p>`}
+    ${saveErr&&PV.status==="RUNNING"?`<p style="color:#e0713a">${saveErr} — please tell the researcher.</p>`:(saveErr||CFG.COMPLETION_URL?"":"<p>Your data has been saved.</p>")}
+    ${saveErr&&!CFG.COMPLETION_URL?`<p>Not saved on Pavlovia (${PV.projectId?`study is ${PV.status||"not RUNNING"}`:"local run"}): a CSV download was started; press <span class="kbd">D</span> to download it again.</p>`:""}
     <div class="consent">${DEBRIEF_HTML}</div>
     <p class="go">${CFG.COMPLETION_URL?"press SPACE to return to Prolific":"you may close this window"}</p>`);
   if(CFG.COMPLETION_URL){ await waitKeys([" "]); location.href = CFG.COMPLETION_URL; }
