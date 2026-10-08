@@ -820,6 +820,15 @@ assurance that the answer does not affect payment) that they used a trackpad or 
 of the task. Movement modality is held constant rather than modelled, because control detection relies on the
 kinematics of the moving hand, which differ between devices.
 
+## 10o. Nothing is lost when a session ends early (2026-10-08)
+
+Simon's pilot on Pavlovia (no DataPipe id yet) left no data: the only copy was a download triggered at the
+very end, and a session stopped early had none at all. Now, with DataPipe, a full copy goes up every 20
+trials and the remaining trials are sent with `keepalive` when the page is closed (`aborted = 1`); without
+DataPipe, D on the pause screen (Esc) or on the final screen downloads everything so far. Also fixed: when a
+browser refused pointer lock for good, the task was meant to continue on plain mouse deltas but ignored them,
+so the first trial waited for movement forever.
+
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
 To reconnect WP3 with the proposal's "expectations of control" moderator, we

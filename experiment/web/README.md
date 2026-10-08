@@ -85,10 +85,13 @@ high offset (target 85 %) and measure what that strength supports; flagged
 block), not part of the confidence model. `delta_live` is the offset in force on each trial.
 
 ## Saving, and what still needs YOUR check
-- **Saving:** with a DataPipe id the file is uploaded at the end (3 tries), plus an interim copy
-  after each block (`CDT_wp3_<pid>_block<n>.csv.partial`, ignored by the analysis' `*.csv` glob).
-  The local download happens only when the upload fails or no DataPipe id is set. On Prolific a
-  failed final upload shows a retry screen instead of redirecting.
+- **Saving:** with a DataPipe id the file is uploaded at the end (3 tries), plus a full interim copy every
+  20 trials (`CDT_wp3_<pid>_ckNN.csv.partial`, the newest is the most complete) and, when the page is closed
+  early, the trials since the last copy (`…_ckNN_tail.csv.partial`, rows flagged `aborted = 1`). All
+  `*.partial` files stay outside the analysis' `*.csv` glob. The local download happens only when the upload
+  fails or no DataPipe id is set; **without DataPipe (piloting)** press **D** on the pause screen (Esc) to
+  download everything so far, or on the final screen to download again. On Prolific a failed final upload
+  shows a retry screen instead of redirecting.
 - **Prolific guard:** a URL with `PROLIFIC_PID` but no DataPipe id or no `bonus` refuses to start.
 - **Consent and debrief** (design doc §10m): consent is the first screen (Y/N; N ends the session and
   nothing is saved), then the form's two optional YES/NO items (`consent_followup`, `consent_recontact`);

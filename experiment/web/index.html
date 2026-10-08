@@ -97,7 +97,7 @@ const CFG = {
   NOLOCK: Q.get("nolock") === "1",
 };
 // Identifies the deployed version in the data (bump with every change to index.html or engine.js).
-const BUILD = "2026-10-08a";
+const BUILD = "2026-10-08b";
 // A Prolific link that would run without saving or without the promised bonus wastes a full
 // session per participant. Refuse to start instead; the researcher sees it on the first test.
 const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
@@ -204,7 +204,9 @@ let canvas=null, ctx=null, cx=0, cy=0;
 // in the lab. Movement accumulates between frames and is drained once per rendered frame.
 let accX=0, accY=0;
 document.addEventListener("mousemove", e=>{
-  if(document.pointerLockElement || CFG.NOLOCK){ accX+=e.movementX; accY-=e.movementY; }
+  // !PL_OK: the browser refused the lock for good and the task runs on plain deltas, as documented.
+  // Without this the deltas were dropped and the first trial waited for movement forever.
+  if(document.pointerLockElement || CFG.NOLOCK || !PL_OK){ accX+=e.movementX; accY-=e.movementY; }
 });
 function drainMotion(){ const r=[accX,accY]; accX=0; accY=0; return r; }
 let PL_OK=true;            // false once the browser has refused the lock for good -> run without it
@@ -249,7 +251,8 @@ function fsRecover(title="Paused", text="The task has to run in fullscreen with 
   if(fsBlock) return;
   fsBlock=document.createElement("div"); fsBlock.id="fsblock";
   fsBlock.innerHTML=`<div><h1>${title}</h1><p>${text}</p>
-    <p class="go">click anywhere to continue</p></div>`;
+    <p class="go">click anywhere to continue</p>
+    ${CFG.DATAPIPE_ID||!rows.length?"":`<p class="go">testing without DataPipe: press D to download the data so far</p>`}</div>`;
   document.body.appendChild(fsBlock);
   fsBlock.addEventListener("click", async()=>{
     if(FS_OK && !document.fullscreenElement){
@@ -520,9 +523,9 @@ const motionCols = r => ({left_shape:r.left, applied_angle_bias:r.applied, evide
 function log(o){ const r=Object.assign({participant:CFG.participant, session:1, block_idx:BLOCK_IDX, trial_idx:++TRIAL_IDX}, o);
   // every decision trial is scored; a timeout has no rating and scores 0 (same as PsychoPy)
   r.wp3_score=wp3Score(o.wp3_confidence, o.accuracy===true||o.accuracy===1); SCORES.push(r.wp3_score);
-  rows.push(r); }
-function toCSV(){
-  rows.forEach(r=>Object.assign(r, META));
+  addRow(r); }
+function toCSV(subset=rows){
+  subset.forEach(r=>Object.assign(r, META));
   const cols=["participant","session","phase","wp3_task","evidence_level","angle_bias",
     "prop_used","prop_post","accuracy","true_shape","resp_shape","rt_choice","is_timeout",
     "wp3_confidence","wp3_prob","wp3_conf_rt","wp3_score","prop_high_clipped","med_live","trial_type","delta_live","display_fps","low_move_ratio",
@@ -535,13 +538,13 @@ function toCSV(){
     "seed","build","started_at","duration_min","screen_w","screen_h","window_w","window_h","dpr","user_agent",
     // consent, instruction checks and closing self-report (design doc §10m)
     "consent","consent_at","consent_followup","consent_recontact","imc_1","imc_2","imc_3","imc_failed",
-    "selfreport_device","selfreport_focus_1to5","selfreport_interrupted","selfreport_tech_problems","selfreport_comments"];
+    "selfreport_device","selfreport_focus_1to5","selfreport_interrupted","selfreport_tech_problems","selfreport_comments","aborted"];
   // Every META key must be listed here or it is silently dropped from the file: the four
   // fields after wp3_bonus were collected for weeks without ever being written.
   // Quote fields that contain a comma, quote or newline (user_agent does): unquoted they shift every later column.
   const esc=v=>{ if(v===undefined||v===null||(typeof v==="number"&&isNaN(v))) return "";
     const t=String(v); return /[",\n\r]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t; };
-  return cols.join(",")+"\n"+rows.map(r=>cols.map(c=>esc(r[c])).join(",")).join("\n");
+  return cols.join(",")+"\n"+subset.map(r=>cols.map(c=>esc(r[c])).join(",")).join("\n");
 }
 // One upload to DataPipe, retried: transient network errors are common online. "" = success.
 async function upload(name, csv){
@@ -562,14 +565,39 @@ function sessionMeta(){
   META.prolific_study_id = PROLIFIC_STUDY; META.prolific_session_id = PROLIFIC_SESSION;
   META.duration_min = +((Date.now()-T_START)/60000).toFixed(1);
 }
-// Interim copy after each block, so a crash or a closed tab late in a ~57-minute session does not
-// lose everything. Named *.csv.partial so the analysis' *.csv glob never picks it up twice; silent,
-// and a failure here never interrupts the participant (the final save reports problems).
-async function saveInterim(blockIdx){
-  if(!CFG.DATAPIPE_ID) return;
-  sessionMeta();
-  await upload(`CDT_wp3_${CFG.participant}_block${blockIdx}.csv.partial`, toCSV());
+// ── Saving during the session ───────────────────────────────────────────────
+// A session must never be lost because it ended early (closed tab, crash, a pilot stopped halfway).
+// With DataPipe: a full copy every CK_EVERY trials (CDT_wp3_<pid>_ck<NN>.csv.partial; the newest is the most
+// complete), and on leaving the page the trials since the last copy (…_ck<NN>_tail.csv.partial, sent with
+// keepalive, which caps the body at 64 kB — the tail is far smaller). *.partial stays outside the analysis'
+// *.csv glob. Without DataPipe (local piloting) the data can be downloaded with D on the pause screen (Esc)
+// and on the final screen.
+const CK_EVERY = 20;
+let CK_N = 0, CK_SENT = 0, CK_OK = 0, FINISHED = false;   // rows covered by the last copy started / confirmed
+function addRow(r){ rows.push(r); if(rows.length - CK_SENT >= CK_EVERY) checkpoint(); }
+function checkpoint(){
+  if(!CFG.DATAPIPE_ID || !rows.length || rows.length===CK_SENT) return;
+  sessionMeta(); CK_N++; const n=CK_N, upto=rows.length; CK_SENT=upto;
+  // never awaited: the participant does not wait for it
+  upload(`CDT_wp3_${CFG.participant}_ck${String(n).padStart(2,"0")}.csv.partial`, toCSV())
+    .then(err=>{ if(!err) CK_OK=Math.max(CK_OK, upto); });
 }
+window.addEventListener("pagehide", ()=>{
+  if(FINISHED || !CFG.DATAPIPE_ID || !rows.length) return;
+  sessionMeta(); META.aborted = 1;
+  const tail = toCSV(rows.slice(CK_OK));
+  try{ fetch("https://pipe.jspsych.org/api/data/", {method:"POST", keepalive:true,
+    headers:{"Content-Type":"application/json","Accept":"*/*"},
+    body:JSON.stringify({experimentID:CFG.DATAPIPE_ID,
+      filename:`CDT_wp3_${CFG.participant}_ck${String(CK_N).padStart(2,"0")}_tail.csv.partial`, data:tail})}); }catch(e){}
+});
+// Pilot without DataPipe: D downloads everything recorded so far (pause screen or final screen).
+window.addEventListener("keydown", e=>{
+  if(CFG.DATAPIPE_ID || e.key.toLowerCase()!=="d" || !rows.length) return;
+  if(!fsBlock && !FINISHED) return;
+  sessionMeta(); downloadCSV(`CDT_wp3_${CFG.participant}${FINISHED?"":"_partial"}.csv`, toCSV());
+});
+
 // Returns "" on success, or an error string. The participant must never silently lose a
 // session: if the upload fails we say so on screen and offer the local download. The download
 // is only the fallback (and the only copy when piloting without DataPipe): on a successful
@@ -604,7 +632,7 @@ async function calibration(angle){
     // trial, and without these the strength of the strong evidence sample is extrapolated
     // from a narrower range. Pushed directly, NOT through log(): unrated rows must not enter
     // the confidence score.
-    rows.push({participant:CFG.participant, session:1, block_idx:BLOCK_IDX, trial_idx:++TRIAL_IDX, ...motionCols(r), phase:"calibration", angle_bias:angle,
+    addRow({participant:CFG.participant, session:1, block_idx:BLOCK_IDX, trial_idx:++TRIAL_IDX, ...motionCols(r), phase:"calibration", angle_bias:angle,
       prop_used:p, accuracy:r.correct, true_shape:r.true_shape, resp_shape:r.resp_shape,
       rt_choice:r.rt, is_timeout:r.timeout, display_fps:r.display_fps, low_move_ratio:r.low_move_ratio});
     if(!r.timeout){ sc.update(p, r.correct); n++;
@@ -664,7 +692,7 @@ async function block(angle, blockIdx){
     for(let i=0;i<CFG.D0_N;i++){
       const [pDec,pHigh,dUsed]=nextProps(true);
       const r=await motionTrial(pDec,angle,{});
-      rows.push({participant:CFG.participant, session:1, block_idx:BLOCK_IDX, trial_idx:++TRIAL_IDX, ...motionCols(r), phase:"calibration_strength", angle_bias:angle,
+      addRow({participant:CFG.participant, session:1, block_idx:BLOCK_IDX, trial_idx:++TRIAL_IDX, ...motionCols(r), phase:"calibration_strength", angle_bias:angle,
         prop_used:pDec, accuracy:r.correct, true_shape:r.true_shape, resp_shape:r.resp_shape,
         rt_choice:r.rt, is_timeout:r.timeout, trial_type:"strength", delta_live:dUsed,
         display_fps:r.display_fps, low_move_ratio:r.low_move_ratio});
@@ -795,7 +823,7 @@ async function main(){
   while(needPause()) await wait(100);
   await bonusInstructions();     // the rule itself; the evidence questions come before Part B
   const order=shuffle([...CFG.ANGLES]);
-  for(let b=0;b<order.length;b++){ await block(order[b], b+1); await saveInterim(b+1); }
+  for(let b=0;b<order.length;b++){ await block(order[b], b+1); checkpoint(); }
   const meanScore = SCORES.length ? SCORES.reduce((a,b)=>a+b,0)/SCORES.length : 0;
   META.wp3_mean_score=+meanScore.toFixed(4); META.wp3_bonus=+(CFG.BONUS*meanScore).toFixed(2);
   META.fullscreen_exits=FS_EXITS;   // >0 means part of the session ran outside fullscreen
@@ -804,6 +832,7 @@ async function main(){
   META.imc_failed = [1,2,3].filter(i=>META[`imc_${i}`]===0).length;
   await motivationCheck();
   await closingQuestions();
+  FINISHED = true;   // from here on, leaving the page is not an abort
   let saveErr = await saveData();
   // On Prolific a failed upload must not end in an automatic redirect: the data would sit only
   // in the participant's Downloads folder. Offer retries; continuing stays possible.
@@ -819,8 +848,9 @@ async function main(){
   }
   // Debrief: what the study was about, the bonus, contact. On Prolific the participant leaves with a
   // keypress (an automatic redirect after a few seconds left no time to read it).
-  showScreen(`<h1>Done — thank you!</h1><p>Your confidence bonus: <b>${bonusText(meanScore)}</b>${CFG.BONUS>0?" (paid through Prolific)":""}</p>
+  showScreen(`<h1>Done — thank you!</h1><p>Your confidence bonus: <b>${bonusText(meanScore)}</b>${CFG.BONUS>0&&CFG.COMPLETION_URL?" (paid through Prolific)":""}</p>
     ${saveErr?`<p style="color:#e0713a">${saveErr} — please tell the researcher.</p>`:(CFG.COMPLETION_URL?"":"<p>Your data has been saved.</p>")}
+    ${CFG.DATAPIPE_ID?"":`<p>Testing without DataPipe: a CSV download was started; press <span class="kbd">D</span> to download it again.</p>`}
     <div class="consent">${DEBRIEF_HTML}</div>
     <p class="go">${CFG.COMPLETION_URL?"press SPACE to return to Prolific":"you may close this window"}</p>`);
   if(CFG.COMPLETION_URL){ await waitKeys([" "]); location.href = CFG.COMPLETION_URL; }
