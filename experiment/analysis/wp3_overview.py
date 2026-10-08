@@ -404,7 +404,7 @@ def expectation_svg(c, ang):
     for y, name, val in labs:
         el.append(f'<text x="258" y="{f1(y)}" font-family="{P_SANS}" font-size="12" fill="{P_INK}">{name}</text>')
         el.append(f'<text x="258" y="{f1(y + 15)}" font-family="{P_SANS}" font-size="12" font-weight="600" fill="{P_INK}">{val}</text>')
-    return (f'<svg width="342" height="186" viewBox="0 0 342 186" role="img" aria-label="Observed confidence at {ang} degrees by '
+    return (f'<svg class="exp" width="342" height="186" viewBox="0 0 342 186" role="img" aria-label="Observed confidence at {ang} degrees by '
             f'evidence after the choice, correct and incorrect first choices, with the ideal observer.">' + "".join(el) + "</svg>")
 
 
@@ -544,7 +544,8 @@ table.tests th[scope=row]{white-space:nowrap;font-weight:600}
 pre.log{font-family:var(--mono);font-size:11px;color:var(--mut);white-space:pre-wrap;margin:0;max-height:200px;overflow:auto}
 code{font-family:var(--mono);font-size:.92em}
 footer{color:var(--mut);font-size:12px}
-.sheet svg{width:342px;max-width:100%}
+.sheet svg.exp{width:342px;max-width:100%}
+.sheet svg:not(.exp){width:auto;display:inline-block}
 .sheet{background:#FAFAF7;color:#15181C;border-radius:6px;padding:18px 20px;font-family:var(--sans)}
 .posterwrap{overflow-x:auto;border-radius:6px}
 .poster{width:794px;margin:0 auto}
