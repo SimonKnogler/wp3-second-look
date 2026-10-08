@@ -224,8 +224,8 @@ online WP). *Not* PsychoJS (hand-coded, no Builder); a genuine JS port.
 - **Hosting: Pavlovia** (static git repo — push the 4 web files). Check for an LMU
   Pavlovia site licence (then free). Alternatives: Cognition.run (free, piloting),
   Netlify.
-- **Data: OSF DataPipe** (set `DATAPIPE_ID` in index.html — host-agnostic) or the
-  built-in CSV download. Native PsychoJS saving deliberately not used.
+- **Data: saved on Pavlovia** through its server API while RUNNING (§10p), otherwise the
+  built-in CSV download. (Until 2026-10-08 the plan was OSF DataPipe.)
 - `analyze_wp3.py` runs on the resulting CSV unchanged.
 
 ---
@@ -828,6 +828,18 @@ trials and the remaining trials are sent with `keepalive` when the page is close
 DataPipe, D on the pause screen (Esc) or on the final screen downloads everything so far. Also fixed: when a
 browser refused pointer lock for good, the task was meant to continue on plain mouse deltas but ignored them,
 so the first trial waited for movement forever.
+
+## 10p. Data saved on Pavlovia, not OSF (2026-10-08)
+
+Simon does not want OSF storage (he expects OSF to be discontinued within weeks); the data should be on Pavlovia.
+Pavlovia stores results only through its server API, which PsychoJS calls for its own experiments. The task
+now makes the same calls (open a session after consent, POST results as `key`/`value`, close the session
+with `isCompleted`), so §10o's saving works unchanged on Pavlovia: one file per session,
+`CDT_wp3_<pid>_<yyyymmdd_hhmm>.csv`, replaced every 20 trials and after each block, and sent once more by
+`sendBeacon` when the page is closed (`aborted = 1`, flagged `aborted_session` in the analysis). As in
+PsychoJS, nothing goes to the server in PILOTING mode or from a pilot link; then the CSV is downloaded.
+A Prolific URL refuses to start unless it runs on run.pavlovia.org and the session opens (study RUNNING).
+DataPipe code removed.
 
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 

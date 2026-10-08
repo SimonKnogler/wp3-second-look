@@ -101,8 +101,8 @@ URL parameters mirror the env flags: `?t1=6&t2=12&calmin=10&calmax=15&bonus=1.00
 **Hosting on Pavlovia + Prolific:** see [`experiment/web/PAVLOVIA.md`](experiment/web/PAVLOVIA.md).
 Short version — Pavlovia hosts the files from the repo root on branch `master`
 (project `Knoglersimon/wp3-second-look`, run URL
-`https://run.pavlovia.org/Knoglersimon/wp3-second-look/`), but its native data saving
-only works for PsychoJS/jsPsych, so this study saves via OSF DataPipe. Deploying is
+`https://run.pavlovia.org/Knoglersimon/wp3-second-look/`), and the task saves its data there
+itself through Pavlovia's server API (only while the study is RUNNING). Deploying is
 automatic: a push to `main` that changes `experiment/web/` runs the GitHub Action
 `Deploy to Pavlovia`, which tests the engine and pushes the four files to Pavlovia
 (secret `PAVLOVIA_TOKEN`). Fallback from the Mac:
@@ -257,7 +257,7 @@ python3 experiment/analysis/check_wp3_replay_invariant.py <kinematics.csv> [...]
 - [ ] Human feel-test of scale, evidence marker and scoring-rule instructions
 - [ ] Pilot: do strength trials land at ≈ 85 % at both mappings, does δ converge, is the rating distribution on incorrect high-evidence trials graded (not a spike at 1), do the live thresholds drift differently at 0° and 90°? (Rollwage's boost gave 81 %)
 - [ ] Consent / instruction / demographics screens for the online version
-- [ ] Hosting: Pavlovia + Prolific + OSF DataPipe (`DATAPIPE_ID` in `web/index.html`)
+- [ ] Hosting: Pavlovia (data saved on Pavlovia when RUNNING) + Prolific
 - [ ] Preregistration
 
 ---

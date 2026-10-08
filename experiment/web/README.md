@@ -63,12 +63,11 @@ Pavlovia serves any static site from a git repo.
 3. Set the experiment to **Piloting** (free) to test, then **Running** for the study.
 4. Give the Pavlovia URL to Prolific as the study link; use `?pid={{%PROLIFIC_PID%}}` to capture IDs.
 
-## Data — two options (host-agnostic)
-- **Download (default):** every run downloads `CDT_wp3_<pid>.csv`. Fine for piloting.
-- **OSF DataPipe (recommended for the real study):** create a DataPipe experiment at
-  pipe.jspsych.org (free, sends to OSF), then set `DATAPIPE_ID` near the top of the
-  `<script>` in `index.html`. Data then auto-uploads from any host (Pavlovia included).
-  (Native Pavlovia/PsychoJS saving needs their wrapper — DataPipe is simpler and works everywhere.)
+## Data
+- **On Pavlovia, study RUNNING:** the task saves to Pavlovia itself (the server API PsychoJS uses):
+  `CDT_wp3_<pid>_<yyyymmdd_hhmm>.csv`, downloadable from the Pavlovia dashboard. No setup needed.
+- **PILOTING or local:** Pavlovia keeps no data in pilot mode (true for PsychoJS studies too), so the
+  final screen downloads the CSV, and **D** on the pause screen (Esc) downloads it at any point.
 
 ## Config via URL params
 `t1`, `t2` (standard trials/angle), `d0`, `d1`, `d2` (strength trials/angle: calibration block,
@@ -85,14 +84,15 @@ high offset (target 85 %) and measure what that strength supports; flagged
 block), not part of the confidence model. `delta_live` is the offset in force on each trial.
 
 ## Saving, and what still needs YOUR check
-- **Saving:** with a DataPipe id the file is uploaded at the end (3 tries), plus a full interim copy every
-  20 trials (`CDT_wp3_<pid>_ckNN.csv.partial`, the newest is the most complete) and, when the page is closed
-  early, the trials since the last copy (`…_ckNN_tail.csv.partial`, rows flagged `aborted = 1`). All
-  `*.partial` files stay outside the analysis' `*.csv` glob. The local download happens only when the upload
-  fails or no DataPipe id is set; **without DataPipe (piloting)** press **D** on the pause screen (Esc) to
-  download everything so far, or on the final screen to download again. On Prolific a failed final upload
-  shows a retry screen instead of redirecting.
-- **Prolific guard:** a URL with `PROLIFIC_PID` but no DataPipe id or no `bonus` refuses to start.
+- **Saving (design doc §10p):** after consent the task opens a Pavlovia session. While RUNNING, one file
+  per session is uploaded every 20 trials and after each block (each copy replaces the last), and once more
+  when the page is closed early (`aborted = 1`; `analyze_wp3` flags these as `aborted_session`). If that
+  last copy is too big for the browser's exit request (64 kB), the trials since the previous copy go as
+  `…_tail.csv`, which the analysis skips. The local download happens only when saving on Pavlovia is not
+  possible (piloting, local, failed upload); press **D** on the pause screen (Esc) or the final screen
+  to download. On Prolific a failed final upload shows a retry screen instead of redirecting.
+- **Prolific guard:** a URL with `PROLIFIC_PID` that is not on run.pavlovia.org or has no `bonus` refuses
+  to start, and so does one whose Pavlovia session cannot be opened (study not RUNNING).
 - **Consent and debrief** (design doc §10m): consent is the first screen (Y/N; N ends the session and
   nothing is saved), then the form's two optional YES/NO items (`consent_followup`, `consent_recontact`);
   closing self-report and a debrief come at the end. The consent text is the LMU form used for WP1, with the
