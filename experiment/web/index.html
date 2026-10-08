@@ -97,7 +97,7 @@ const CFG = {
   NOLOCK: Q.get("nolock") === "1",
 };
 // Identifies the deployed version in the data (bump with every change to index.html or engine.js).
-const BUILD = "2026-10-07c";
+const BUILD = "2026-10-08a";
 // A Prolific link that would run without saving or without the promised bonus wastes a full
 // session per participant. Refuse to start instead; the researcher sees it on the first test.
 const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
@@ -527,7 +527,7 @@ function toCSV(){
     "prop_used","prop_post","accuracy","true_shape","resp_shape","rt_choice","is_timeout",
     "wp3_confidence","wp3_prob","wp3_conf_rt","wp3_score","prop_high_clipped","med_live","trial_type","delta_live","display_fps","low_move_ratio",
     "bonus_quiz_attempts","bonus_quiz_attempts_evidence","bonus_motivation_1to5",
-    "wp3_mean_score","wp3_bonus","fullscreen_exits","pointer_lock_exits","input_device","pointer_lock","prolific_study_id","prolific_session_id",
+    "wp3_mean_score","wp3_bonus","fullscreen_exits","pointer_lock_exits","input_device","input_device_initial","pointer_lock","prolific_study_id","prolific_session_id",
     // layout and momentary evidence of the decision trial and of the second look (design doc §10l):
     // check_wp3_replay_invariant.py needs left_shape / applied_angle_bias of both to run on web data
     "block_idx","trial_idx","left_shape","applied_angle_bias","evidence_sum",
@@ -764,6 +764,7 @@ async function main(){
   showScreen(`<h1>Before we start</h1><p>What are you using to move the pointer?</p>
     <p><span class="kbd">1</span> a computer mouse &nbsp; <span class="kbd">2</span> a trackpad / touchpad &nbsp; <span class="kbd">3</span> something else</p>`);
   META.input_device = parseInt(await waitKeys(["1","2","3"]),10);
+  META.input_device_initial = META.input_device;   // kept: input_device is overwritten below if they switch to a mouse
   if(META.input_device!==1){
     showScreen(`<h1>This study needs a computer mouse</h1>
       <p>The task measures fine hand movements and is calibrated for a mouse; a trackpad gives different results.</p>
