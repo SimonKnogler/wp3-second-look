@@ -750,6 +750,52 @@ recycling), a browser run of the unpatched motion loop (360 steps in 3.00 s wall
 is the reference, provided it runs on a 120 Hz display as in the WP1 lab (on a 60 Hz monitor it
 would give the slow-motion stimulus; check `frame`/`timestamp` in its kinematics file).
 
+## 10l. Web build: what the data file must carry before Prolific (2026-10-07)
+
+A review of the online build before the first Prolific pilot found that the trial CSV could not
+support checks the project relies on, and that a few failure modes would cost whole sessions.
+No change to the task, the schedule or the stimulus.
+
+- **Replay invariant on web data.** `check_wp3_replay_invariant.py` (§10b) is the first check on
+  new data, but the web build wrote no kinematics file and logged neither the side layout nor the
+  applied ±90° sign, so the check could not run. Each trial now logs `left_shape`,
+  `applied_angle_bias` and `evidence_sum` (summed momentary evidence of the 3 s look); Task-2 rows add
+  the same for the second look (`post_*`). The script reads either file.
+- **Reproducibility and context:** `seed`, `build`, `started_at`, `duration_min`, screen/window
+  size, `dpr`, `user_agent`, `block_idx`, `trial_idx`. `user_agent` contains commas, so the CSV
+  writer now quotes fields.
+- **Saving:** an interim upload after each block (`*.csv.partial`), the local download only as a
+  fallback, and on Prolific a retry screen instead of a redirect when the final upload fails.
+  A Prolific URL without a DataPipe id or without `bonus` refuses to start.
+- **Pause bug:** an Esc during the response prompt did not stop the 20 s grace clock (the trial
+  could time out right after resuming, and `rt_choice` included the pause), and keys pressed on the
+  pause screen counted as answers. The response clock now pauses with the motion clock, and choice
+  and rating keys are ignored while paused.
+
+## 10m. Consent, debrief, instruction checks and online exclusions (2026-10-07)
+
+Research on Prolific's rules and online best practice:
+`/mnt/project-files/wp3-setup/online-standards-consent-exclusions.md` (project files). Prolific allows a
+rejection only after two failed attention checks of an allowed type (instructional manipulation checks or
+nonsensical items), never for performance and never for failed comprehension checks. Hence two levels:
+few Prolific-compliant checks decide payment; stricter preregistered criteria decide the analysis only.
+
+- **Attention checks cost no trials** (Simon, 2026-10-07: trials are too scarce for catch trials). Three
+  instruction screens (Part A and Part B of block 1, start of block 2) ask for K instead of SPACE.
+  Logged `imc_1..3`, `imc_failed`.
+- **Consent** first (Y/N, decline ends the session without saving), **closing self-report** (mouse whole
+  time, focus 1–5, interruptions, technical problems, optional comment; stated not to affect payment) and a
+  **debrief** at the end; on Prolific the participant leaves with a keypress instead of a 4 s redirect.
+  The consent text is Simon's WP1 LMU consent form ("Who's in control?"), retitled for WP3 and adapted for
+  online use: keypress instead of name and signature, the participant information shown on screen, questions
+  by e-mail or Prolific message, the two YES/NO items asked separately and re-contact via Prolific.
+- **No CAPTCHA:** without a server to verify the token it is bypassable, it adds a third party to the
+  consent, and the task itself filters bots (chance accuracy fails the 0.60–0.85 band).
+- **Analysis:** `exclusion_flags` adds, where the columns exist, failed instruction check, self-reported
+  non-mouse use, no pointer lock, median `display_fps` < 50 and median `low_move_ratio` > 0.30. The last two
+  thresholds are provisional, to be fixed on pilot data and preregistered. Still to preregister: trial-level
+  exclusions (hand still, dropped frames) and a check that their rate does not differ between 0° and 90°.
+
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
 To reconnect WP3 with the proposal's "expectations of control" moderator, we

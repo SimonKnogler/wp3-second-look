@@ -9,7 +9,7 @@ so `analysis/analyze_wp3.py` works unchanged.
 | file | what |
 |---|---|
 | `index.html` | the whole experiment (canvas + flow + confidence + CSV export) |
-| `engine.js` | the motion engine, ported line-for-line from `run_trial`, plus the lab's matched trajectory pairs and consistent smoothing, and a fixed 60 Hz simulation clock |
+| `engine.js` | the motion engine, ported line-for-line from `run_trial`, plus the lab's matched trajectory pairs and consistent smoothing, and a fixed 120 Hz simulation clock |
 | `motion_pool.bin` / `.json` | the trajectory library **as the lab uses it**: validity-filtered, speed-normalised, in universal-set order (1240 primary + 40 overflow × 297 × 2, Float32) |
 | `export_pool_for_web.py` | regenerates the pool binary from `core_pool.npy` with the lab's own preprocessing |
 | `test_engine.js` | Node self-test: prop → control signal, 120-steps/s clock at 30/60/120/144 Hz display rates, matched pairs |
@@ -33,6 +33,13 @@ Per-trial quality markers: `display_fps` (rendered frames per second of motion; 
 display rate = dropped frames) and `low_move_ratio` (share of steps with the hand nearly still).
 Participant-level: `input_device` (1 mouse, 2 trackpad, 3 other — asked at the start),
 `pointer_lock`, `pointer_lock_exits`.
+
+Also logged (design doc §10l): per trial `block_idx`, `trial_idx`, the layout and summed momentary
+evidence of the decision look (`left_shape`, `applied_angle_bias`, `evidence_sum`) and, on Task-2
+trials, of the second look (`post_true_shape`, `post_left_shape`, `post_applied_angle_bias`,
+`post_evidence_sum`, `post_display_fps`, `post_low_move_ratio`); per participant `seed`, `build`,
+`started_at`, `duration_min`, screen/window size, `dpr`, `user_agent`.
+`analysis/check_wp3_replay_invariant.py` runs on this trial CSV directly.
 
 ## Test it locally FIRST
 `fetch()` needs a server (won't work from `file://`). From this folder:
@@ -77,12 +84,19 @@ high offset (target 85 %) and measure what that strength supports; flagged
 `trial_type = "strength"` in the CSV (`phase = calibration_strength` for the feedback-free
 block), not part of the confidence model. `delta_live` is the offset in force on each trial.
 
-## Honest status / what still needs YOUR check
-- **Browser-test the feel** — I can't run a browser here. Verify mouse tracking,
-  control feel, and timing on your machine.
-- **Trajectory matching simplified:** target/distractor are random distinct snippets
-  (the engine's speed-equalisation is the main anti-cue protection; per-pair speed
-  matching from the Python is a later refinement).
-- **No consent / instructions / demographics screens yet** — add before real data.
-- **Motor task online caveat:** trackpad vs mouse / DPI / frame-rate variance. Enforce
-  mouse + fullscreen, log frame rate, apply Rollwage exclusions (already in analyze_wp3.py).
+## Saving, and what still needs YOUR check
+- **Saving:** with a DataPipe id the file is uploaded at the end (3 tries), plus an interim copy
+  after each block (`CDT_wp3_<pid>_block<n>.csv.partial`, ignored by the analysis' `*.csv` glob).
+  The local download happens only when the upload fails or no DataPipe id is set. On Prolific a
+  failed final upload shows a retry screen instead of redirecting.
+- **Prolific guard:** a URL with `PROLIFIC_PID` but no DataPipe id or no `bonus` refuses to start.
+- **Consent and debrief** (design doc §10m): consent is the first screen (Y/N; N ends the session and
+  nothing is saved), then the form's two optional YES/NO items (`consent_followup`, `consent_recontact`);
+  closing self-report and a debrief come at the end. The consent text is the LMU form used for WP1, with the
+  WP3 title and online adaptations (`CONSENT_HTML`, `STUDY_TITLE`, `CONTACT_EMAIL` in `index.html`).
+- **Instruction checks:** three instruction screens ask for K instead of SPACE (`imc_1..3`, `imc_failed`); no
+  trial is spent on them. Prolific allows a rejection after two failures; the analysis excludes on one.
+- No demographics screen: Prolific supplies age and sex in its export.
+- **Motor task online caveat:** trackpad vs mouse / DPI / frame-rate variance. Mouse is asked for,
+  fullscreen and pointer lock enforced, `display_fps` and `low_move_ratio` logged; exclusion
+  thresholds for these still need to go into the preregistration.
