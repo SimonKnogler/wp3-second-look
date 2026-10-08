@@ -2,6 +2,8 @@
 """Running overview of all WP3 data collected so far: one self-contained HTML page (the "poster" the
 team checks after every new data set). Works from the first pilot file on.
 
+  0. Quick check        rolling accuracy of standard and strength trials against their targets, with a
+                        verdict per person and mapping (staircase near 70.7 %, strong evidence above 80 %)
   1. Inventory          files, builds, test vs. study participants, session length
   2. Quality            per-participant flags exactly as the planned analysis applies them
   3. Does the task work 1-up-2-down and delta tracks per participant, accuracy against both targets,
@@ -269,6 +271,109 @@ def rt_panel(df, excl):
             "<th class='n'>Konf.-RT s</th><th class='n'>Konf. > 15 s</th><th class='n'>Timeouts</th></tr></thead><tbody>"
             + body + "</tbody></table></div><p class='note'>Mediane. Wahl-RT ab Ende des 3-s-Bewegungsfensters (20 s Antwortfenster). "
             "* = ausgeschlossen oder Test.</p>")
+
+
+# ── quick check: did the two tracks land where the design aims? ────────────────
+
+STD_TARGET, STD_BAND, STD_LAST = 0.707, (0.60, 0.80), 30      # 1-up-2-down: accuracy over the last 30 standard trials
+STR_TARGET, STR_MIN, STR_N = 0.85, 0.80, 10                   # strength trials (Task 1 + 2): >= 80 %, from 10 trials on
+ROLL = {"standard": 20, "strength": 10}                       # rolling-accuracy windows for the curves
+
+
+def convergence(df):
+    """Per person x mapping: rolling accuracy over the Task 1 + 2 decision trials, separately for standard and
+    strength trials, and a verdict on each track."""
+    v = df[df.phase.str.startswith("wp3_task") & ~df.is_timeout & df.accuracy.notna()].sort_values("trial_idx")
+    curves, rows = [], []
+    for (pid, ang), d in v.groupby(["participant", "angle_bias"], sort=False):
+        r = dict(participant=pid, angle=int(ang))
+        for tt in ("standard", "strength"):
+            a = d[d.trial_type == tt].accuracy.astype(float).reset_index(drop=True)
+            roll = a.rolling(ROLL[tt], min_periods=3).mean()
+            curves.append(dict(participant=pid, angle=int(ang), tt=tt, y=roll.values))
+            r[f"n_{tt}"] = len(a)
+            r[f"acc_{tt}"] = float(a.tail(STD_LAST).mean()) if tt == "standard" and len(a) else (float(a.mean()) if len(a) else np.nan)
+        r["ok_standard"] = (None if r["n_standard"] < STD_LAST else STD_BAND[0] <= r["acc_standard"] <= STD_BAND[1])
+        r["ok_strength"] = (None if r["n_strength"] < STR_N else r["acc_strength"] >= STR_MIN)
+        rows.append(r)
+    return curves, pd.DataFrame(rows)
+
+
+def convergence_svg(curves, tt, excl):
+    xmax = max([len(c["y"]) for c in curves if c["tt"] == tt] + [10])
+    p = Plot(480, 230, 1, xmax, 0.4, 1.0)
+    p.grid_y([.4, .5, .6, .7, .8, .9, 1], lambda x: f"{100 * x:.0f}", "Genauigkeit, gleitend (%)")
+    p.ticks_x(sorted({1, xmax // 2, xmax}), lambda x: f"{int(x)}",
+              f"{'Standardtrial' if tt == 'standard' else 'Stärketrial'} in Task 1 + 2 (Fenster {ROLL[tt]})")
+    if tt == "standard":
+        y0, y1 = p.Y(STD_BAND[1]), p.Y(STD_BAND[0])
+        p.add(f'<rect class="band" x="{f1(p.pl)}" y="{f1(y0)}" width="{f1(p.w - p.pl - p.pr)}" height="{f1(y1 - y0)}"/>')
+        p.ref(STD_TARGET, "Ziel 70,7 %")
+    else:
+        y0 = p.Y(1.0); y1 = p.Y(STR_MIN)
+        p.add(f'<rect class="band" x="{f1(p.pl)}" y="{f1(y0)}" width="{f1(p.w - p.pl - p.pr)}" height="{f1(y1 - y0)}"/>')
+        p.ref(STR_TARGET, "Ziel 85 %, Minimum 80 %")
+    many = len({c["participant"] for c in curves}) > MAX_TRACES
+    for ang, cls in ((0, "c0"), (90, "c90")):
+        cs = [c for c in curves if c["tt"] == tt and c["angle"] == ang]
+        for c in cs:
+            if not many:
+                p.line([(i + 1, y) for i, y in enumerate(c["y"])], f"trace thin {cls}" + (" dashed" if c["participant"] in excl else ""))
+        inc = [c["y"] for c in cs if c["participant"] not in excl] or [c["y"] for c in cs]
+        if inc and (many or len(inc) > 1):
+            L = max(len(y) for y in inc)
+            M = np.array([np.pad(y, (0, L - len(y)), constant_values=np.nan) for y in inc], float)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                m = np.nanmean(M, axis=0)
+            p.line([(i + 1, y) for i, y in enumerate(m)], f"trace {cls}")
+    if not any(c["tt"] == tt for c in curves):
+        p.text(p.X((1 + xmax) / 2), p.Y(.7), "noch keine Trials", "reft", "middle")
+    return p.svg("Gleitende Genauigkeit " + tt)
+
+
+def verdict(ok, n, need):
+    if ok is None:
+        return f'<span class="pill wait">zu wenige Trials ({n} von {need})</span>'
+    return '<span class="pill in">im Ziel</span>' if ok else '<span class="pill out">daneben</span>'
+
+
+def check_section(df, excl):
+    curves, T = convergence(df)
+    if T.empty:
+        return "<p class='waiting'>Noch keine Task-Trials.</p>"
+    def cell(r, tt):
+        if r is None:
+            return "<td class='n'>–</td><td></td>"
+        ok, n, need = (r.ok_standard, r.n_standard, STD_LAST) if tt == "standard" else (r.ok_strength, r.n_strength, STR_N)
+        return f"<td class='n'>{pct(r.acc_standard if tt == 'standard' else r.acc_strength)}</td><td>{verdict(ok, n, need)}</td>"
+    people = list(dict.fromkeys(T.participant))
+    bad = {p for p in people if (T[T.participant == p][["ok_standard", "ok_strength"]] == False).any().any()}   # noqa: E712
+    shown = people if len(people) <= MAX_TRACES else [p for p in people if p in bad]
+    rows = ""
+    for pid in shown:
+        g = {r.angle: r for r in T[T.participant == pid].itertuples()}
+        rows += (f"<tr><td class='mono'>{esc(pid)}{' *' if pid in excl else ''}</td>"
+                 + cell(g.get(0), "standard") + cell(g.get(90), "standard") + cell(g.get(0), "strength") + cell(g.get(90), "strength") + "</tr>")
+    if len(people) > MAX_TRACES:
+        rows += f"<tr><td colspan='9' class='note'>{len(people) - len(shown)} weitere Personen liegen in beiden Spuren im Ziel oder haben zu wenige Trials.</td></tr>"
+    inc = T[~T.participant.isin(excl)]
+    def share(col):
+        d = inc[col].dropna()
+        return f"{int(d.sum())} von {len(d)}" if len(d) else "–"
+    head = (f"<p class='note'>Eingeschlossene im Ziel: Standardtrials {share('ok_standard')}, "
+            f"Stärketrials {share('ok_strength')} (Person × Zuordnung).</p>")
+    return (f"<div class='twocol'><figure>{convergence_svg(curves, 'standard', excl)}"
+            f"<figcaption>Standardtrials: die 1-up-2-down-Treppe soll bei ~71 % halten (Band 60–80 %).</figcaption></figure>"
+            f"<figure>{convergence_svg(curves, 'strength', excl)}"
+            f"<figcaption>Stärketrials: die δ-Spur soll die starke Evidenz über 80 % bringen (Ziel 85 %).</figcaption></figure></div>"
+            + legend() + head +
+            "<div class='tablewrap'><table><thead><tr><th>ID</th>"
+            f"<th class='n'>Treppe 0°</th><th></th><th class='n'>Treppe 90°</th><th></th>"
+            "<th class='n'>Stärke 0°</th><th></th><th class='n'>Stärke 90°</th><th></th></tr></thead><tbody>" + rows + "</tbody></table></div>"
+            "<p class='note'>Dünne Linien = Personen (gestrichelt = ausgeschlossen/Test), dicke Linie = Mittel der Eingeschlossenen. "
+            f"Urteil Treppe: Genauigkeit der letzten {STD_LAST} Standardtrials in Task 1 + 2 liegt in 60–80 %. "
+            f"Urteil Stärke: Genauigkeit aller Stärketrials in Task 1 + 2 ≥ 80 %, ab {STR_N} Trials. * = ausgeschlossen oder Test.</p>")
 
 
 # ── planned tests ───────────────────────────────────────────────────────────────
@@ -596,6 +701,12 @@ table.tests th[scope=row]{white-space:nowrap;font-weight:600}
 pre.log{font-family:var(--mono);font-size:11px;color:var(--mut);white-space:pre-wrap;margin:0;max-height:200px;overflow:auto}
 code{font-family:var(--mono);font-size:.92em}
 footer{color:var(--mut);font-size:12px}
+.twocol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 22px}
+.twocol figure{margin:0;display:flex;flex-direction:column;gap:2px;min-width:0}
+rect.band{fill:var(--ok);fill-opacity:.08}
+path.trace.thin{stroke-width:1.2;stroke-opacity:.45}
+section.check{border-color:var(--sec)}
+@media (max-width:820px){.twocol{grid-template-columns:minmax(0,1fr)}}
 .sheet svg.exp{width:342px;max-width:100%}
 .sheet svg:not(.exp){width:auto;display:inline-block}
 .sheet{background:#FAFAF7;color:#15181C;border-radius:6px;padding:18px 20px;font-family:var(--sans)}
@@ -665,6 +776,8 @@ def build(df, data_dir, boot, sim_results=None):
     <div class="bar" aria-hidden="true"><i style="width:{100 * prog:.1f}%"></i></div></div>
 </div>
 <div class="grid">
+<section class="wide check"><h2><span class="num">✓</span>Schnellcheck: Hat das Experiment funktioniert?</h2>
+  {check_section(df, excl)}</section>
 <section class="wide"><h2><span class="num">1</span>Datensätze und Datenqualität</h2>
   <p class="note">Builds: <span class="mono">{esc(builds)}</span></p>{quality_table(df, q, fits, tests)}</section>
 <section class="wide"><h2><span class="num">2</span>Läuft die Aufgabe? Treppen pro Person</h2>
