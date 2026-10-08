@@ -195,7 +195,8 @@ def fit_all(df):
     r = pd.DataFrame(rows)
     r["participant"] = r["participant"].astype(str)
     for c in ("w_d_both", "w_c_both"):
-        r[c] = r[c].clip(W_LO, W_HI)
+        if c in r.columns:                       # absent when nobody could be fitted
+            r[c] = r[c].clip(W_LO, W_HI)
     return r
 
 
