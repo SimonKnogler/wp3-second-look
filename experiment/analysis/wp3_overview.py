@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
+import analyze_wp3 as A             # noqa: E402
 import fit_wp3_model as F           # noqa: E402
 import wp3_paper_analysis as W      # noqa: E402
 
@@ -339,39 +340,44 @@ EXP_Y = lambda p: 148 - 140 * p            # 0-100 % on a 140-px axis
 
 
 def expectation_cells(df, keep):
-    """Observed and ideal-observer confidence (probability scale) per mapping, correctness and evidence level.
-    Ideal observer = the model's null (w_c = w_d = 1, b = 0): logit conf = L0 +/- e, with L0 from Task 1 and
-    e from the measured accuracies (standard first looks -> low, strength trials -> high), as in fit_wp3_model
-    but without the group shrinkage."""
+    """Per person and mapping, after a WRONG first choice: observed confidence (probability scale) at evidence
+    none / low / high, the ideal observer's, and the per-person slope.
+    Ideal observer = the model's null (w_c = w_d = 1, b = 0): logit conf = L0 - e, with L0 from Task-1
+    confidence after wrong choices and e from the measured accuracies (standard first looks -> low,
+    strength trials -> high), as in fit_wp3_model but without the group shrinkage.
+    Slope = analyze_wp3.evidence_betas' disconfirmatory beta (rating points lost per evidence level, Task 1 + 2)."""
     v = df[df.phase.str.startswith("wp3_task") & ~df.is_timeout & df.accuracy.notna() & df.participant.isin(keep)]
     std, strn = v[v.trial_type != "strength"], v[v.trial_type == "strength"]
     rated = std[std.wp3_confidence.notna()].assign(pr=lambda d: (d.wp3_confidence - 1) / 8)
+    rows = []
+    for (pid, ang), d in rated.groupby(["participant", "angle_bias"]):
+        wrong = d[d.accuracy == 0]
+        obs = wrong.groupby("evidence_level").pr.mean()
+        first = d.accuracy.mean()
+        sa = strn[(strn.participant == pid) & (strn.angle_bias == ang)].accuracy
+        el = max(float(F.logit(np.clip(first, .5, .99))), 0.0)
+        eh = max(float(F.logit(np.clip(sa.mean(), .5, .99))), 0.0) if len(sa) else np.nan
+        q = wrong[wrong.wp3_task == 1].pr.mean()
+        L0 = float(F.logit(np.clip(q, .01, .99))) if np.isfinite(q) else np.nan
+        ideal = [F.sig(L0), F.sig(L0 - el), F.sig(L0 - eh)]
+        rows.append(dict(participant=pid, angle=int(ang), n_wrong=len(wrong), n_wrong_high=int((wrong.evidence_level == 2).sum()),
+                         obs=[float(obs.get(l, np.nan)) for l in (0, 1, 2)], ideal=[float(x) for x in ideal],
+                         slope=A.evidence_betas(d)["beta_disconfirmatory"] if len(wrong) >= A.MIN_TRIALS_BETA else np.nan))
+    P = pd.DataFrame(rows)
     out = {}
     for ang in ANGLES:
-        obs = {1: [], 0: []}; ide = {1: [], 0: []}; n = 0
-        for pid, d in rated[rated.angle_bias == ang].groupby("participant"):
-            n += 1
-            for acc in (1, 0):
-                m = d[d.accuracy == acc].groupby("evidence_level").pr.mean()
-                obs[acc].append([m.get(lev, np.nan) for lev in (0, 1, 2)])
-            t1 = d[d.wp3_task == 1]
-            first = std[(std.participant == pid) & (std.angle_bias == ang)].accuracy.mean()
-            sa = strn[(strn.participant == pid) & (strn.angle_bias == ang)].accuracy
-            el = max(float(F.logit(np.clip(first, .5, .99))), 0.0)
-            eh = max(float(F.logit(np.clip(sa.mean(), .5, .99))), 0.0) if len(sa) else np.nan
-            for acc, sg in ((1, 1), (0, -1)):
-                q = t1[t1.accuracy == acc].pr.mean()
-                L0 = float(F.logit(np.clip(q, .01, .99))) if np.isfinite(q) else np.nan
-                ide[acc].append([float(F.sig(L0)), float(F.sig(L0 + sg * el)), float(F.sig(L0 + sg * eh))])
-        out[ang] = dict(n=n, obs={a: np.nanmean(np.array(obs[a], float), axis=0) if obs[a] else np.full(3, np.nan) for a in (1, 0)},
-                        ideal={a: np.nanmean(np.array(ide[a], float), axis=0) if ide[a] else np.full(3, np.nan) for a in (1, 0)})
-    return out
+        a = P[P.angle == ang] if len(P) else P
+        mean = lambda col: (np.nanmean(np.vstack(a[col].values), axis=0) if len(a) else np.full(3, np.nan))
+        out[ang] = dict(n=int((a.n_wrong > 0).sum()) if len(a) else 0, obs=mean("obs"), ideal=mean("ideal"))
+    if len(P):
+        P["gap"] = [o[2] - i[2] for o, i in zip(P.obs, P.ideal)]             # observed minus ideal after strong evidence
+    return out, P
 
 
-def expectation_svg(c, ang):
-    col = P_COL[ang]
+def wrong_choice_svg(C):
+    """Both mappings in one panel: confidence after a wrong first choice; dotted = that mapping's ideal observer."""
     el = []
-    for k, t in enumerate((1, .75, .5, .25, 0)):
+    for t in (1, .75, .5, .25, 0):
         y = EXP_Y(t)
         el.append(f'<line x1="44" y1="{f1(y)}" x2="256" y2="{f1(y)}" stroke="{P_AXIS if t == 0 else P_GRID}" stroke-width="1"></line>')
         el.append(f'<text x="38" y="{f1(y + 4)}" text-anchor="end" font-family="{P_MONO}" font-size="12" fill="{P_MUT}">{100 * t:.0f} %</text>')
@@ -383,60 +389,100 @@ def expectation_svg(c, ang):
         if len(pts) < 2:
             return ""
         d = " ".join(("M" if i == 0 else "L") + f"{f1(x)} {f1(y)}" for i, (x, y) in enumerate(pts))
-        da = ' stroke-dasharray="6 5"' if dash else ""
+        da = f' stroke-dasharray="{dash}"' if dash else ""
         return f'<path d="{d}" fill="none" stroke="{stroke}" stroke-width="{sw}" stroke-linecap="round" stroke-linejoin="round"{da}></path>'
-    for acc in (1, 0):
-        el.append(poly(c["ideal"][acc], P_AXIS, 1.25, acc == 0))
-    for acc in (1, 0):
-        el.append(poly(c["obs"][acc], col, 2, acc == 0))
     labs = []
-    for acc in (1, 0):
-        for x, val in zip(EXP_X, c["obs"][acc]):
+    for ang in ANGLES:
+        c, col = C[ang], P_COL[ang]
+        el.append(poly(c["ideal"], col, 1.5, "1.5 4"))
+        el.append(poly(c["obs"], col, 2, None))
+        for x, val in zip(EXP_X, c["obs"]):
             if np.isfinite(val):
-                fill, stroke = (col, PAPER) if acc else (PAPER, col)
-                el.append(f'<circle cx="{x}" cy="{f1(EXP_Y(val))}" r="4" fill="{fill}" stroke="{stroke}" stroke-width="2">'
-                          f'<title>{"correct" if acc else "incorrect"}: {100 * val:.0f} %</title></circle>')
-        last = c["obs"][acc][2]
-        if np.isfinite(last):
-            labs.append([EXP_Y(last), "correct" if acc else "incorrect", f"{100 * last:.0f} %"])
-    if len(labs) == 2 and abs(labs[0][0] - labs[1][0]) < 34:                    # keep the end labels apart
-        mid = (labs[0][0] + labs[1][0]) / 2; labs[0][0], labs[1][0] = mid - 17, mid + 17
+                el.append(f'<circle cx="{x}" cy="{f1(EXP_Y(val))}" r="4" fill="{col}" stroke="{PAPER}" stroke-width="2">'
+                          f'<title>{ang}°: {100 * val:.0f} %</title></circle>')
+        if np.isfinite(c["obs"][2]):
+            labs.append([EXP_Y(c["obs"][2]), f"{ang}°", f"{100 * c['obs'][2]:.0f} %"])
+    if len(labs) == 2 and abs(labs[0][0] - labs[1][0]) < 34:
+        lo, hi = sorted(labs, key=lambda l: l[0]); mid = (lo[0] + hi[0]) / 2; lo[0], hi[0] = mid - 17, mid + 17
     for y, name, val in labs:
         el.append(f'<text x="258" y="{f1(y)}" font-family="{P_SANS}" font-size="12" fill="{P_INK}">{name}</text>')
         el.append(f'<text x="258" y="{f1(y + 15)}" font-family="{P_SANS}" font-size="12" font-weight="600" fill="{P_INK}">{val}</text>')
-    return (f'<svg class="exp" width="342" height="186" viewBox="0 0 342 186" role="img" aria-label="Observed confidence at {ang} degrees by '
-            f'evidence after the choice, correct and incorrect first choices, with the ideal observer.">' + "".join(el) + "</svg>")
+    if not any(np.isfinite(C[a]["obs"]).any() for a in ANGLES):
+        el.append(f'<text x="150" y="80" text-anchor="middle" font-family="{P_SANS}" font-size="12" fill="{P_MUT}">no wrong choices yet</text>')
+    return (f'<svg class="exp" width="342" height="186" viewBox="0 0 342 186" role="img" aria-label="Confidence after a wrong first '
+            f'choice by evidence after the choice, 0 versus 90 degrees, with each mapping\'s ideal observer.">' + "".join(el) + "</svg>")
 
 
-def expectation_caption(c):
-    w = c["obs"][0][2]; i = c["ideal"][0][2]
-    if not np.isfinite(w):
-        return "No wrong choice followed by strong evidence yet."
-    gap = (f" Ideal observer: {100 * i:.0f} %." if np.isfinite(i) else "")
-    return f"Confidence in a wrong choice ends at {100 * w:.0f} %.{gap}"
+def paired_svg(P, col, lo, hi, ticks, fmt, zero=None):
+    """Per-person values at 0° and 90°, joined by a line; large dot = group mean."""
+    X = {0: 110, 90: 230}
+    Y = lambda v: 148 - (np.clip(v, lo, hi) - lo) / (hi - lo) * 140
+    el = []
+    for t in ticks:
+        el.append(f'<line x1="44" y1="{f1(Y(t))}" x2="296" y2="{f1(Y(t))}" stroke="{P_AXIS if t == zero else P_GRID}" stroke-width="1"></line>')
+        el.append(f'<text x="38" y="{f1(Y(t) + 4)}" text-anchor="end" font-family="{P_MONO}" font-size="12" fill="{P_MUT}">{fmt(t)}</text>')
+    for ang in ANGLES:
+        el.append(f'<text x="{X[ang]}" y="165" text-anchor="middle" font-family="{P_SANS}" font-size="12" fill="{P_SEC}">{ang}°</text>')
+    w = P.pivot_table(index="participant", columns="angle", values=col) if len(P) else pd.DataFrame()
+    w = w.reindex(columns=list(ANGLES))
+    for pid, r in w.iterrows():
+        if r.notna().all():
+            el.append(f'<line x1="{X[0] + 14}" y1="{f1(Y(r[0]))}" x2="{X[90] - 14}" y2="{f1(Y(r[90]))}" stroke="{P_AXIS}" stroke-width="1"></line>')
+        for ang in ANGLES:
+            if np.isfinite(r[ang]):
+                el.append(f'<circle cx="{X[ang] + (14 if ang == 0 else -14)}" cy="{f1(Y(r[ang]))}" r="3" fill="{P_COL[ang]}" fill-opacity=".55">'
+                          f'<title>{esc(pid)} {ang}°: {r[ang]:.2f}</title></circle>')
+    for ang in ANGLES:
+        m = w[ang].mean() if len(w) else np.nan
+        if np.isfinite(m):
+            el.append(f'<circle cx="{X[ang] + (-14 if ang == 0 else 14)}" cy="{f1(Y(m))}" r="5" fill="{P_COL[ang]}" stroke="{PAPER}" stroke-width="2"></circle>')
+            el.append(f'<text x="{X[ang] + (-24 if ang == 0 else 24)}" y="{f1(Y(m) + 4)}" text-anchor="{"end" if ang == 0 else "start"}" '
+                      f'font-family="{P_SANS}" font-size="12" font-weight="600" fill="{P_INK}">{fmt(m)}</text>')
+    if not len(w) or not w.notna().any().any():
+        el.append(f'<text x="170" y="80" text-anchor="middle" font-family="{P_SANS}" font-size="12" fill="{P_MUT}">no data yet</text>')
+    return f'<svg class="exp" width="342" height="186" viewBox="0 0 342 186" role="img" aria-label="{col} by mapping, per person">' + "".join(el) + "</svg>"
 
 
-def poster2_section(df, keep, label):
+def paired_line(P, col, unit):
+    w = P.pivot_table(index="participant", columns="angle", values=col).dropna() if len(P) and col in P else pd.DataFrame()
+    if len(w) < MIN_FOR_TESTS or 0 not in w or 90 not in w:
+        return f"waiting · {len(w)} of {MIN_FOR_TESTS} people with both mappings"
+    r = W.paired(w[0], w[90])
+    return f"0° − 90° = {num(r['mean'])} {unit} · t({r['df']}) = {num(r['t'])}, {p_fmt(r['p'])}"
+
+
+def poster2_section(df, keep, label, R=None):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)          # empty cells (no errors yet) stay NaN
-        C = expectation_cells(df, keep)
+        C, P = expectation_cells(df, keep)
     leg = (f'<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px;line-height:16px;color:{P_SEC}">'
            + "".join(f'<div style="display:flex;gap:6px;align-items:center"><svg width="22" height="8" viewBox="0 0 22 8" fill="none" aria-hidden="true">'
-                     f'<line x1="1" y1="4" x2="21" y2="4" stroke="{s}" stroke-width="{w}" stroke-linecap="round"{d}></line></svg><div>{t}</div></div>'
-                     for t, s, w, d in (("correct", P_INK, 2, ""), ("incorrect", P_INK, 2, ' stroke-dasharray="6 4"'),
-                                        ("ideal observer", P_AXIS, 1.25, ""))) + "</div>")
-    cols = []
-    for ang, name in ((0, "0° · prediction-based"), (90, "90° · regularity-based")):
-        cols.append(f'<div style="flex:1 1 342px;min-width:0;display:flex;flex-direction:column;gap:4px">'
-                    f'<div style="display:flex;gap:8px;align-items:center"><div style="width:12px;height:12px;border-radius:3px;background:{P_COL[ang]};flex-shrink:0"></div>'
-                    f'<div style="font-size:14px;line-height:18px;font-weight:600">{name}</div>'
-                    f'<div style="font-family:{P_MONO};font-size:11px;color:{P_MUT}">n = {C[ang]["n"]}</div></div>'
-                    f'{expectation_svg(C[ang], ang)}<div style="font-size:13px;line-height:17px;color:{P_SEC}">{expectation_caption(C[ang])}</div></div>')
-    return (f'<div class="sheet"><div style="display:flex;flex-direction:column;gap:8px">'
+                     f'<line x1="1" y1="4" x2="21" y2="4" stroke="{c}" stroke-width="{w}" stroke-linecap="round"{d}></line></svg><div>{t}</div></div>'
+                     for t, c, w, d in (("0°", P_COL[0], 2, ""), ("90°", P_COL[90], 2, ""),
+                                        ("ideal observer", P_SEC, 1.5, ' stroke-dasharray="1.5 4"'))) + "</div>")
+    h2 = (R or {}).get("tests", {}).get("H2_wd_both")
+    h2_line = (f"model (H2): log w<sub>d</sub> 0° − 90° = {num(h2['mean'])} · t({h2['df']}) = {num(h2['t'])}, {p_fmt(h2['p'])}"
+               if h2 else "model (H2): waiting for the planned analysis")
+    def col(title, svg, line1, line2):
+        return (f'<div style="flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:4px">'
+                f'<div style="font-size:14px;line-height:18px;font-weight:600">{title}</div>{svg}'
+                f'<div style="font-size:13px;line-height:17px;color:{P_SEC}">{line1}</div>'
+                f'<div style="font-family:{P_MONO};font-size:11.5px;line-height:15px;color:{P_MUT}">{line2}</div></div>')
+    n0, n90 = C[0]["n"], C[90]["n"]
+    cols = [
+        col("Confidence after a wrong choice", wrong_choice_svg(C),
+            "Should fall as evidence against the choice grows.", f"people with wrong choices: 0° {n0} · 90° {n90}"),
+        col("Slope: how fast it falls", paired_svg(P, "slope", -1, 3, [-1, 0, 1, 2, 3], lambda v: f"{v:.1f}".replace("-", "−"), zero=0),
+            "Rating points lost per evidence level (higher = more revision).", paired_line(P, "slope", "points")),
+        col("Gap to the ideal observer", paired_svg(P.assign(gap=100 * P.gap) if len(P) else P, "gap", -40, 60, [-40, -20, 0, 20, 40, 60],
+                                                    lambda v: f"{v:+.0f}".replace("-", "−") if v else "0", zero=0),
+            "Observed minus ideal after strong evidence, in %-points (higher = stays too sure).", paired_line(P.assign(gap=100 * P.gap) if len(P) else P, "gap", "pp") + "<br>" + h2_line),
+    ]
+    return (f'<div class="sheet"><div style="display:flex;flex-direction:column;gap:10px">'
             f'<div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">'
             f'<div style="font-family:{P_MONO};font-size:12px;line-height:16px;letter-spacing:.08em;text-transform:uppercase;color:{P_MUT}">'
-            f'What we expect · observed · {esc(label)}</div>{leg}</div>'
-            f'<div style="display:flex;gap:14px;flex-wrap:wrap">{"".join(cols)}</div></div></div>')
+            f'After a wrong first choice · 0° vs 90° · {esc(label)}</div>{leg}</div>'
+            f'<div style="display:flex;gap:18px;flex-wrap:wrap">{"".join(cols)}</div></div></div>')
 
 
 def poster3_markup(results_json):
@@ -635,11 +681,12 @@ def build(df, data_dir, boot, sim_results=None):
   <p class="note">Läuft <code>wp3_paper_analysis.py</code> auf den eingeschlossenen Studienteilnehmenden (Testläufe nie).
   Primärer Test H2: Kontrast 0° vs 90° auf log w<sub>d</sub> aus dem Modell „both“, mit parametrischer Bootstrap-Null.</p>
   {planned_section(R, len(inc), log)}</section>
-<section class="wide"><h2><span class="num">8</span>Poster 2 · What we expect, mit Daten</h2>
-  <p class="note">Die Grafik vom Übersichtsposter, jetzt aus den Daten: Konfidenz (als Wahrscheinlichkeit) nach der Zusatzevidenz,
-  für richtige und falsche erste Wahl, mit dem Idealbeobachter (w<sub>c</sub> = w<sub>d</sub> = 1, kein Commitment) aus Task-1-Konfidenz
-  und gemessenen Genauigkeiten.</p>
-  {poster2_section(df, inc if inc else allp, ('eingeschlossene Studienteilnehmende' if inc else 'alle Datensätze, auch Tests'))}</section>
+<section class="wide"><h2><span class="num">8</span>Poster 2 · Nach einer falschen Wahl: 0° gegen 90°</h2>
+  <p class="note">Die Kernfrage: Wie stark sinkt die Konfidenz in eine falsche erste Wahl, wenn danach Evidenz dagegen kommt, und
+  unterscheidet sich das zwischen den Modi? Links die Mittelwerte beider Modi mit ihrem Idealbeobachter (punktiert: nutzt die Evidenz voll,
+  w<sub>c</sub> = w<sub>d</sub> = 1, kein Commitment). Mitte die Steigung pro Person, rechts der Abstand zum Idealbeobachter pro Person.
+  Der präregistrierte Test dieses Abstands ist H2 auf w<sub>d</sub> aus dem Modell.</p>
+  {poster2_section(df, inc if inc else allp, ('included participants' if inc else 'all data sets, tests included'), R)}</section>
 <section class="wide"><h2><span class="num">9</span>Poster 3 · Ergebnisposter</h2>
   {poster3_section(R, sim_results)}</section>
 </div>
