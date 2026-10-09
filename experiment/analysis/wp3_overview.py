@@ -18,7 +18,10 @@ Descriptives use every participant with data (excluded ones drawn hollow); the p
 the included ones. Test runs (participant id starting with "test", or no Prolific id) are labelled as
 such and never counted toward the study sample.
 
-  python wp3_overview.py DATA_DIR OUT.html [--boot 300] [--sim-results results.json]
+  python wp3_overview.py DATA_DIR OUT.html [--boot 300] [--sim-results results.json] [--sim-data SIM_DIR]
+
+The page opens with an interactive dashboard (wp3_dashboard.js, inlined): data set, person, mapping and
+inclusion can be switched in the browser. --sim-data adds a second, SIMULATED data set to it.
 """
 import argparse, datetime as dt, html, json, pathlib, subprocess, sys, tempfile, warnings
 import numpy as np
@@ -626,6 +629,68 @@ def poster3_section(R, sim_results):
     return f"<p class='note'>{note}</p><div class='posterwrap'><div class='poster'>{body}</div></div>"
 
 
+# ── dashboard: compact trial table for the interactive view (wp3_dashboard.js) ──
+
+PH = {"calibration": "cal", "calibration_strength": "cals", "wp3_task1": "t1", "wp3_task2": "t2"}
+DB_FIELDS = ["p", "a", "ph", "tt", "i", "prop", "acc", "to", "conf", "ev", "rt", "crt"]
+
+
+def classify(df, data_dir):
+    """Test runs, quality table and exclusions exactly as the planned analysis applies them."""
+    d = pathlib.Path(data_dir)
+    simulated = (d / "ground_truth.csv").exists() or (d.parent / "ground_truth.csv").exists()
+    tests = set() if simulated else set(df[df.is_test].participant)     # simulated people have no Prolific id
+    dwp = df[df.phase.str.startswith("wp3_task")]
+    dstd = dwp[dwp.trial_type != "strength"]
+    q = W.quality(dstd) if len(dstd) else pd.DataFrame(columns=["participant", "excluded"])
+    excl = set(q[q.excluded].participant) | tests
+    return simulated, tests, q, excl
+
+
+def payload(df, label, simulated, excl, tests):
+    v = df[df.phase.isin(PH)]
+
+    def val(x, d):
+        return None if pd.isna(x) else round(float(x), d)
+    rows = [[r.participant, int(r.angle_bias), PH[r.phase], "str" if r.trial_type == "strength" else ("cal" if r.phase == "calibration" else "std"),
+             int(r.trial_idx), val(r.prop_used, 3), val(r.accuracy, 0), int(bool(r.is_timeout)), val(r.wp3_confidence, 0),
+             val(r.evidence_level, 0), val(r.rt_choice, 2), val(r.wp3_conf_rt, 2)] for r in v.itertuples()]
+    people = {p: {"ex": int(p in excl), "test": int(p in tests)} for p in dict.fromkeys(df.participant)}
+    return dict(label=label, simulated=simulated, fields=DB_FIELDS, rows=rows, people=people)
+
+
+def dashboard_script(data):
+    js = (pathlib.Path(__file__).parent / "wp3_dashboard.js").read_text()
+    blob = json.dumps(data, separators=(",", ":"), allow_nan=False).replace("</", "<\\/")
+    return "<script>window.WP3 = " + blob + ";</script>\n<script>" + js + "</script>"
+
+
+DASHBOARD = """<section class="wide dash"><h2><span class="num">◎</span>Dashboard</h2>
+  <p class="note">Interaktiv: Datensatz, Person, Zuordnung und Einschluss wählen; alle Panels zeichnen sich neu. Die festen Abschnitte darunter
+  bleiben die Referenz für die geplante Auswertung.</p>
+  <div class="controls">
+    <label>Datensatz <select id="db-ds"></select></label>
+    <label>Person <select id="db-pid"></select></label>
+    <label>Zuordnung <select id="db-ang"><option value="both">0° und 90°</option><option value="0">nur 0°</option><option value="90">nur 90°</option></select></label>
+    <label>Personen <select id="db-incl"><option value="inc">nur eingeschlossene</option><option value="all">alle, inkl. Tests und Ausschlüsse</option></select></label>
+  </div>
+  <div class="banner" id="db-sim" hidden><b>SIMULATED.</b> Simulierte Teilnehmende (Validierungsdaten der Zwei-Spur-Version). Kein Befund, nur ein Test der Auswertung.</div>
+  <p class="waiting" id="db-empty" hidden>In diesem Datensatz ist noch niemand eingeschlossen; „alle“ zeigt die Test- und Ausschlussdaten.</p>
+  <div class="stats" id="db-kpis"></div>
+  <div class="twocol">
+    <figure><h3>Treppe 1-up-2-down: gleitende Genauigkeit</h3><div id="db-conv-std"></div>
+      <figcaption>Standardtrials in Task 1 + 2, Fenster 20. Grünes Band 60–80 %, Ziel 70,7 %.</figcaption></figure>
+    <figure><h3>Stärketrials: gleitende Genauigkeit</h3><div id="db-conv-str"></div>
+      <figcaption>Fenster 10. Ziel 85 %, Kriterium ≥ 80 %. Dünn = Person, dick = Mittel.</figcaption></figure>
+    <figure><h3>Konfidenz nach Zusatzevidenz</h3><div id="db-conf"></div>
+      <figcaption>Voll = erste Wahl richtig, gestrichelt/hohl = falsch. Mittel über Personen.</figcaption></figure>
+    <figure><h3>Genauigkeit nach Eigenanteil</h3><div id="db-psy"></div>
+      <figcaption>Alle Entscheidungen inkl. Kalibrierung. Punktgröße ~ Anzahl Trials.</figcaption></figure>
+    <figure class="span2"><h3>Treppe: Eigenanteil</h3><div id="db-stair"></div><figcaption id="db-stair-cap"></figcaption></figure>
+  </div>
+</section>"""
+
+
 # ── page ────────────────────────────────────────────────────────────────────────
 
 CSS = """
@@ -712,22 +777,27 @@ section.check{border-color:var(--sec)}
 .sheet{background:#FAFAF7;color:#15181C;border-radius:6px;padding:18px 20px;font-family:var(--sans)}
 .posterwrap{overflow-x:auto;border-radius:6px}
 .poster{width:794px;margin:0 auto}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:end}
+.controls label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mut)}
+.controls select{font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;min-width:170px;max-width:100%}
+.controls select:focus-visible{outline:2px solid var(--c0);outline-offset:1px}
+section.dash{border-color:var(--c0)}
+section.dash .stats{grid-template-columns:repeat(auto-fit,minmax(118px,1fr))}
+path.trace.thin.faint{stroke-opacity:.22}
+section.dash .stat .v{font-size:22px}
+section.dash .stat .sw{width:9px;height:9px}
+.twocol .span2{grid-column:1/-1}
+[hidden]{display:none !important}
 @media (max-width:820px){.grid{grid-template-columns:minmax(0,1fr)} .wrap{padding-inline:16px}}
 """
 
 
-def build(df, data_dir, boot, sim_results=None):
+def build(df, data_dir, boot, sim_results=None, sim_data=None):
     allp = list(dict.fromkeys(df.participant))
-    d = pathlib.Path(data_dir)
-    simulated = (d / "ground_truth.csv").exists() or (d.parent / "ground_truth.csv").exists()
-    tests = set() if simulated else set(df[df.is_test].participant)     # simulated people have no Prolific id
-    dwp = df[df.phase.str.startswith("wp3_task")]
-    dstd = dwp[dwp.trial_type != "strength"]
-    q = W.quality(dstd) if len(dstd) else pd.DataFrame(columns=["participant", "excluded"])
+    simulated, tests, q, excl = classify(df, data_dir)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        fits = W.fit_all(df) if len(dstd) else pd.DataFrame(columns=["participant", "fail"])
-    excl = set(q[q.excluded].participant) | tests
+        fits = W.fit_all(df) if len(q) else pd.DataFrame(columns=["participant", "fail"])
     study = [p for p in allp if p not in tests]
     inc = [p for p in study if p not in excl]
 
@@ -755,6 +825,12 @@ def build(df, data_dir, boot, sim_results=None):
               "sie prüft nur die Auswertung.</div>") if simulated else ("<div class='banner'><b>Nur Test- und Pilotdaten.</b> Bisher sind keine Studienteilnehmenden dabei; "
               "alle Zahlen dienen der Funktionsprüfung und sind kein Befund.</div>") if not study else ""
     prog = min(len(inc) / N_ANALYSABLE, 1)
+    dash = {"real": payload(df, ("SIMULATED · " if simulated else "Echte Daten · ") + (f"{len(allp)} Datensätze" if len(allp) != 1 else "1 Datensatz"), simulated, excl, tests)}
+    if sim_data:
+        ds = load(sim_data)
+        s_sim, s_tests, _, s_excl = classify(ds, sim_data)
+        n = ds.participant.nunique()
+        dash["sim"] = payload(ds, f"SIMULATED · {n} simulierte Personen", True, s_excl, s_tests)
 
     page = f"""<title>WP3 Datenübersicht</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -776,6 +852,7 @@ def build(df, data_dir, boot, sim_results=None):
     <div class="bar" aria-hidden="true"><i style="width:{100 * prog:.1f}%"></i></div></div>
 </div>
 <div class="grid">
+{DASHBOARD}
 <section class="wide check"><h2><span class="num">✓</span>Schnellcheck: Hat das Experiment funktioniert?</h2>
   {check_section(df, excl)}</section>
 <section class="wide"><h2><span class="num">1</span>Datensätze und Datenqualität</h2>
@@ -812,7 +889,7 @@ def build(df, data_dir, boot, sim_results=None):
 <footer>Erzeugt mit <code>experiment/analysis/wp3_overview.py</code> aus {files} CSV-Dateien. Rohdaten liegen nicht im Repository.</footer>
 </div>
 """
-    return page
+    return page + dashboard_script(dash)
 
 
 def main():
@@ -820,9 +897,10 @@ def main():
     ap.add_argument("data_dir"); ap.add_argument("out")
     ap.add_argument("--boot", type=int, default=300, help="bootstrap replicates for the planned tests")
     ap.add_argument("--sim-results", help="results.json of a validation run: shown as poster 3 until real results exist")
+    ap.add_argument("--sim-data", help="folder with simulated CSVs: offered in the dashboard as a second, SIMULATED data set")
     a = ap.parse_args()
     df = load(a.data_dir)
-    pathlib.Path(a.out).write_text(build(df, a.data_dir, a.boot, a.sim_results))
+    pathlib.Path(a.out).write_text(build(df, a.data_dir, a.boot, a.sim_results, a.sim_data))
     print(f"[out] {a.out}")
 
 
