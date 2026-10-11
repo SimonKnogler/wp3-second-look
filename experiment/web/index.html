@@ -83,6 +83,9 @@ const CFG = {
   MOTION_DUR: +(Q.get("motiondur") || 3.0),
   RESP_GRACE: +(Q.get("respgrace") || 20),  // extra seconds to answer after the motion stops
   EV_DUR: +(Q.get("evdur") || 3.0),
+  // Exploration before each block (design doc §10q): one circle, clearly but not fully controlled.
+  EXPLORE_DUR: qn("explore", 15),      // seconds; 0 = no exploration
+  EXPLORE_PROP: 0.8,
   ANGLES: [0, 90],
   TRACK: (Q.get("track") || "1") === "1",   // keep the 1u2d running through Task 1 + 2
   BONUS: +(Q.get("bonus") || 0),       // max confidence bonus (quadratic scoring rule); 0 = points only
@@ -93,7 +96,7 @@ const CFG = {
   NOLOCK: Q.get("nolock") === "1",
 };
 // Identifies the deployed version in the data (bump with every change to index.html or engine.js).
-const BUILD = "2026-10-08c";
+const BUILD = "2026-10-11a";
 // A Prolific link that would run without saving or without the promised bonus wastes a full
 // session per participant. Refuse to start instead; the researcher sees it on the first test.
 const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
@@ -231,7 +234,7 @@ function drawShapes(sq,dot,squareCx,dotCx){
   // Marks the post-decision evidence sample. It draws FRESH trajectories and the
   // participant moves anew — a second independent sample, not a replayed recording.
   if(EVIDENCE_ON){ ctx.fillStyle="#eceae6"; ctx.font="600 22px system-ui, sans-serif"; ctx.textAlign="center";
-    ctx.fillText("EXTRA EVIDENCE  —  same circles, same sides  ·  keep moving, no response", cx, 48); }
+    ctx.fillText("SECOND LOOK  —  same circles, same sides  ·  keep moving, no response", cx, 48); }
 }
 let EVIDENCE_ON=false;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
@@ -366,6 +369,9 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
       }
       requestAnimationFrame(frame);
     }
+    // The second look follows the choice directly, without a fixation cross: it is the same trial
+    // seen again, and a cross would mark it as a new one (Simon, 2026-10-11).
+    if(!acceptResponse){ requestAnimationFrame(frame); return; }
     // brief fixation, then go
     ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.fillStyle="#8a8f98"; ctx.font="300 88px system-ui"; ctx.textAlign="center";
@@ -373,6 +379,41 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
     setTimeout(()=>{ ctx.fillStyle="#8a8f98"; ctx.font="20px system-ui";
       ctx.fillText("move the mouse",cx,cy+110);
       requestAnimationFrame(frame); }, 500);
+  });
+}
+
+// Exploration (design doc §10q): before each block ONE circle in the middle, controlled clearly but not
+// fully (EXPLORE_PROP of its motion is the hand's, under this block's mapping), for EXPLORE_DUR seconds of
+// movement. No decision, nothing logged as a trial; the low-movement share goes into META.
+function exploreTrial(angle, blockIdx){
+  return new Promise(res=>{
+    const [ti,di]=TRAJ.pair(rnd);
+    const [tSnip,dSnip]=Engine.applyConsistentSmoothing(TRAJ.snip(ti),TRAJ.snip(di));
+    const applied = angle===90 ? (rnd()<0.5?90:-90) : 0;
+    const eng=new Engine.TrialEngine(tSnip,dSnip,CFG.EXPLORE_PROP,applied,"square","square");
+    const NSTEP=Math.round(CFG.EXPLORE_DUR/Engine.SIM_DT);
+    const draw=()=>{ ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.strokeStyle="#22262c"; ctx.lineWidth=1;
+      const [bx,by]=P([-Engine.BOX_HW, Engine.BOX_HH]); ctx.strokeRect(bx,by,Engine.BOX_HW*2,Engine.BOX_HH*2);
+      const [x,y]=P([eng.squarePos[0]-eng.squareCx, eng.squarePos[1]]);
+      ctx.fillStyle="#eceae6"; ctx.beginPath(); ctx.arc(x,y,20,0,2*Math.PI); ctx.fill();
+      ctx.font="600 22px system-ui, sans-serif"; ctx.textAlign="center";
+      ctx.fillText("move the mouse and watch how the circle follows your hand", cx, 48); };
+    drainMotion(); draw();
+    let clock=null, pausedAt=0;
+    function frame(){
+      if(fsBlock){ if(!pausedAt) pausedAt=performance.now(); drainMotion(); requestAnimationFrame(frame); return; }
+      if(pausedAt){ if(clock) clock.resume(performance.now()/1000); pausedAt=0; }
+      if(!clock){ const [mx,my]=drainMotion();
+        if(mx!==0||my!==0) clock=new Engine.SimClock(performance.now()/1000);
+        requestAnimationFrame(frame); return; }
+      const n=clock.steps(performance.now()/1000); const [mx,my]=drainMotion();
+      for(let k=0;k<n && clock.k<NSTEP;k++){ eng.stepDelta(mx/n,my/n); clock.advance(); }
+      draw();
+      if(clock.k>=NSTEP){ META[`explore_low_move_${blockIdx}`]=+eng.lowMoveRatio.toFixed(3); res(); return; }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
   });
 }
 
@@ -406,52 +447,38 @@ function wp3Score(rating, correct){
   if(rating===undefined||rating===null||isNaN(rating)) return 0;   // timeout: no rating, no points
   const p=(rating-1)/8; return correct ? 1-(1-p)**2 : 1-p**2;
 }
-const bonusText=m => CFG.BONUS>0 ? `${CFG.BONUS_UNIT}${(CFG.BONUS*m).toFixed(2)} (of a possible ${CFG.BONUS_UNIT}${CFG.BONUS.toFixed(2)})`
-                                 : `${Math.round(100*m)} out of 100 points`;
-// withEvidence=false runs before Part A: the rule itself, checked on the rating scale.
-// withEvidence=true runs immediately before Part B: a short reminder plus the two
-// questions about extra evidence. Those used to be asked before Part A, describing a
-// situation that had not happened yet and was forgotten by the time it did.
-async function bonusInstructions({withEvidence=false}={}){
+// Bonus (design doc §10q): the mean quadratic score is paid only above what always pressing 5 earns
+// (0.75), scaled so that a perfectly calibrated observer of this design (simulated session score 0.86)
+// gets the full amount. An increasing affine map of a proper score is still proper, so honest
+// reporting maximises the bonus; the clip only matters below guessing or above the ideal observer.
+const SCORE_FLOOR = 0.75, SCORE_IDEAL = 0.86;
+const bonusShare = m => Math.min(Math.max((m-SCORE_FLOOR)/(SCORE_IDEAL-SCORE_FLOOR), 0), 1);
+const bonusText=m => CFG.BONUS>0 ? `${CFG.BONUS_UNIT}${(CFG.BONUS*bonusShare(m)).toFixed(2)} (of a possible ${CFG.BONUS_UNIT}${CFG.BONUS.toFixed(2)})`
+                                 : `${Math.round(100*bonusShare(m))} out of 100 points`;
+// Runs once, before the first block. Deliberately neutral about the second look (design doc §10q): it
+// explains the rule, not how to react to new evidence — w_d, the weight of disconfirming evidence, is
+// the main measure, and an instruction favouring "change your mind" would move it in both conditions.
+async function bonusInstructions(){
   const stake = CFG.BONUS>0 ? `a bonus of up to <b>${CFG.BONUS_UNIT}${CFG.BONUS.toFixed(2)}</b>` : "<b>points</b> (up to 100)";
-  const explain = withEvidence ? `<h1>Before Part B — a reminder</h1>
-    <p>The rating still works the same way: what earns ${stake} is <b>matching your rating
-    to what is true</b> — high when you were right, low when you were wrong.</p>
-    <p>What is new is that you now see <b>extra evidence</b> after your choice. If it shows
-    you were wrong, saying so with a <b>low</b> rating earns you the full amount.
-    Changing your mind is free; staying convinced against the evidence is what costs.</p>
-    <p class="go">press SPACE for two quick questions</p>` : `<h1>How your confidence ratings earn ${stake}</h1>
-    <p>After each choice you rate how likely it is that you were <b>right</b> (1 = 0%, 5 = 50%, 9 = 100%).</p>
-    <p>What is rewarded is <b>knowing when you are right</b> — not performance.
-    Both of these earn the full amount:<br>
-    you were right <b>and</b> you rated <b>9</b> &nbsp;·&nbsp; you were wrong <b>and</b> you rated <b>1</b></p>
-    <p>So being wrong costs you nothing, as long as you notice it. It only costs you to be
-    wrong <b>and convinced</b> — or to be right and not trust yourself.</p>
-    ${CFG.BONUS>0?`<p><b>In money:</b> every rating earns a score between 0 and 1, and your bonus is
-    <b>${money(1)} × your average score</b>, paid through Prolific. For example: ratings that
-    <b>track whether you were right</b> typically average 0.80–0.90 → <b>${money(.80)}–${money(.90)}</b>;
-    always pressing 5 gives exactly 0.75 → ${money(.75)}; pressing at random averages about 0.65 → ${money(.65)}.</p>`
-    :`<p>Always pressing 5 earns a middling amount (0.75 per trial). Random pressing earns less (about 0.65).</p>`}
-    <p>The best strategy is simple: <b>report honestly what you believe.</b><br>
+  const explain = `<h1>How your confidence ratings earn ${stake}</h1>
+    <p>After each choice you rate how likely it is that your choice was <b>correct</b>:
+    1 = 0 %, 5 = 50 % (a pure guess), 9 = 100 %.</p>
+    <p>The bonus rewards ratings that <b>match how often you are actually right</b>. For example, when you
+    rate 7 (75 %), you should be right about three times out of four.</p>
+    <p>If your ratings show exactly how sure you can be, you get the full ${CFG.BONUS>0?`<b>${money(1)}</b>`:"100 points"}.
+    Always pressing the same number earns (almost) nothing.${CFG.BONUS>0?" The bonus is paid through Prolific.":""}</p>
+    <p>The best strategy is simple: <b>report honestly what you believe</b>, taking into account everything you saw.<br>
     You will <b>not</b> see your score during the task — only your total at the end.</p>
     <p class="go">press SPACE for two quick questions</p>`;
   // Answered on the 1–9 scale itself: an earlier version used 1/2/3 answer keys that
   // described ratings 8–9 / 5 / 1–2, so the key was nearly the opposite of its meaning.
-  const quiz = withEvidence ? [
+  const quiz = [
     [`<h1>Question 1 of 2</h1>
-      <p>You chose the <b>LEFT</b> circle.<br>The extra evidence then clearly showed the <b>RIGHT</b> one was yours.</p>
-      <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r<=2],
+      <p>You chose the <b>LEFT</b> circle and felt quite sure it was the one you controlled.</p>
+      <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r>=7],
     [`<h1>Question 2 of 2</h1>
-      <p>You chose the <b>LEFT</b> circle.<br>The extra evidence then clearly confirmed it <b>was</b> yours.</p>
-      <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r>=8],
-  ] : [
-    [`<h1>Question 1 of 2</h1>
-      <p>You chose the <b>LEFT</b> circle — but it was barely a guess, and you think you
-      probably got it wrong.</p>
-      <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r<=2],
-    [`<h1>Question 2 of 2</h1>
-      <p>You chose the <b>LEFT</b> circle, and you clearly felt it following your hand.</p>
-      <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r>=8],
+      <p>You chose the <b>LEFT</b> circle, but it was a pure guess: you could not tell the two circles apart.</p>
+      <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r>=4 && r<=6],
   ];
   let attempts=0;
   for(;;){
@@ -461,14 +488,14 @@ async function bonusInstructions({withEvidence=false}={}){
     for(const [q,accept] of quiz){
       showScreen(q); const k=parseInt(await waitKeys(["1","2","3","4","5","6","7","8","9"]),10);
       if(!accept(k)){ ok=false;
-        showScreen(`<p>Not quite. The most is earned when your rating <b>matches what really happened</b>:
-          a <b>high</b> rating when you were right, a <b>low</b> rating when you were wrong.</p>
+        showScreen(`<p>Not quite. The most is earned when your rating says <b>how sure you really are</b>:
+          high when you are sure, around 5 when it is a guess.</p>
           <p class="go">press SPACE to read the explanation again</p>`);
         await waitKeys([" "]); break; }
     }
     if(ok) break;
   }
-  META[withEvidence?"bonus_quiz_attempts_evidence":"bonus_quiz_attempts"]=attempts;
+  META.bonus_quiz_attempts=attempts;
 }
 // Closing self-report. Stated to have no effect on payment, which is what makes honest answers likely;
 // the answers feed the analysis exclusions only (design doc §10m).
@@ -498,7 +525,7 @@ const DEBRIEF_HTML = `
   <p><b>What this study was about.</b> We study how people revise their confidence in a decision when new
   evidence arrives afterwards — and whether this differs when the link between hand and screen is natural or
   unusual. In one of the two blocks the circle you controlled moved at a 90° angle to your hand.</p>
-  <p>In Part B the extra evidence sometimes showed that your first choice was wrong. That was intended: we
+  <p>In Part B the second look sometimes showed that your first choice was wrong. That was intended: we
   measure how strongly people take such evidence into account. Nothing in the study was hidden from you.</p>
   <p><b>Questions or withdrawal.</b> Contact ${CONTACT_EMAIL} or send a Prolific message, with your Prolific ID. Until the data are anonymised you
   can ask for them to be deleted.</p>`;
@@ -525,7 +552,7 @@ function toCSV(subset=rows){
   const cols=["participant","session","phase","wp3_task","evidence_level","angle_bias",
     "prop_used","prop_post","accuracy","true_shape","resp_shape","rt_choice","is_timeout",
     "wp3_confidence","wp3_prob","wp3_conf_rt","wp3_score","prop_high_clipped","med_live","trial_type","delta_live","display_fps","low_move_ratio",
-    "bonus_quiz_attempts","bonus_quiz_attempts_evidence","bonus_motivation_1to5",
+    "bonus_quiz_attempts","bonus_quiz_attempts_evidence","bonus_motivation_1to5","explore_low_move_1","explore_low_move_2",
     "wp3_mean_score","wp3_bonus","fullscreen_exits","pointer_lock_exits","input_device","input_device_initial","pointer_lock","prolific_study_id","prolific_session_id",
     // layout and momentary evidence of the decision trial and of the second look (design doc §10l):
     // check_wp3_replay_invariant.py needs left_shape / applied_angle_bias of both to run on web data
@@ -655,8 +682,8 @@ function downloadCSV(name, csv){
 // ─────────────────────────────────────────────────────────────────────────────
 async function calibration(angle){
   const sc=new Staircase(); let n=0;
-  showScreen(`<h1>Calibration</h1><p>Move the mouse. Decide which circle you control (a = left, s = right).</p>
-    <p><span class="kbd">a</span> left &nbsp; <span class="kbd">s</span> right. You will get feedback.</p>
+  showScreen(`<h1>Warm-up</h1><p>Now two circles. Move the mouse, then decide which circle you control.</p>
+    <p><span class="kbd">a</span> left &nbsp; <span class="kbd">s</span> right. You get feedback after each choice.</p>
     <p class="go">press SPACE to start</p>`); await waitKeys([" "]); showCanvas();
   while(n<CFG.CAL_MAX && !(sc.nRev>=CFG.CAL_REVERSALS && n>=CFG.CAL_MIN)){
     const p=sc.next();
@@ -681,9 +708,14 @@ async function calibration(angle){
 
 async function block(angle, blockIdx){
   BLOCK_IDX=blockIdx;
-  showScreen(`<h1>Block ${blockIdx} of 2</h1><p>A short calibration, then the main task.</p>
+  // Block 2 says that the circle may now follow the hand differently — never how (design doc §10q).
+  showScreen(`<h1>Block ${blockIdx} of 2</h1>
+    ${blockIdx===2?`<p>In this block, the circle may move <b>differently</b> in relation to your hand than in the first block.</p>`:""}
+    ${CFG.EXPLORE_DUR>0?`<p>First, a single circle: move the mouse freely and watch how it follows your hand.
+    There is nothing to decide.</p>`:""}
     ${blockIdx===2?IMC_LINE:""}
     <p class="go">press SPACE</p>`); await waitGo(blockIdx===2?3:null);
+  if(CFG.EXPLORE_DUR>0){ showCanvas(); await exploreTrial(angle, blockIdx); }
   const sc = await calibration(angle);
   const med0 = clampProp(sc.threshold());   // seed; also the fixed prop when tracking is off
   // Props for one decision trial: the live staircase value plus the boosted evidence
@@ -719,8 +751,8 @@ async function block(angle, blockIdx){
   // right before Part A would lift the baseline confidence measured there. Feeds the psychometric
   // fit, not the measured level.
   if(dt && CFG.D0_N>0){
-    showScreen(`<h1>Calibration, part 2</h1><p>Same as before: move, then choose the circle you control
-      (a = left, s = right).</p><p>No feedback from here on.</p><p class="go">press SPACE to start</p>`);
+    showScreen(`<p>From here on, there is <b>no feedback</b>. Otherwise the same: move, then choose the
+      circle you control (a = left, s = right).</p><p class="go">press SPACE to continue</p>`);
     await waitKeys([" "]); showCanvas();
     for(let i=0;i<CFG.D0_N;i++){
       const [pDec,pHigh,dUsed]=nextProps(true);
@@ -735,7 +767,8 @@ async function block(angle, blockIdx){
   }
 
   // Task 1
-  showScreen(`<h1>Part A</h1><p>Choose the circle you control (a = left, s = right), then rate your confidence.</p>
+  showScreen(`<h1>Part A</h1><p>Choose the circle you control (a = left, s = right), then rate how likely it is
+    that your choice was correct.</p>
     <p>${CFG.D0_N>0?"Still no feedback.":"No feedback from here on."}</p>${blockIdx===1?IMC_LINE:""}<p class="go">press SPACE</p>`);
   await waitGo(blockIdx===1?1:null); showCanvas();
   for(const strength of mix(CFG.T1_N, CFG.D1_N)){
@@ -752,17 +785,14 @@ async function block(angle, blockIdx){
     showCanvas();
   }
 
-  // Task 2 — the scoring rule is re-explained here, where extra evidence first exists
-  if(blockIdx===1) await bonusInstructions({withEvidence:true});
+  // Task 2. No reminder of the scoring rule here: it was explained once, neutrally (§10q).
   showScreen(`<h1>Part B</h1><p>Each trial now has two parts.</p>
     <p>1) Move, then choose the circle you controlled (a = left, s = right) — as before.</p>
-    <p>2) You then get <b>extra evidence</b> about that same trial: the same two circles, on the
-    same sides, and the same one is still truly yours — but a <b>new</b> stretch of movement.
-    Keep moving and watch. This second sample is as clear as the first, or <b>clearer</b>.
-    It is bonus information — no response during it.</p>
-    <p>Then rate how likely it is that your <b>first</b> choice was correct. If the extra
-    evidence shows your choice was wrong, a <b>low</b> rating is what earns you the most.</p>
-    ${CFG.D2_N>0?"<p>Some trials have <b>no</b> extra evidence: you rate right after your choice, as in Part A.</p>":""}
+    <p>2) You then see the <b>same trial a second time</b>: the same two circles on the same sides, and
+    the same one is yours, but with <b>new</b> movement. Keep moving and watch. There is nothing to decide
+    during this second look.</p>
+    <p>Then rate how likely it is that your <b>first</b> choice was correct.</p>
+    ${CFG.D2_N>0?"<p>Some trials have <b>no</b> second look: you rate right after your choice, as in Part A.</p>":""}
     ${blockIdx===1?IMC_LINE:""}<p class="go">press SPACE</p>`);
   await waitGo(blockIdx===1?2:null); showCanvas();
   const levels=shuffle([...Array(Math.floor(CFG.T2_N/2)).fill("low"),...Array(CFG.T2_N-Math.floor(CFG.T2_N/2)).fill("high")]);
@@ -866,7 +896,7 @@ async function main(){
   const order=shuffle([...CFG.ANGLES]);
   for(let b=0;b<order.length;b++){ await block(order[b], b+1); checkpoint(); }
   const meanScore = SCORES.length ? SCORES.reduce((a,b)=>a+b,0)/SCORES.length : 0;
-  META.wp3_mean_score=+meanScore.toFixed(4); META.wp3_bonus=+(CFG.BONUS*meanScore).toFixed(2);
+  META.wp3_mean_score=+meanScore.toFixed(4); META.wp3_bonus=+(CFG.BONUS*bonusShare(meanScore)).toFixed(2);
   META.fullscreen_exits=FS_EXITS;   // >0 means part of the session ran outside fullscreen
   META.pointer_lock_exits=PL_EXITS; META.pointer_lock=(PL_OK && !CFG.NOLOCK)?1:0;   // 0 = ran on plain mousemove deltas
   // Instruction checks failed (0 = passed all that were shown; a short test run may show fewer than 3)

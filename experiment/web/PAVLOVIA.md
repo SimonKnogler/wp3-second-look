@@ -76,7 +76,8 @@ Query parameters work the same as locally:
 |---|---|
 | `?t1=6&t2=12&d0=6&d1=4&d2=6&calmin=10&calmax=15` | short run for a feel test |
 | `?d0=0&d1=0&d2=0` | old design: no strength trials, fixed +1.2-logit boost |
-| `?bonus=3.00` | quadratic scoring rule with a £3 maximum — **required for Prolific**: the instructions quote the amount and a worked example |
+| `?bonus=3.00` | maximum bonus (£3; design doc §10q: paid above guessing level, full amount at perfect calibration) — **required for Prolific**: the instructions quote the amount |
+| `?explore=0` | skip the 15 s single-circle exploration before each block (testing only) |
 | `?nolock=1` | TESTING ONLY: no pointer lock, cursor visible — never give to participants |
 | `?pid=<id>` | participant id |
 

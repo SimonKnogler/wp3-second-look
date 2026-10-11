@@ -74,8 +74,9 @@ Pavlovia serves any static site from a git repo.
 Task 1, Task 2; default 20 / 10 / 25, all 0 restores the old fixed boost), `calmin`, `calmax`, `boost`
 (fixed high-evidence logit, used only when there are no strength trials), `evdur`
 (evidence-sample seconds), `pid`, `seed`, `bonus` (maximum bonus in £; 0 = points only — set it
-for Prolific, the instructions quote it with a worked example), `nolock=1` (TESTING ONLY: no
-pointer lock, cursor visible).
+for Prolific; paid above guessing level, the full amount at perfect calibration, design doc §10q),
+`explore` (seconds of single-circle exploration before each block, default 15, 0 = none), `nolock=1`
+(TESTING ONLY: no pointer lock, cursor visible).
 
 Strength trials (design doc §10j) are Part-A-style trials (choose, rate, no second look)
 whose first look is already at the high strength. They drive a weighted up-down track on the
