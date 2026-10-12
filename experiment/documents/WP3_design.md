@@ -224,8 +224,8 @@ online WP). *Not* PsychoJS (hand-coded, no Builder); a genuine JS port.
 - **Hosting: Pavlovia** (static git repo — push the 4 web files). Check for an LMU
   Pavlovia site licence (then free). Alternatives: Cognition.run (free, piloting),
   Netlify.
-- **Data: OSF DataPipe** (set `DATAPIPE_ID` in index.html — host-agnostic) or the
-  built-in CSV download. Native PsychoJS saving deliberately not used.
+- **Data: saved on Pavlovia** through its server API while RUNNING (§10p), otherwise the
+  built-in CSV download. (Until 2026-10-08 the plan was OSF DataPipe.)
 - `analyze_wp3.py` runs on the resulting CSV unchanged.
 
 ---
@@ -828,6 +828,48 @@ trials and the remaining trials are sent with `keepalive` when the page is close
 DataPipe, D on the pause screen (Esc) or on the final screen downloads everything so far. Also fixed: when a
 browser refused pointer lock for good, the task was meant to continue on plain mouse deltas but ignored them,
 so the first trial waited for movement forever.
+
+## 10p. Data saved on Pavlovia, not OSF (2026-10-08)
+
+Simon does not want OSF storage (he expects OSF to be discontinued within weeks); the data should be on Pavlovia.
+Pavlovia stores results only through its server API, which PsychoJS calls for its own experiments. The task
+now makes the same calls (open a session after consent, POST results as `key`/`value`, close the session
+with `isCompleted`), so §10o's saving works unchanged on Pavlovia: one file per session,
+`CDT_wp3_<pid>_<yyyymmdd_hhmm>.csv`, replaced every 20 trials and after each block, and sent once more by
+`sendBeacon` when the page is closed (`aborted = 1`, flagged `aborted_session` in the analysis). As in
+PsychoJS, nothing goes to the server in PILOTING mode or from a pilot link; then the CSV is downloaded.
+A Prolific URL refuses to start unless it runs on run.pavlovia.org and the session opens (study RUNNING).
+DataPipe code removed.
+
+## 10q. Bonus, neutral instructions and block structure (2026-10-08 / 2026-10-11)
+
+Decided with Simon item by item; the web task implements all of it (build 2026-10-11a). The PsychoPy lab
+task is not updated.
+
+- **Bonus.** With the raw quadratic score honest rating beat "always 5" (0.75 → £2.25 of £3) by only
+  about 20–30 p. The bonus is now `£3 × clip((S − 0.75) / (0.86 − 0.75), 0, 1)`, S = mean score: always 5
+  earns £0, a perfectly calibrated observer of this design gets £3. 0.86 is the simulated session score of
+  that observer (Part A at 71 %, strength trials at 85 %, Part B low and high evidence); fixed here for the
+  preregistration. An increasing affine map of a proper score stays proper; the clip only acts below
+  guessing or above the ideal observer. Simulated honest raters with rating noise: £2.20–2.90.
+- **Neutral instructions.** The old Part-B reminder ("a low rating when the evidence shows you were wrong",
+  "changing your mind is free, staying convinced costs") and its two quiz questions about clear
+  disconfirming evidence pushed people towards weighting disconfirming evidence, i.e. towards w_d, the
+  main measure, in both conditions. Now the rule is explained once, before the first block, as
+  calibration ("rate 7 = 75 % → right about three times in four"); the quiz uses a sure and a guessing
+  example; the Part-B reminder and quiz are gone. Part B describes the second look as the same trial
+  seen again (same circles, sides, same one is yours, new movement) and no longer says it is "as clear
+  as the first, or clearer". The on-screen banner reads "SECOND LOOK". The scale stays 1–9 with 0 / 50 /
+  100 % anchors in both parts, as in Rollwage et al. (2018).
+- **No fixation cross before the second look**: it follows the choice directly.
+- **Block structure.** No "calibration" on screen: each block opens with "Block n of 2", then a 15 s
+  exploration with ONE circle in the middle, clearly but not fully controlled (prop 0.8, this block's
+  mapping, `?explore=` for testing), then one "Warm-up" (feedback trials, then a one-line "from here on,
+  no feedback" before the strength-calibration trials), then Part A and Part B. Block 2 says the circle
+  "may move differently in relation to your hand than in the first block", never how. In the 90° block
+  the exploration uses one rotation sign, drawn at random, while the trials use both. `explore_low_move_1/2`
+  record how much people moved.
+- Strength trials stay as in §10j (Simon, 2026-10-11, after weighing a slope-based alternative).
 
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 

@@ -203,6 +203,9 @@ def exclusion_flags(df_p):
         flags['low_frame_rate'] = bool(valid['display_fps'].median() < FPS_MIN)
     if 'low_move_ratio' in df_p.columns and valid['low_move_ratio'].notna().any():
         flags['too_little_movement'] = bool(valid['low_move_ratio'].median() > LOW_MOVE_MAX)
+    # Session ended early (tab closed): the file holds what was saved up to then, design doc §10p.
+    if has('aborted'):
+        flags['aborted_session'] = bool(first['aborted'] == 1)
     flags['exclude'] = any(flags.values())
     return flags
 
@@ -211,7 +214,8 @@ def exclusion_flags(df_p):
 
 def load_wp3(path):
     p = pathlib.Path(path)
-    files = sorted(p.glob("*.csv")) if p.is_dir() else [p]
+    # *_tail.csv: the last trials of an aborted session when the whole file was too big to send on exit
+    files = sorted(f for f in p.glob("*.csv") if not f.name.endswith("_tail.csv")) if p.is_dir() else [p]
     frames = []
     for f in files:
         try:
