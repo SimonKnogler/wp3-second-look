@@ -23,9 +23,13 @@
   .pt{width:64px;text-align:center;}
   .pt .n{font-size:1.5rem;font-weight:700;}
   .pt .p{font-size:.85rem;color:#8a8f98;margin-top:6px;height:14px;}
-  .rule{height:2px;background:#3a3e46;width:100%;margin:2px 0 0;}
-  .anchors{display:flex;justify-content:space-between;width:600px;color:#8a8f98;font-size:.9rem;}
-  .anchors span{max-width:150px;}
+  .rule{height:2px;background:#3a3e46;width:576px;margin:2px 0 0;}
+  /* 9 points x 64 px: each label is centred under its own point (left = (i - .5) x 64 px) */
+  .anchors{position:relative;width:576px;height:1.4em;color:#8a8f98;font-size:.95rem;}
+  .anchors span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap;}
+  /* "Click" prompts: a key press does nothing there, so the mouse is named and the line stands out. */
+  #screen p.click, #fsblock p.click{margin-top:28px;font-size:1.3rem;font-weight:600;color:#eceae6;}
+  #screen p.clickhint, #fsblock p.clickhint{color:#e0713a;}
   .fb{font-size:4.5rem;font-weight:700;letter-spacing:.01em;}
   /* Fullscreen-recovery overlay (see fsRecover). */
   #fsblock{position:fixed;inset:0;z-index:50;background:#0e0f12;cursor:none;
@@ -74,8 +78,11 @@ const CFG = {
   // look) whose FIRST look is at the high strength. They drive a weighted up-down track on the high
   // offset (up/down = .85/.15 -> 85 % correct) and measure what that strength supports. All 0 = old design.
   D0_N: qn("d0", 20),                  // strength-calibration block per angle (choice only, no feedback): the person's start value
-  D1_N: qn("d1", 10),                  // interleaved in Task 1: indistinguishable from the other trials
-  D2_N: qn("d2", 25),                  // interleaved in Task 2: no extra evidence, rating right after the choice
+  // Part B holds second-look trials only (Simon, 2026-10-12, design doc §10r): its strength trials moved
+  // to Part A and to a short run right after Part B.
+  D1_N: qn("d1", 25),                  // interleaved in Task 1: indistinguishable from the other trials
+  D2_N: qn("d2", 0),                   // interleaved in Task 2: no extra evidence, rating right after the choice
+  D3_N: qn("d3", 10),                  // after Part B, as in Part A (choose, rate, no second look)
   DELTA0: 0.8, DELTA_DOWN: 0.08, DELTA_UP: 0.453, DELTA_LO: 0.3, DELTA_HI: 1.8,
   // Fixed motion window, response collected afterwards. Self-terminated sampling made
   // evidence-per-trial vary with confidence (fast exits on easy-feeling trials) and
@@ -83,9 +90,10 @@ const CFG = {
   MOTION_DUR: +(Q.get("motiondur") || 3.0),
   RESP_GRACE: +(Q.get("respgrace") || 20),  // extra seconds to answer after the motion stops
   EV_DUR: +(Q.get("evdur") || 3.0),
-  // Exploration before each block (design doc §10q): one circle, clearly but not fully controlled.
-  EXPLORE_DUR: qn("explore", 15),      // seconds; 0 = no exploration
-  EXPLORE_PROP: 0.8,
+  // Exploration before each block (design doc §10q, §10r): one circle, about as much control as on a
+  // ~80 %-correct trial, so the hand clearly matters but the circle does not simply follow it.
+  EXPLORE_DUR: qn("explore", 10),      // seconds; 0 = no exploration
+  EXPLORE_PROP: qn("exploreprop", 0.45),
   ANGLES: [0, 90],
   TRACK: (Q.get("track") || "1") === "1",   // keep the 1u2d running through Task 1 + 2
   BONUS: +(Q.get("bonus") || 0),       // max confidence bonus (quadratic scoring rule); 0 = points only
@@ -96,7 +104,7 @@ const CFG = {
   NOLOCK: Q.get("nolock") === "1",
 };
 // Identifies the deployed version in the data (bump with every change to index.html or engine.js).
-const BUILD = "2026-10-11a";
+const BUILD = "2026-10-12a";
 // A Prolific link that would run without saving or without the promised bonus wastes a full
 // session per participant. Refuse to start instead; the researcher sees it on the first test.
 const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
@@ -233,8 +241,11 @@ function drawShapes(sq,dot,squareCx,dotCx){
   for(const p of [sq,dot]){ const [x,y]=P(p); ctx.beginPath(); ctx.arc(x,y,20,0,2*Math.PI); ctx.fill(); }
   // Marks the post-decision evidence sample. It draws FRESH trajectories and the
   // participant moves anew — a second independent sample, not a replayed recording.
-  if(EVIDENCE_ON){ ctx.fillStyle="#eceae6"; ctx.font="600 22px system-ui, sans-serif"; ctx.textAlign="center";
-    ctx.fillText("SECOND LOOK  —  same circles, same sides  ·  keep moving, no response", cx, 48); }
+  // It says outright that the controlled circle has not switched sides: it is identified by side alone.
+  if(EVIDENCE_ON){ ctx.fillStyle="#eceae6"; ctx.textAlign="center";
+    ctx.font="600 24px system-ui, sans-serif"; ctx.fillText("SECOND LOOK at the same trial", cx, 44);
+    ctx.font="20px system-ui, sans-serif";
+    ctx.fillText("The circle you control is on the SAME SIDE as before  ·  keep moving, no response", cx, 76); }
 }
 let EVIDENCE_ON=false;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
@@ -250,9 +261,11 @@ function fsRecover(title="Paused", text="The task has to run in fullscreen with 
   if(fsBlock) return;
   fsBlock=document.createElement("div"); fsBlock.id="fsblock";
   fsBlock.innerHTML=`<div><h1>${title}</h1><p>${text}</p>
-    <p class="go">click anywhere to continue</p>
+    <p class="click">Click anywhere on this screen with your <u>mouse</u> to continue.</p>
+    <p class="clickhint" style="visibility:hidden">Please click with the mouse button, not a key.</p>
     ${CFG.COMPLETION_URL||!rows.length?"":`<p class="go">testing: press D to download the data so far</p>`}</div>`;
   document.body.appendChild(fsBlock);
+  showClickHintOnKey(fsBlock);
   fsBlock.addEventListener("click", async()=>{
     if(FS_OK && !document.fullscreenElement){
       try{ await Promise.race([document.documentElement.requestFullscreen(), wait(1000)]); }catch(e){}
@@ -268,6 +281,15 @@ function fsRecover(title="Paused", text="The task has to run in fullscreen with 
     if(fsBlock && !needPause()){ fsBlock.remove(); fsBlock=null; }
     else if(fsBlock){ fsBlock.remove(); fsBlock=null; setTimeout(()=>{ if(needPause()) fsRecover(); }, 300); }
   }, {once:true});
+}
+// A key press cannot replace the click (fullscreen and pointer lock need the mouse here): say so
+// instead of doing nothing, so nobody gives up on a screen that seems frozen.
+function showClickHintOnKey(el){
+  const hint=el.querySelector(".clickhint"); if(!hint) return;
+  const h=e=>{ if(!hint.isConnected){ window.removeEventListener("keydown",h); return; }
+    if(e.key.toLowerCase()==="d") return;   // testing download on the pause screen
+    hint.style.visibility="visible"; };
+  window.addEventListener("keydown",h);
 }
 document.addEventListener("fullscreenchange", ()=>{
   if(!document.fullscreenElement && FS_OK) { FS_EXITS++; fsRecover(); }
@@ -382,8 +404,8 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
   });
 }
 
-// Exploration (design doc §10q): before each block ONE circle in the middle, controlled clearly but not
-// fully (EXPLORE_PROP of its motion is the hand's, under this block's mapping), for EXPLORE_DUR seconds of
+// Exploration (design doc §10q, §10r): before each block ONE circle in the middle, partly controlled
+// (EXPLORE_PROP of its motion is the hand's, under this block's mapping), for EXPLORE_DUR seconds of
 // movement. No decision, nothing logged as a trial; the low-movement share goes into META.
 function exploreTrial(angle, blockIdx){
   return new Promise(res=>{
@@ -418,19 +440,24 @@ function exploreTrial(angle, blockIdx){
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  9-point Rollwage confidence  (P that decision was correct; <50% = the other)
+//  9-point confidence  (P that decision was correct; <50% = the other)
 // ─────────────────────────────────────────────────────────────────────────────
+// Rollwage et al. 2018: 9 points, 0 % / 50 % / 100 % at the low end, midpoint and top. Question and
+// end labels as Fleming, van der Putten & Daw 2018 (confidence in the initial decision after post-
+// decision evidence, "certainly wrong" … "certainly correct"). Design doc §10r.
+const CONF_QUESTION = "How confident are you that your choice was correct?";
+function scaleHTML(question=CONF_QUESTION){
+  let pts=""; for(let i=1;i<=9;i++){ const pc=i===1?"0%":i===5?"50%":i===9?"100%":"";
+    pts+=`<div class="pt"><div class="n">${i}</div><div class="p">${pc}</div></div>`; }
+  const lab=(i,t)=>`<span style="left:${(i-0.5)*64}px">${t}</span>`;
+  return `<div class="scale">
+    ${question?`<p style="font-size:1.25rem;color:#eceae6">${question}</p>`:""}
+    <div class="track">${pts}</div><div class="rule"></div>
+    <div class="anchors">${lab(1,"certainly wrong")}${lab(5,"pure guess")}${lab(9,"certainly correct")}</div></div>`;
+}
 function confidence(){
   return new Promise(res=>{
-    let pts=""; for(let i=1;i<=9;i++){ const pc=i===1?"0%":i===5?"50%":i===9?"100%":"";
-      pts+=`<div class="pt"><div class="n">${i}</div><div class="p">${pc}</div></div>`; }
-    showScreen(`<div class="scale">
-      <p style="font-size:1.25rem;color:#eceae6">How likely is it that your choice was correct?</p>
-      <div class="track">${pts}</div><div class="rule" style="width:600px"></div>
-      <div class="anchors"><span>the OTHER circle<br>was the one I controlled</span>
-        <span style="text-align:center">pure guess</span>
-        <span style="text-align:right">MY choice<br>was correct</span></div>
-      <p class="go">press 1 – 9</p></div>`);
+    showScreen(scaleHTML());
     const t0=performance.now();
     const h=e=>{ if(fsBlock) return; const n=parseInt(e.key,10); if(n>=1&&n<=9){ window.removeEventListener("keydown",h);
       res({rating:n, prob:(n-1)/8*100, rt:(performance.now()-t0)/1000}); } };
@@ -455,41 +482,50 @@ const SCORE_FLOOR = 0.75, SCORE_IDEAL = 0.86;
 const bonusShare = m => Math.min(Math.max((m-SCORE_FLOOR)/(SCORE_IDEAL-SCORE_FLOOR), 0), 1);
 const bonusText=m => CFG.BONUS>0 ? `${CFG.BONUS_UNIT}${(CFG.BONUS*bonusShare(m)).toFixed(2)} (of a possible ${CFG.BONUS_UNIT}${CFG.BONUS.toFixed(2)})`
                                  : `${Math.round(100*bonusShare(m))} out of 100 points`;
-// Runs once, before the first block. Deliberately neutral about the second look (design doc §10q): it
-// explains the rule, not how to react to new evidence — w_d, the weight of disconfirming evidence, is
-// the main measure, and an instruction favouring "change your mind" would move it in both conditions.
+// Runs once, at the start of Part A in block 1, where the ratings begin (Simon, 2026-10-12). Deliberately
+// neutral about the second look (design doc §10q): it explains the scale and the rule, not how to react
+// to new evidence — w_d, the weight of disconfirming evidence, is the main measure, and an instruction
+// favouring "change your mind" would move it in both conditions.
 async function bonusInstructions(){
   const stake = CFG.BONUS>0 ? `a bonus of up to <b>${CFG.BONUS_UNIT}${CFG.BONUS.toFixed(2)}</b>` : "<b>points</b> (up to 100)";
+  const scaleScreen = `<h1>Rating your confidence</h1>
+    <p>From now on, after each choice you rate <b>how confident you are that your choice was correct</b>,
+    by pressing a number key from 1 to 9 on your keyboard:</p>
+    ${scaleHTML(null)}
+    <p>1 = you are certain your choice was <b>wrong</b> (0 %)<br>5 = a pure guess (50 %)<br>
+    9 = you are certain your choice was <b>correct</b> (100 %)<br>The numbers in between are for everything in between.</p>
+    <p class="go">press SPACE</p>`;
   const explain = `<h1>How your confidence ratings earn ${stake}</h1>
-    <p>After each choice you rate how likely it is that your choice was <b>correct</b>:
-    1 = 0 %, 5 = 50 % (a pure guess), 9 = 100 %.</p>
     <p>The bonus rewards ratings that <b>match how often you are actually right</b>. For example, when you
     rate 7 (75 %), you should be right about three times out of four.</p>
     <p>If your ratings show exactly how sure you can be, you get the full ${CFG.BONUS>0?`<b>${money(1)}</b>`:"100 points"}.
     Always pressing the same number earns (almost) nothing.${CFG.BONUS>0?" The bonus is paid through Prolific.":""}</p>
     <p>The best strategy is simple: <b>report honestly what you believe</b>, taking into account everything you saw.<br>
     You will <b>not</b> see your score during the task — only your total at the end.</p>
-    <p class="go">press SPACE for two quick questions</p>`;
-  // Answered on the 1–9 scale itself: an earlier version used 1/2/3 answer keys that
-  // described ratings 8–9 / 5 / 1–2, so the key was nearly the opposite of its meaning.
+    <p class="go">press SPACE for three quick questions</p>`;
+  // Answered on the 1–9 scale itself, shown as in the task: an earlier version used 1/2/3 answer keys
+  // that described ratings 8–9 / 5 / 1–2, so the key was nearly the opposite of its meaning.
+  const ask = (n, text) => `<h1>Question ${n} of 3</h1><p>${text}</p><p>Which rating earns you the most bonus?</p>
+      ${scaleHTML(null)}`;
   const quiz = [
-    [`<h1>Question 1 of 2</h1>
-      <p>You chose the <b>LEFT</b> circle and felt quite sure it was the one you controlled.</p>
-      <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r>=7],
-    [`<h1>Question 2 of 2</h1>
-      <p>You chose the <b>LEFT</b> circle, but it was a pure guess: you could not tell the two circles apart.</p>
-      <p>Which rating earns you the most bonus?</p><p class="go">press 1 – 9</p>`, r=>r>=4 && r<=6],
+    [ask(1, `You chose the <b>LEFT</b> circle and felt quite sure it was the one you controlled.`), r=>r>=7],
+    [ask(2, `You chose the <b>LEFT</b> circle, but it was a pure guess: you could not tell the two circles apart.`), r=>r>=4 && r<=6],
+    // Sure of being wrong, with a reason that has nothing to do with the second look (neutrality, §10q).
+    [ask(3, `You chose the <b>LEFT</b> circle, but you are quite sure the <b>RIGHT</b> circle was the one you
+      controlled (for example, you pressed the wrong key by mistake).`), r=>r<=3],
   ];
   let attempts=0;
   for(;;){
     attempts++;
+    showScreen(scaleScreen); await waitKeys([" "]);
     showScreen(explain); await waitKeys([" "]);
     let ok=true;
     for(const [q,accept] of quiz){
       showScreen(q); const k=parseInt(await waitKeys(["1","2","3","4","5","6","7","8","9"]),10);
       if(!accept(k)){ ok=false;
-        showScreen(`<p>Not quite. The most is earned when your rating says <b>how sure you really are</b>:
-          high when you are sure, around 5 when it is a guess.</p>
+        showScreen(`<p>Not quite. The most is earned when your rating says <b>how sure you really are</b> that
+          your choice was correct: high when you are sure it was correct, around 5 when it is a guess,
+          low when you are sure it was wrong.</p>
           <p class="go">press SPACE to read the explanation again</p>`);
         await waitKeys([" "]); break; }
     }
@@ -724,7 +760,7 @@ async function block(angle, blockIdx){
   // or fatigue cannot shift accuracy between the phases the slopes run over.
   // Two-track: the high strength is the standard prop plus the tracked offset delta. A strength trial
   // takes its FIRST look at that high strength; its outcome moves delta, never the 1-up-2-down.
-  const dt = (CFG.D0_N + CFG.D1_N + CFG.D2_N > 0) ? new DeltaTrack() : null;
+  const dt = (CFG.D0_N + CFG.D1_N + CFG.D2_N + CFG.D3_N > 0) ? new DeltaTrack() : null;
   const nextProps = (strength=false) => { const p = CFG.TRACK ? clampProp(sc.next()) : med0;
     const dUsed = dt ? dt.v : CFG.BOOST_LOGIT, pHigh = clampProp(invLogit(logit(p)+dUsed));
     return [strength ? pHigh : p, pHigh, dUsed]; };
@@ -766,11 +802,19 @@ async function block(angle, blockIdx){
     }
   }
 
-  // Task 1
-  showScreen(`<h1>Part A</h1><p>Choose the circle you control (a = left, s = right), then rate how likely it is
-    that your choice was correct.</p>
-    <p>${CFG.D0_N>0?"Still no feedback.":"No feedback from here on."}</p>${blockIdx===1?IMC_LINE:""}<p class="go">press SPACE</p>`);
-  await waitGo(blockIdx===1?1:null); showCanvas();
+  // Task 1. Block 1: the rating scale and the bonus are explained here, where the ratings start.
+  showScreen(`<h1>Part A</h1><p>Choose the circle you control (a = left, s = right), then rate how confident
+    you are that your choice was correct.</p>
+    <p>${CFG.D0_N>0?"Still no feedback.":"No feedback from here on."}</p>
+    ${blockIdx===1?"<p>The next screens explain the rating and how it earns you a bonus.</p>"+IMC_LINE:""}<p class="go">press SPACE</p>`);
+  await waitGo(blockIdx===1?1:null);
+  if(blockIdx===1){
+    await bonusInstructions();
+    showScreen(`<h1>Part A</h1><p>All answers correct. Part A starts now: choose the circle you control
+      (a = left, s = right), then rate your confidence (1 – 9).</p><p class="go">press SPACE to start</p>`);
+    await waitKeys([" "]);
+  }
+  showCanvas();
   for(const strength of mix(CFG.T1_N, CFG.D1_N)){
     if(strength){ await strengthTrial(1); continue; }
     const [pDec,pHigh,dUsed]=nextProps();
@@ -788,10 +832,10 @@ async function block(angle, blockIdx){
   // Task 2. No reminder of the scoring rule here: it was explained once, neutrally (§10q).
   showScreen(`<h1>Part B</h1><p>Each trial now has two parts.</p>
     <p>1) Move, then choose the circle you controlled (a = left, s = right) — as before.</p>
-    <p>2) You then see the <b>same trial a second time</b>: the same two circles on the same sides, and
-    the same one is yours, but with <b>new</b> movement. Keep moving and watch. There is nothing to decide
-    during this second look.</p>
-    <p>Then rate how likely it is that your <b>first</b> choice was correct.</p>
+    <p>2) You then see the <b>same trial a second time</b>, with <b>new</b> movement. The circle you control
+    is on the <b>same side</b> as in the first look: whichever circle was yours is yours again, in the same
+    place. Keep moving and watch. There is nothing to decide during this second look.</p>
+    <p>Then rate how confident you are that your <b>first</b> choice was correct.</p>
     ${CFG.D2_N>0?"<p>Some trials have <b>no</b> second look: you rate right after your choice, as in Part A.</p>":""}
     ${blockIdx===1?IMC_LINE:""}<p class="go">press SPACE</p>`);
   await waitGo(blockIdx===1?2:null); showCanvas();
@@ -818,6 +862,16 @@ async function block(angle, blockIdx){
       ...(ev ? {post_true_shape:ev.true_shape, post_left_shape:ev.left, post_applied_angle_bias:ev.applied,
                 post_evidence_sum:ev.sumEvidence, post_display_fps:ev.display_fps, post_low_move_ratio:ev.low_move_ratio} : {})});
     showCanvas();
+  }
+
+  // After Part B: the strength trials that used to be interleaved in it (design doc §10r), so the
+  // high strength is measured before and after the second-look trials without interrupting them.
+  if(dt && CFG.D3_N>0){
+    showScreen(`<h1>Last part of this block</h1><p>A few more trials as in Part A: move, choose the circle you
+      control (a = left, s = right), then rate how confident you are that your choice was correct.
+      <b>No</b> second look.</p><p class="go">press SPACE</p>`);
+    await waitKeys([" "]); showCanvas();
+    for(let i=0;i<CFG.D3_N;i++) await strengthTrial(3);
   }
 }
 
@@ -877,11 +931,18 @@ async function main(){
     When the circles <b>stop</b>, say which one was yours (<b>a</b> = left, <b>s</b> = right) —
     there is no rush, take the time you need.</p>
     ${CFG.BONUS>0?`<p><b>Payment:</b> the base payment shown on Prolific, plus a <b>bonus of up to ${money(1)}</b> that
-    depends on your confidence ratings. The next screen explains exactly how.</p>`:""}
+    depends on your confidence ratings. It is explained when the ratings start.</p>`:""}
     <p>Please use <b>one screen only</b> (no second monitor) and stay in fullscreen. The task hides and
     captures the mouse pointer; if you ever need to pause, press <span class="kbd">Esc</span>.</p>
-    <p class="go">click to begin (fullscreen)</p>`);
+    <p class="click">Click anywhere on this screen with your <u>mouse</u> to begin.</p>
+    <p style="font-size:1rem;color:#8a8f98">The task then switches to fullscreen.</p>
+    <p class="clickhint" style="visibility:hidden">Please click with the mouse button, not a key.</p>`);
+  showClickHintOnKey(screenEl);
+  document.body.classList.add("showcursor");   // the visible pointer says "use the mouse" too
   await new Promise(r=>{ const h=()=>{ stage.removeEventListener("click",h); r(); }; stage.addEventListener("click",h); });
+  document.body.classList.remove("showcursor");
+  // Clear the intro right away: it used to flash up again for a moment when the pointer-lock prompt closed.
+  showScreen("");
   // Some embeddings neither grant nor reject fullscreen — the promise just never
   // settles, which used to hang the study on this line. Race it, never block.
   try{ await Promise.race([document.documentElement.requestFullscreen(), wait(1000)]); }catch(e){}
@@ -890,9 +951,8 @@ async function main(){
   // Pointer lock needs its own click (the fullscreen request used this one). The pause overlay
   // doubles as that prompt; it clears itself once the lock is held, or gives up after 4 refusals.
   PL_WANTED = !CFG.NOLOCK;
-  if(needPause()) fsRecover("One more click", "The task hides and captures the mouse pointer. Click once to continue.");
+  if(needPause()) fsRecover("One more click", "Click once more with your mouse. The task then hides the mouse pointer and keeps it inside the window.");
   while(needPause()) await wait(100);
-  await bonusInstructions();     // the rule itself; the evidence questions come before Part B
   const order=shuffle([...CFG.ANGLES]);
   for(let b=0;b<order.length;b++){ await block(order[b], b+1); checkpoint(); }
   const meanScore = SCORES.length ? SCORES.reduce((a,b)=>a+b,0)/SCORES.length : 0;
