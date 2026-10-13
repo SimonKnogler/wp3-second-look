@@ -107,7 +107,7 @@ const CFG = {
   NOLOCK: Q.get("nolock") === "1",
 };
 // Identifies the deployed version in the data (bump with every change to index.html or engine.js).
-const BUILD = "2026-10-13a";
+const BUILD = "2026-10-13b";
 // A Prolific link that would run without saving or without the promised bonus wastes a full
 // session per participant. Refuse to start instead; the researcher sees it on the first test.
 const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
@@ -247,10 +247,12 @@ function drawShapes(sq,dot,squareCx,dotCx){
   // It says outright that the controlled circle has not switched sides: it is identified by side alone.
   if(EVIDENCE_ON){ ctx.fillStyle="#eceae6"; ctx.textAlign="center";
     ctx.font="600 24px system-ui, sans-serif"; ctx.fillText("SECOND LOOK at the same trial", cx, 44);
-    ctx.font="20px system-ui, sans-serif";
-    ctx.fillText("The circle you control is on the SAME SIDE as before  ·  keep moving, no response", cx, 76); }
+    // The reminder line only on the first second look of each block (Simon, 2026-10-13): after that the
+    // title is enough, and the Part B screen has said it in full.
+    if(SL_HINT){ ctx.font="20px system-ui, sans-serif";
+      ctx.fillText("The circle you control is on the SAME SIDE as before  ·  keep moving, no response", cx, 76); } }
 }
-let EVIDENCE_ON=false;
+let EVIDENCE_ON=false, SL_HINT=false;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 function waitKeys(keys){ return new Promise(res=>{ const h=e=>{ const k=e.key.toLowerCase(); if(keys.includes(k)){ window.removeEventListener("keydown",h); res(k); } }; window.addEventListener("keydown",h); }); }
 
@@ -845,6 +847,7 @@ async function block(angle, blockIdx){
   await waitGo(blockIdx===1?2:null); showCanvas();
   const levels=shuffle([...Array(Math.floor(CFG.T2_N/2)).fill("low"),...Array(CFG.T2_N-Math.floor(CFG.T2_N/2)).fill("high")]);
   const seq2=shuffle([...levels.map(l=>({lev:l,strength:false})), ...Array(CFG.D2_N).fill({lev:null,strength:true})]);
+  let slShown=false;   // the side reminder appears on the first second look of the block only
   for(const {lev,strength} of seq2){
     if(strength){ await strengthTrial(2); continue; }
     const [pDec,pHigh,dUsed]=nextProps();
@@ -853,6 +856,7 @@ async function block(angle, blockIdx){
     if(!r.timeout){
       // low = exactly this trial's own decision strength; high = that + BOOST_LOGIT
       postProp = lev==="low"?pDec:pHigh;
+      SL_HINT = !slShown; slShown = true;
       ev=await motionTrial(postProp,angle,{acceptResponse:false,dur:CFG.EV_DUR,forceTarget:r.true_shape,
                                         forceLeft:r.left,forceApplied:r.applied});
       c=await confidence();
@@ -871,9 +875,11 @@ async function block(angle, blockIdx){
   // After Part B: the strength trials that used to be interleaved in it (design doc §10r), so the
   // high strength is measured before and after the second-look trials without interrupting them.
   if(dt && CFG.D3_N>0){
-    showScreen(`<h1>Last part of this block</h1><p>A few more trials as in Part A: move, choose the circle you
-      control (a = left, s = right), then rate how confident you are that your choice was correct.
-      <b>No</b> second look.</p><p class="go">press SPACE</p>`);
+    // Its own part with its own name (Simon, 2026-10-13): "Last part of this block" read as more of Part B.
+    showScreen(`<h1>Part C</h1><p><b>Part B is over.</b> There is <b>no second look</b> from here on.</p>
+      <p>Part C is short (${CFG.D3_N} trials) and works exactly like Part A: move, choose the circle you
+      control (a = left, s = right), then rate how confident you are that your choice was correct.</p>
+      <p class="go">press SPACE to start Part C</p>`);
     await waitKeys([" "]); showCanvas();
     for(let i=0;i<CFG.D3_N;i++) await strengthTrial(3);
   }
