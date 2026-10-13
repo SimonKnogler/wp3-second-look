@@ -30,7 +30,7 @@
   /* "Click" prompts: a key press does nothing there, so the mouse is named and the line stands out. */
   #screen p.click, #fsblock p.click{margin-top:28px;font-size:1.3rem;font-weight:600;color:#eceae6;}
   #screen p.clickhint, #fsblock p.clickhint{color:#e0713a;}
-  .fb{font-size:4.5rem;font-weight:700;letter-spacing:.01em;}
+  .fb svg{display:block;margin:0 auto;}
   /* Fullscreen-recovery overlay (see fsRecover). */
   #fsblock{position:fixed;inset:0;z-index:50;background:#0e0f12;cursor:none;
     display:flex;align-items:center;justify-content:center;text-align:center;}
@@ -66,6 +66,9 @@ const PROLIFIC_PID     = Q.get("PROLIFIC_PID")     || Q.get("participant") || ""
 const PROLIFIC_STUDY   = Q.get("STUDY_ID")         || "";
 const PROLIFIC_SESSION = Q.get("SESSION_ID")       || "";
 const qn = (k, d) => Q.get(k) === null || Q.get(k) === "" ? d : +Q.get(k);
+// Start of the 1-up-2-down staircase = the control of the very first warm-up trial. The exploration uses
+// the same value (Simon, 2026-10-13), so that it feels like that first trial.
+const STAIR_START = 0.85;
 const CFG = {
   participant: PROLIFIC_PID || Q.get("pid") || String(Math.floor(Math.random()*1e6)),
   T1_N: +(Q.get("t1") || 30),          // Task-1 trials per angle
@@ -90,10 +93,10 @@ const CFG = {
   MOTION_DUR: +(Q.get("motiondur") || 3.0),
   RESP_GRACE: +(Q.get("respgrace") || 20),  // extra seconds to answer after the motion stops
   EV_DUR: +(Q.get("evdur") || 3.0),
-  // Exploration before each block (design doc §10q, §10r): one circle, about as much control as on a
-  // ~80 %-correct trial, so the hand clearly matters but the circle does not simply follow it.
+  // Exploration before each block (design doc §10q, §10s): one circle, controlled exactly as in the first
+  // warm-up trial (the staircase start). ?exploreprop= changes it for testing.
   EXPLORE_DUR: qn("explore", 10),      // seconds; 0 = no exploration
-  EXPLORE_PROP: qn("exploreprop", 0.45),
+  EXPLORE_PROP: qn("exploreprop", STAIR_START),
   ANGLES: [0, 90],
   TRACK: (Q.get("track") || "1") === "1",   // keep the 1u2d running through Task 1 + 2
   BONUS: +(Q.get("bonus") || 0),       // max confidence bonus (quadratic scoring rule); 0 = points only
@@ -104,7 +107,7 @@ const CFG = {
   NOLOCK: Q.get("nolock") === "1",
 };
 // Identifies the deployed version in the data (bump with every change to index.html or engine.js).
-const BUILD = "2026-10-12a";
+const BUILD = "2026-10-13a";
 // A Prolific link that would run without saving or without the promised bonus wastes a full
 // session per participant. Refuse to start instead; the researcher sees it on the first test.
 const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
@@ -177,7 +180,7 @@ const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i
 //  1-up-2-down staircase (port of staircase.py TwoDownOneUpStaircase)
 // ─────────────────────────────────────────────────────────────────────────────
 class Staircase {
-  constructor(){ this.p=0.85; this.big=0.10; this.small=0.05; this.min=0.02; this.max=0.90;
+  constructor(){ this.p=STAIR_START; this.big=0.10; this.small=0.05; this.min=0.02; this.max=0.90;
     this.nCorr=0; this.lastDir=0; this.rev=[]; }
   get step(){ return this.rev.length>=3 ? this.small : this.big; }
   next(){ return this.p; }
@@ -404,8 +407,8 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
   });
 }
 
-// Exploration (design doc §10q, §10r): before each block ONE circle in the middle, partly controlled
-// (EXPLORE_PROP of its motion is the hand's, under this block's mapping), for EXPLORE_DUR seconds of
+// Exploration (design doc §10q, §10s): before each block ONE circle in the middle, controlled like the
+// first warm-up trial (EXPLORE_PROP of its motion is the hand's, under this block's mapping), for EXPLORE_DUR seconds of
 // movement. No decision, nothing logged as a trial; the low-movement share goes into META.
 function exploreTrial(angle, blockIdx){
   return new Promise(res=>{
@@ -493,14 +496,14 @@ async function bonusInstructions(){
     by pressing a number key from 1 to 9 on your keyboard:</p>
     ${scaleHTML(null)}
     <p>1 = you are certain your choice was <b>wrong</b> (0 %)<br>5 = a pure guess (50 %)<br>
-    9 = you are certain your choice was <b>correct</b> (100 %)<br>The numbers in between are for everything in between.</p>
+    9 = you are certain your choice was <b>correct</b> (100 %)<br>Please use the entire range of values to express how confident you are.</p>
     <p class="go">press SPACE</p>`;
   const explain = `<h1>How your confidence ratings earn ${stake}</h1>
     <p>The bonus rewards ratings that <b>match how often you are actually right</b>. For example, when you
     rate 7 (75 %), you should be right about three times out of four.</p>
     <p>If your ratings show exactly how sure you can be, you get the full ${CFG.BONUS>0?`<b>${money(1)}</b>`:"100 points"}.
     Always pressing the same number earns (almost) nothing.${CFG.BONUS>0?" The bonus is paid through Prolific.":""}</p>
-    <p>The best strategy is simple: <b>report honestly what you believe</b>, taking into account everything you saw.<br>
+    <p>The best strategy is very simple: <b>report honestly what you believe</b>, taking into account everything you saw.<br>
     You will <b>not</b> see your score during the task — only your total at the end.</p>
     <p class="go">press SPACE for three quick questions</p>`;
   // Answered on the 1–9 scale itself, shown as in the task: an earlier version used 1/2/3 answer keys
@@ -716,6 +719,10 @@ function downloadCSV(name, csv){
 // ─────────────────────────────────────────────────────────────────────────────
 //  Flow
 // ─────────────────────────────────────────────────────────────────────────────
+// Warm-up feedback (Simon, 2026-10-13): a green tick or a red cross instead of the words. The two also differ
+// in shape, so nobody depends on telling green from red (design doc §10s).
+const FB_TICK  = `<svg viewBox="0 0 100 100" width="130" height="130" role="img" aria-label="correct"><path d="M18 55 L40 77 L84 25" fill="none" stroke="#4cc26a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const FB_CROSS = `<svg viewBox="0 0 100 100" width="130" height="130" role="img" aria-label="wrong"><path d="M24 24 L76 76 M76 24 L24 76" fill="none" stroke="#e5534b" stroke-width="13" stroke-linecap="round"/></svg>`;
 async function calibration(angle){
   const sc=new Staircase(); let n=0;
   showScreen(`<h1>Warm-up</h1><p>Now two circles. Move the mouse, then decide which circle you control.</p>
@@ -732,10 +739,8 @@ async function calibration(angle){
       prop_used:p, accuracy:r.correct, true_shape:r.true_shape, resp_shape:r.resp_shape,
       rt_choice:r.rt, is_timeout:r.timeout, display_fps:r.display_fps, low_move_ratio:r.low_move_ratio});
     if(!r.timeout){ sc.update(p, r.correct); n++;
-      // Same colour for both: this is the only feedback in the study, and green/red
-      // adds a valence signal the main (feedback-free) task deliberately lacks —
-      // it is also the one pair a red-green colour deficit cannot separate.
-      showScreen(`<div class="fb">${r.correct?'Right':'Wrong'}</div>`);
+      // The only feedback in the study; it ends with the warm-up, the rest of the task has none.
+      showScreen(`<div class="fb">${r.correct?FB_TICK:FB_CROSS}</div>`);
       await wait(700); showCanvas();
     } else { showScreen(`<p style="color:#e0713a">No response recorded</p>`); await wait(900); showCanvas(); }
   }
@@ -927,9 +932,9 @@ async function main(){
   }
   showScreen(`<h1>Control Detection Task</h1>
     <p>You will see two identical circles, one on the <b>left</b> and one on the <b>right</b>.
-    One follows your mouse; the other does not. Keep the mouse moving while they move.
+    One follows your mouse more closely than the other. You have ${CFG.MOTION_DUR} seconds to explore.
     When the circles <b>stop</b>, say which one was yours (<b>a</b> = left, <b>s</b> = right) —
-    there is no rush, take the time you need.</p>
+    there is no rush, make your best guess.</p>
     ${CFG.BONUS>0?`<p><b>Payment:</b> the base payment shown on Prolific, plus a <b>bonus of up to ${money(1)}</b> that
     depends on your confidence ratings. It is explained when the ratings start.</p>`:""}
     <p>Please use <b>one screen only</b> (no second monitor) and stay in fullscreen. The task hides and

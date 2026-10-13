@@ -894,7 +894,7 @@ Simon ran the deployed build (2026-10-11a) and asked for these changes; build 20
   this screen with your mouse", the pointer is visible on the intro screen, and a key press shows "Please
   click with the mouse button, not a key". The intro screen used to reappear for a moment after the
   pointer-lock click (it was still underneath the prompt); it is cleared as soon as it is clicked.
-- **Exploration**: 10 s (was 15 s), prop 0.45 (was 0.8). At 0.8 the circle seemed to follow the hand
+- **Exploration**: 10 s (was 15 s), prop 0.45 (was 0.8; prop superseded by §10s). At 0.8 the circle seemed to follow the hand
   completely, which sets the wrong expectation for the task. 0.45 is roughly the control of an ~80 %
   correct trial (the 70.7 % staircase sits near prop 0.26, the 85 % strength level near 0.54).
   `?exploreprop=` and `?explore=` change both for testing.
@@ -910,6 +910,22 @@ Simon ran the deployed build (2026-10-11a) and asked for these changes; build 20
   The mix of trial types is unchanged, so the ideal-observer session score (0.86, §10q) still holds.
   `fit_wp3_model.py` counts task-3 strength trials as measured; `analyze_wp3.py` now leaves strength trials
   out of its level-0 cells.
+
+## 10s. Simon's edits and two changes (2026-10-13)
+
+Simon went through the instruction screens one by one (document "WP3: alle Anweisungsbildschirme", S1–S33). Build 2026-10-13a:
+
+- **Wording.** Intro: "One follows your mouse more closely than the other. You have 3 seconds to explore."
+  replaces "…the other does not. Keep the mouse moving while they move", and "there is no rush, make your
+  best guess" replaces "take the time you need". Rating instructions: "Please use the entire range of
+  values to express how confident you are." replaces the sentence about the numbers in between. Bonus
+  screen: "The best strategy is very simple".
+- **Exploration at the staircase start.** The single circle is controlled with prop 0.85, the value of the
+  first warm-up trial (`STAIR_START`), instead of 0.45 (§10r): at 0.45 it did not feel like a real trial.
+  `?exploreprop=` still changes it.
+- **Warm-up feedback: green tick / red cross** instead of "Right" / "Wrong". This replaces the earlier
+  choice of one colour for both words (no valence signal); tick and cross differ in shape, so nobody has
+  to tell red from green. Feedback still exists only in the warm-up.
 
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
