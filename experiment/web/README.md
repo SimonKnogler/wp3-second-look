@@ -77,7 +77,7 @@ fixed boost), `calmin`, `calmax`, `boost`
 (evidence-sample seconds), `pid`, `seed`, `bonus` (maximum bonus in £; 0 = points only — set it
 for Prolific; paid above guessing level, the full amount at perfect calibration, design doc §10q),
 `explore` (seconds of single-circle exploration before each block, default 10, 0 = none), `exploreprop`
-(how much of that circle's motion is the hand's, default 0.45), `nolock=1`
+(how much of that circle's motion is the hand's, default 0.85 = the first warm-up trial), `nolock=1`
 (TESTING ONLY: no pointer lock, cursor visible).
 
 Strength trials (design doc §10j) are Part-A-style trials (choose, rate, no second look)

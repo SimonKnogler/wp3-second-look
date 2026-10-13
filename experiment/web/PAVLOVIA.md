@@ -79,7 +79,7 @@ Query parameters work the same as locally:
 | `?d1=10&d2=25&d3=0` | strength trials inside Part B again, as before build 2026-10-12a |
 | `?bonus=3.00` | maximum bonus (£3; design doc §10q: paid above guessing level, full amount at perfect calibration) — **required for Prolific**: the instructions quote the amount |
 | `?explore=0` | skip the 10 s single-circle exploration before each block (testing only) |
-| `?exploreprop=0.6` | more control in the exploration circle (default 0.45) |
+| `?exploreprop=0.6` | other control in the exploration circle (default 0.85 = the control of the first warm-up trial) |
 | `?nolock=1` | TESTING ONLY: no pointer lock, cursor visible — never give to participants |
 | `?pid=<id>` | participant id |
 
