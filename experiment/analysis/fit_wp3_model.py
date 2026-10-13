@@ -258,6 +258,9 @@ def fit_participant(dp, acc_prior=None, e_mode="anchored"):
 
 def group_report(res, pdi=None, truth=None):
     ok = res[res["fail"] == ""].copy()
+    if ok.empty:
+        print(f"\nNo participant x angle could be fitted (failures: {res['fail'].value_counts().to_dict()}).")
+        return
     ok["log_ratio"] = np.log(ok["w_d"] / ok["w_c"])            # on the bounded weights
     lo, hi = ok["log_ratio"].quantile([0.05, 0.95])
     ok["log_ratio_w"] = ok["log_ratio"].clip(lo, hi)            # winsorised for the t-tests

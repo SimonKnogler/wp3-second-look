@@ -13,6 +13,7 @@ BLUE, ORANGE, INK, SEC, MUT, GRID, AXIS, PAPER = "#2A78D6", "#D95926", "#15181C"
 COL = {0: BLUE, 90: ORANGE}
 MONO = "'IBM Plex Mono', Menlo, monospace"; SANS = "'IBM Plex Sans', Helvetica, sans-serif"
 TC = {9: 2.262, 8: 2.306, 7: 2.365}
+WORDS = {8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve"}
 
 f1 = lambda v: f"{v:.1f}"
 num = lambda x, d=2: f"{x:.{d}f}".replace("-", "−")
@@ -189,7 +190,8 @@ if SIM:
         ps.append(panel("Primary test against its null", hist_boot(), f"observed t = {num(boot['t_obs'])} · {p_apa(boot['p'])}", f"{boot['n']} simulated replications"))
     rows.append(row("Validation · what went in against what came out", f'<div style="color: {MUT}">log scale for weights</div>', ps))
     lv = V["params"]
-    concl = ("The built-in difference between mappings is recovered. The level of w<sub>d</sub> comes out too low "
+    concl = (("The built-in difference between mappings is recovered. " if h2["p"] < .05 else
+              f"The built-in difference between mappings is not recovered in this run ({p_apa(h2['p'])}). ") + "The level of w<sub>d</sub> comes out too low "
              "and is judged against an ideal observer run through the same analysis.")
 else:
     concl = f"Disconfirming evidence was used {100 * (1 - ratio):.0f} % less under the direct mapping, {t_apa(h2)}."
@@ -217,7 +219,7 @@ body{{margin:0;background:{PAPER}}}
 {f'<div style="font-family: {MONO}; font-size: 12px; line-height: 16px; letter-spacing: 0.08em; text-transform: uppercase; color: {INK}; border: 1.5px solid {INK}; border-radius: 4px; padding: 2px 8px">Simulated data · N = {n}</div>' if SIM else f'<div style="{EYE}">N = {n}</div>'}
 </div>
 <h1 style="margin: 0; font-family: 'IBM Plex Serif', Georgia, serif; font-weight: 600; font-size: 76px; line-height: 78px; letter-spacing: -0.02em">{"Simulated Results" if SIM else "A Second Look"}</h1>
-<p style="margin: 0; max-width: 670px; font-size: 21px; line-height: 29px; color: {SEC}; text-wrap: pretty">{"What the planned analysis returns when the hypothesis is true: ten simulated participants with known parameters." if SIM else "Confidence in our own control after evidence that arrives too late to change the choice."}</p>
+<p style="margin: 0; max-width: 670px; font-size: 21px; line-height: 29px; color: {SEC}; text-wrap: pretty">{f"What the planned analysis returns when the hypothesis is true: {WORDS.get(n, n)} simulated participants with known parameters." if SIM else "Confidence in our own control after evidence that arrives too late to change the choice."}</p>
 </div>
 
 {chr(10).join(rows)}

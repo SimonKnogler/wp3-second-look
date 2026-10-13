@@ -81,6 +81,10 @@ def load(path):
     return df[df.phase.str.startswith("wp3_task") | df.phase.str.startswith("calibration")].copy()
 
 
+QUALITY_INFO = {"participant", "n_trials", "accuracy", "acc_0", "acc_90", "timeouts", "conf_mode_share",
+                "median_conf_rt", "clipped_0", "clipped_90"}      # descriptive columns; every other one is a flag
+
+
 def quality(df):
     rows = []
     for pid, dp in df.groupby("participant", sort=False):
@@ -96,7 +100,9 @@ def quality(df):
                          block_acc_out=bool(any(not (BLOCK_ACC[0] <= v <= BLOCK_ACC[1]) for v in acc.values())),
                          **{k: bool(v) for k, v in fl.items() if k != "exclude"}))
     q = pd.DataFrame(rows)
-    q["excluded"] = q[["acc_out_of_range", "conf_degenerate", "conf_rt_too_fast", "too_many_timeouts", "block_acc_out"]].any(axis=1)
+    # every flag exclusion_flags sets (Rollwage + the online criteria of §10m/§10n, where the columns exist)
+    flags = [c for c in q.columns if c not in QUALITY_INFO]
+    q["excluded"] = q[flags].fillna(False).astype(bool).any(axis=1)
     return q
 
 
@@ -189,7 +195,8 @@ def fit_all(df):
     r = pd.DataFrame(rows)
     r["participant"] = r["participant"].astype(str)
     for c in ("w_d_both", "w_c_both"):
-        r[c] = r[c].clip(W_LO, W_HI)
+        if c in r.columns:                       # absent when nobody could be fitted
+            r[c] = r[c].clip(W_LO, W_HI)
     return r
 
 
@@ -316,6 +323,9 @@ def main():
     q = quality(dstd); keep = set(q[~q.excluded].participant)
     dfk = dstd[dstd.participant.isin(keep)]
     dstr = df[(df.trial_type == "strength") & df.participant.isin(keep)]
+    if not keep:
+        print(q.set_index("participant").T.to_string())
+        sys.exit(f"All {len(q)} participant(s) excluded (flags above); nothing to analyse.")
     R = dict(n_total=int(len(q)), n_excluded=int(q.excluded.sum()), n_included=len(keep),
              n_trials=int(len(dfk)), quality=q.to_dict("records"))
 
