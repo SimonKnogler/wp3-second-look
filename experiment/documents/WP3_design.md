@@ -871,6 +871,46 @@ task is not updated.
   record how much people moved.
 - Strength trials stay as in §10j (Simon, 2026-10-11, after weighing a slope-based alternative).
 
+## 10r. After Simon's pilot run (2026-10-12)
+
+Simon ran the deployed build (2026-10-11a) and asked for these changes; build 2026-10-12a implements them.
+
+- **Rating instructions where the ratings start.** The scale and the bonus rule are explained at the start
+  of Part A in block 1, not before the first trial, when nothing had been rated yet. The intro screen only
+  says that a bonus of up to £3 depends on the confidence ratings and is explained when they start.
+- **Scale.** Question "How confident are you that your choice was correct?" (was "How likely is it…").
+  Labels under 1 / 5 / 9: "certainly wrong" / "pure guess" / "certainly correct", each centred under its
+  point (the old flex layout pushed "pure guess" off 5); 0 / 50 / 100 % stay. Sources: Rollwage, Dolan &
+  Fleming (2018) used 9 points with 0 / 50 / 100 % at the low end, midpoint and top and asked for the
+  subjective probability of being correct (the question wording is not reported). Fleming, van der Putten
+  & Daw (2018), the closest design (confidence in the initial decision after post-decision evidence), label
+  the ends "certainly wrong" and "certainly correct" and tell participants to answer 0 % when sure they
+  picked the wrong option. "press 1 – 9" is gone from the trial screen; the instruction screen says once
+  that the number keys are used.
+- **Quiz: three questions**, each on the scale itself: sure (≥ 7), pure guess (4–6), sure the OTHER circle
+  was the controlled one (≤ 3). The third gives a reason unrelated to the second look ("you pressed the
+  wrong key"), so the quiz stays neutral about updating (§10q).
+- **Clicks.** Fullscreen and pointer lock each need a mouse click. Both prompts now say "Click anywhere on
+  this screen with your mouse", the pointer is visible on the intro screen, and a key press shows "Please
+  click with the mouse button, not a key". The intro screen used to reappear for a moment after the
+  pointer-lock click (it was still underneath the prompt); it is cleared as soon as it is clicked.
+- **Exploration**: 10 s (was 15 s), prop 0.45 (was 0.8). At 0.8 the circle seemed to follow the hand
+  completely, which sets the wrong expectation for the task. 0.45 is roughly the control of an ~80 %
+  correct trial (the 70.7 % staircase sits near prop 0.26, the 85 % strength level near 0.54).
+  `?exploreprop=` and `?explore=` change both for testing.
+- **Second look.** The banner reads "SECOND LOOK at the same trial" / "The circle you control is on the
+  SAME SIDE as before · keep moving, no response"; Part B's text says "whichever circle was yours is
+  yours again, in the same place".
+- **No strength trials inside Part B** (Simon: they interrupt the second-look trials). Per block: 20 before
+  Part A (unchanged), 25 interleaved in Part A (was 10), 0 in Part B (was 25), 10 right after Part B as a
+  short "last part of this block" (`wp3_task = 3`, `phase = wp3_task3`). Same total and session length; the
+  high strength is measured before and after the second-look trials, and the 1-up-2-down keeps running
+  through Part B, so p_high = σ(logit p + δ) still follows threshold drift; only δ is frozen during Part B.
+  `?d1= / d2= / d3=` restore any split. Option chosen as the default pending Simon's decision.
+  The mix of trial types is unchanged, so the ideal-observer session score (0.86, §10q) still holds.
+  `fit_wp3_model.py` counts task-3 strength trials as measured; `analyze_wp3.py` now leaves strength trials
+  out of its level-0 cells.
+
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
 To reconnect WP3 with the proposal's "expectations of control" moderator, we
@@ -914,6 +954,8 @@ condition then already exists as baseline.
 ---
 
 ## References
+- Fleming, van der Putten & Daw (2018). *Neural mediators of changes of mind about perceptual
+  decisions.* Nature Neuroscience 21, 617–624 — confidence scale "certainly wrong" … "certainly correct".
 - Rollwage, Dolan & Fleming (2018). *Metacognitive Failure as a Feature of Those
   Holding Radical Beliefs.* Current Biology 28, 4014–4021. (PDF in this folder.)
 - Wen, Charles & Haggard (2023). *Metacognition and sense of agency.* Cognition.

@@ -164,12 +164,12 @@ def fit_models(e, correct, rating, L0c, L0i):
 # ── measured evidence strength (two-track design) ───────────────────────────────
 
 def strength_counts(df):
-    """Correct / total strength trials per participant x angle: the interleaved ones in Task 1 + 2
-    (no feedback, concurrent with the second looks they calibrate). The strength-calibration block
-    only sets delta's start and feeds the psychometric fit."""
+    """Correct / total strength trials per participant x angle: the ones in Task 1, interleaved in
+    Task 2 (older builds) and the run right after Task 2 (wp3_task 3, design doc §10r); all without
+    feedback. The strength-calibration block only sets delta's start and feeds the psychometric fit."""
     if "trial_type" not in df.columns:
         return pd.DataFrame(columns=["participant", "angle_bias", "k", "n"])
-    d = df[(df["trial_type"] == "strength") & df["accuracy"].notna() & ~df["is_timeout"] & df["wp3_task"].isin([1, 2])]
+    d = df[(df["trial_type"] == "strength") & df["accuracy"].notna() & ~df["is_timeout"] & df["wp3_task"].isin([1, 2, 3])]
     return d.groupby(["participant", "angle_bias"])["accuracy"].agg(k="sum", n="count").reset_index()
 
 
@@ -211,7 +211,7 @@ def fit_participant(dp, acc_prior=None, e_mode="anchored"):
         if pf is not None:
             row.update(pf_slope=pf["slope"], pf_thresh_prop=float(sig(pf["thresh"])))
         std = da[da["trial_type"] != "strength"] if "trial_type" in da.columns else da
-        strn = (da[(da["trial_type"] == "strength") & da["accuracy"].notna() & ~da["is_timeout"] & da["wp3_task"].isin([1, 2])]
+        strn = (da[(da["trial_type"] == "strength") & da["accuracy"].notna() & ~da["is_timeout"] & da["wp3_task"].isin([1, 2, 3])]
                 if "trial_type" in da.columns else da.iloc[0:0])
         measured = len(strn) > 0
         if (not measured or e_mode != "measured") and pf is None:

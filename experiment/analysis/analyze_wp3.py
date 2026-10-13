@@ -241,6 +241,10 @@ def analyse(df, n_bins):
         valid = dp[~dp['is_timeout'].astype(bool)]
         for ang in ANGLES:
             da = valid[valid['angle_bias'] == ang]
+            # Strength trials (design doc §10j/§10r) are rated but take their first look at the high
+            # strength: in the level-0 cells they would mix two difficulties.
+            if 'trial_type' in da.columns:
+                da = da[da['trial_type'].fillna('standard') != 'strength']
             if da.empty:
                 continue
             md = meta_d_from_task1(da[da['wp3_task'] == 1], n_bins)
