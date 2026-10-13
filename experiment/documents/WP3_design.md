@@ -911,7 +911,7 @@ Simon ran the deployed build (2026-10-11a) and asked for these changes; build 20
   `fit_wp3_model.py` counts task-3 strength trials as measured; `analyze_wp3.py` now leaves strength trials
   out of its level-0 cells.
 
-## 10s. Simon's edits and two changes (2026-10-13)
+## 10s. Simon's edits and changes (2026-10-13)
 
 Simon went through the instruction screens one by one (document "WP3: alle Anweisungsbildschirme", S1–S33). Build 2026-10-13a:
 
@@ -926,6 +926,13 @@ Simon went through the instruction screens one by one (document "WP3: alle Anwei
 - **Warm-up feedback: green tick / red cross** instead of "Right" / "Wrong". This replaces the earlier
   choice of one colour for both words (no valence signal); tick and cross differ in shape, so nobody has
   to tell red from green. Feedback still exists only in the warm-up.
+- **Bonus screen: one sentence removed** (Simon chose this on a decision card). "Always pressing the same
+  number earns (almost) nothing" held only for the rating 5, whose score (0.75) is the floor of the bonus
+  rule (§10q). A constant rating near the hit rate earns more: over the rated trials of a block the hit rate
+  is about 0.75 ((90 × 0.707 + 35 × 0.85) / 125), and always pressing 7 then gives a mean score of 0.81,
+  55 % of the bonus (about £1.66 of £3.00); at 71 % hits it is about £1.10, at 78 % about £2.10. Rule,
+  floor (0.75) and ceiling (0.86) are unchanged. Re-anchoring the floor (for example on the best constant
+  score) was offered as "check the rule" and not chosen.
 
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
