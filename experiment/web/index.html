@@ -107,7 +107,7 @@ const CFG = {
   NOLOCK: Q.get("nolock") === "1",
 };
 // Identifies the deployed version in the data (bump with every change to index.html or engine.js).
-const BUILD = "2026-10-13b";
+const BUILD = "2026-10-15a";
 // A Prolific link that would run without saving or without the promised bonus wastes a full
 // session per participant. Refuse to start instead; the researcher sees it on the first test.
 const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
@@ -376,7 +376,7 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
         ctx.fillStyle="#eceae6"; ctx.font="600 24px system-ui, sans-serif";
         ctx.textAlign="center"; ctx.textBaseline="alphabetic";
         // below the confinement boxes, but never off a short screen
-        ctx.fillText("which one was yours?    a = left    ·    s = right",
+        ctx.fillText("which one did you control?    a = left    ·    s = right",
                      cx, Math.min(cy+Engine.BOX_HH+44, canvas.height-22));
       }
       const waited = prompted ? (performance.now()-tPrompt)/1000 : 0;
@@ -938,7 +938,7 @@ async function main(){
   showScreen(`<h1>Control Detection Task</h1>
     <p>You will see two identical circles, one on the <b>left</b> and one on the <b>right</b>.
     One follows your mouse more closely than the other. You have ${CFG.MOTION_DUR} seconds to explore.
-    When the circles <b>stop</b>, say which one was yours (<b>a</b> = left, <b>s</b> = right) —
+    When the circles <b>stop</b>, say which one you controlled (<b>a</b> = left, <b>s</b> = right) —
     there is no rush, make your best guess.</p>
     ${CFG.BONUS>0?`<p><b>Payment:</b> the base payment shown on Prolific, plus a <b>bonus of up to ${money(1)}</b> that
     depends on your confidence ratings. It is explained when the ratings start.</p>`:""}

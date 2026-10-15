@@ -941,6 +941,9 @@ Simon went through the instruction screens one by one (document "WP3: alle Anwei
   introduced as "Last part of this block", which read like more of Part B. They are now announced as
   "Part C", with "Part B is over", "no second look from here on" and the number of trials. Trials,
   scoring and logging are unchanged.
+- **Response prompt** (Simon, 2026-10-15, build 2026-10-15a). After each motion window the prompt reads
+  "which one did you control?" instead of "which one was yours?", in line with the task's wording ("choose the
+  circle you control"); the intro screen says "say which one you controlled" accordingly.
 
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
