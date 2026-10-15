@@ -796,7 +796,7 @@ few Prolific-compliant checks decide payment; stricter preregistered criteria de
   thresholds are provisional, to be fixed on pilot data and preregistered. Still to preregister: trial-level
   exclusions (hand still, dropped frames) and a check that their rate does not differ between 0° and 90°.
 
-## 10n. One movement modality: mouse only (2026-10-08)
+## 10n. One movement modality: mouse only (2026-10-08; superseded by §10t, trackpad)
 
 Simon (2026-10-08): the sense-of-agency literature argues for analysing a single movement modality,
 because hand movements and their kinematics may differ with the device moved (mouse vs. trackpad).
@@ -811,7 +811,7 @@ This supersedes the idea of allowing trackpads and modelling device as a covaria
 - **No device detection from the data.** Browsers report a trackpad as a mouse (`pointerType = "mouse"`),
   and kinematic signatures (`low_move_ratio`, delta granularity) are not validated for this. `low_move_ratio`
   stays an analysis criterion for too little movement, not a device test. Checked descriptively in the pilot.
-- **Analysis.** `exclusion_flags` → `not_mouse_only`: excluded when the start answer (final `input_device`)
+- **Analysis.** `exclusion_flags` → `not_mouse_only` (now `wrong_device`, §10t): excluded when the start answer (final `input_device`)
   or the self-report is not mouse.
 
 **Preregistration statement.** Only data from participants who used a computer mouse throughout are
@@ -965,6 +965,33 @@ Simon went through the instruction screens one by one (document "WP3: alle Anwei
   asks age (18 to 99), gender (female / male / non-binary or diverse / prefer not to say), handedness
   (right / left / both) and vision (normal or corrected / impaired); every item needs an answer. Columns
   `demo_age`, `demo_gender`, `demo_handedness`, `demo_vision`.
+
+## 10t. One movement modality: trackpad instead of mouse (2026-10-15)
+
+Simon (2026-10-15): "dann glaube ich koennen wir die maus auf trackpad umstellen. viel mehr leute werden
+trackpad statt maus haben." The principle of §10n stays (one modality, held constant rather than modelled);
+the modality becomes the trackpad, because far more online participants work on a laptop than with a mouse.
+Build 2026-10-15e.
+
+- **Task.** The device question keeps its codes (1 mouse, 2 trackpad, 3 other). Anyone who does not answer
+  trackpad is asked to use the trackpad from now on (T) or to return the study without penalty
+  (`input_device_initial` keeps the first answer, `input_device` becomes 2). Every instruction, click prompt
+  and the consent text say trackpad; the closing self-report asks "Did you use the trackpad for the whole task?"
+  (1 = yes, all the time; 2 = partly a mouse or something else; 3 = no).
+- **Analysis.** `exclusion_flags` → `wrong_device` (was `not_mouse_only`): excluded when the final
+  `input_device` is not the build's device (2 from build 2026-10-15e on, 1 before) or the self-report is not 1.
+- **Unchanged engine.** Both circles take their speed from the hand (the recorded trajectories only give the
+  direction), so a trackpad's stop-and-go when the finger is lifted moves both circles alike and is no cue to
+  which one is controlled. The 1-up-2-down calibrates each person on their own device.
+- **To check in the pilot.** `low_move_ratio` rises each time the finger is lifted; the provisional exclusion
+  threshold (`LOW_MOVE_MAX` = 0.30, set with mouse movement in mind) needs a look at trackpad pilot data. The
+  lab task and WP1 used a mouse, so lab and online data now differ in device.
+
+**Preregistration statement.** Only data from participants who used a trackpad throughout are analysed.
+Participants are excluded if they report at the start or at the end of the session (with the assurance that
+the answer does not affect payment) that they used a mouse or another device for any part of the task.
+Movement modality is held constant rather than modelled, because control detection relies on the kinematics
+of the moving hand, which differ between devices.
 
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 

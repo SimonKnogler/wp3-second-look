@@ -27,7 +27,7 @@
   /* 9 points x 64 px: each label is centred under its own point (left = (i - .5) x 64 px) */
   .anchors{position:relative;width:576px;height:1.4em;color:#8a8f98;font-size:.95rem;}
   .anchors span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap;}
-  /* "Click" prompts: a key press does nothing there, so the mouse is named and the line stands out. */
+  /* "Click" prompts: a key press does nothing there, so the trackpad is named and the line stands out. */
   #screen p.click, #fsblock p.click{margin-top:28px;font-size:1.3rem;font-weight:600;color:#eceae6;}
   #screen p.clickhint, #fsblock p.clickhint{color:#e0713a;}
   .fb svg{display:block;margin:0 auto;}
@@ -118,7 +118,7 @@ const CFG = {
   NOLOCK: Q.get("nolock") === "1",
 };
 // Identifies the deployed version in the data (bump with every change to index.html or engine.js).
-const BUILD = "2026-10-15d";
+const BUILD = "2026-10-15e";
 // A Prolific link that would run without saving or without the promised bonus wastes a full
 // session per participant. Refuse to start instead; the researcher sees it on the first test.
 const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
@@ -136,7 +136,7 @@ const CONSENT_HTML = `
   <p style="color:#8a8f98">Ludwig-Maximilians-Universität München · Fakultät für Psychologie und Pädagogik ·
   Department Psychologie · Allgemeine und Experimentelle Psychologie</p>
   <p style="font-size:1.1rem !important"><b>Consent form: ‘${STUDY_TITLE}’</b></p>
-  <p><b>Information for participants.</b> In this study you move your computer mouse while two circles move on
+  <p><b>Information for participants.</b> In this study you move the pointer with your trackpad while two circles move on
   the screen, decide which one follows your hand, and rate how confident you are in that decision. The task
   runs in fullscreen in your browser and takes about 60 minutes; you can pause between its parts. You receive
   the base payment shown on Prolific plus a bonus that depends on your confidence ratings. There are no risks
@@ -218,7 +218,7 @@ class DeltaTrack {
 // ─────────────────────────────────────────────────────────────────────────────
 const stage=document.getElementById("stage"), screenEl=document.getElementById("screen");
 let canvas=null, ctx=null, cx=0, cy=0;
-// Mouse input = RELATIVE movement under Pointer Lock (as the WP1 online port): the system cursor
+// Pointer input (trackpad) = RELATIVE movement under Pointer Lock (as the WP1 online port): the system cursor
 // is hidden by the OS, cannot leave the window, cannot reach a second monitor and cannot be
 // enlarged by macOS "shake to locate". There is also no screen edge where the circles would
 // freeze. Deltas are the OS-accelerated ones (no unadjustedMovement), which is what PsychoPy read
@@ -273,12 +273,12 @@ function waitKeys(keys){ return new Promise(res=>{ const h=e=>{ const k=e.key.to
 // browser refused one of them at the start, never nag about it.
 let FS_OK=false, FS_EXITS=0, PL_WANTED=false, PL_EXITS=0, PL_FAILS=0, fsBlock=null;
 const needPause = () => (FS_OK && !document.fullscreenElement) || (PL_WANTED && PL_OK && !CFG.NOLOCK && !document.pointerLockElement);
-function fsRecover(title="Paused", text="The task has to run in fullscreen with the mouse captured. Nothing is lost."){
+function fsRecover(title="Paused", text="The task has to run in fullscreen with the pointer captured. Nothing is lost."){
   if(fsBlock) return;
   fsBlock=document.createElement("div"); fsBlock.id="fsblock";
   fsBlock.innerHTML=`<div><h1>${title}</h1><p>${text}</p>
-    <p class="click">Click anywhere on this screen with your <u>mouse</u> to continue.</p>
-    <p class="clickhint" style="visibility:hidden">Please click with the mouse button, not a key.</p>
+    <p class="click">Click anywhere on this screen with your <u>trackpad</u> to continue.</p>
+    <p class="clickhint" style="visibility:hidden">Please click with the trackpad, not a key.</p>
     ${CFG.COMPLETION_URL||!rows.length?"":`<p class="go">testing: press D to download the data so far</p>`}</div>`;
   document.body.appendChild(fsBlock);
   showClickHintOnKey(fsBlock);
@@ -298,7 +298,7 @@ function fsRecover(title="Paused", text="The task has to run in fullscreen with 
     else if(fsBlock){ fsBlock.remove(); fsBlock=null; setTimeout(()=>{ if(needPause()) fsRecover(); }, 300); }
   }, {once:true});
 }
-// A key press cannot replace the click (fullscreen and pointer lock need the mouse here): say so
+// A key press cannot replace the click (fullscreen and pointer lock need a click here): say so
 // instead of doing nothing, so nobody gives up on a screen that seems frozen.
 function showClickHintOnKey(el){
   const hint=el.querySelector(".clickhint"); if(!hint) return;
@@ -405,7 +405,7 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
               left, applied, t_on:tOn,
               // online quality markers (WP1 online): rendered frames per second of motion
               // (well below the display rate = dropped frames), share of steps with the hand
-              // nearly still (also what a trackpad user tends to produce)
+              // nearly still (also each time a trackpad user lifts the finger)
               display_fps: rendered/Math.max(clock.simT,1e-6), low_move_ratio: eng.lowMoveRatio });
         return;
       }
@@ -419,7 +419,7 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
     ctx.fillStyle="#8a8f98"; ctx.font="300 88px system-ui"; ctx.textAlign="center";
     ctx.textBaseline="middle"; ctx.fillText("+",cx,cy); ctx.textBaseline="alphabetic";
     setTimeout(()=>{ ctx.fillStyle="#8a8f98"; ctx.font="20px system-ui";
-      ctx.fillText("move the mouse",cx,cy+110);
+      ctx.fillText("move your finger on the trackpad",cx,cy+110);
       requestAnimationFrame(frame); }, 500);
   });
 }
@@ -440,7 +440,7 @@ function exploreTrial(angle, blockIdx){
       const [x,y]=P([eng.squarePos[0]-eng.squareCx, eng.squarePos[1]]);
       ctx.fillStyle="#eceae6"; ctx.beginPath(); ctx.arc(x,y,20,0,2*Math.PI); ctx.fill();
       ctx.font="600 22px system-ui, sans-serif"; ctx.textAlign="center";
-      ctx.fillText("move the mouse and watch how the circle follows your hand", cx, 48); };
+      ctx.fillText("move your finger on the trackpad and watch how the circle follows it", cx, 48); };
     drainMotion(); draw();
     let clock=null, pausedAt=0;
     function frame(){
@@ -558,7 +558,7 @@ async function bonusInstructions(){
 async function demographics(){
   const radios = (name, opts) => opts.map(([v,l])=>`<label><input type="radio" name="${name}" value="${v}"> ${l}</label>`).join("");
   showScreen(`<h1>About you</h1>
-    <p>A few questions to describe the group of participants. They are stored with your anonymous data.</p>
+    <p>A few questions about you. They are stored with your anonymous data.</p>
     <div class="demo">
       <div class="q">Age</div><div><input type="number" id="demo_age" min="18" max="99" step="1"> years</div>
       <div class="q">Gender</div><div>${radios("demo_gender",[["female","female"],["male","male"],["diverse","non-binary / diverse"],["prefer_not","prefer not to say"]])}</div>
@@ -585,8 +585,8 @@ async function closingQuestions(){
   const q = async (id, html, keys) => { showScreen(`<h1>A few last questions</h1>
       <p style="color:#8a8f98">Your answers do <b>not</b> affect your payment or bonus. Please answer honestly.</p>${html}`);
     META[id] = parseInt(await waitKeys(keys),10); };
-  await q("selfreport_device", `<p>Did you use a computer mouse for the <b>whole</b> task?</p>
-    <p><span class="kbd">1</span> yes, all the time &nbsp; <span class="kbd">2</span> partly a trackpad or something else &nbsp; <span class="kbd">3</span> no</p>`, ["1","2","3"]);
+  await q("selfreport_device", `<p>Did you use the trackpad for the <b>whole</b> task?</p>
+    <p><span class="kbd">1</span> yes, all the time &nbsp; <span class="kbd">2</span> partly a mouse or something else &nbsp; <span class="kbd">3</span> no</p>`, ["1","2","3"]);
   await q("selfreport_focus_1to5", `<p>How focused were you on the task overall?</p>
     <p><span class="kbd">1</span> not at all &nbsp; <span class="kbd">2</span> a little &nbsp; <span class="kbd">3</span> moderately &nbsp; <span class="kbd">4</span> mostly &nbsp; <span class="kbd">5</span> fully</p>`, ["1","2","3","4","5"]);
   await q("selfreport_interrupted", `<p>Were you interrupted or did you do something else during the task?</p>
@@ -772,7 +772,7 @@ const FB_TICK  = `<svg viewBox="0 0 100 100" width="130" height="130" role="img"
 const FB_CROSS = `<svg viewBox="0 0 100 100" width="130" height="130" role="img" aria-label="wrong"><path d="M24 24 L76 76 M76 24 L24 76" fill="none" stroke="#e5534b" stroke-width="13" stroke-linecap="round"/></svg>`;
 async function calibration(angle, dt){
   const sc=new Staircase(); let n=0, nStr=(dt?CFG.D0_N:0);
-  showScreen(`<h1>Warm-up</h1><p>Now two circles. Move the mouse, then decide which circle you control.</p>
+  showScreen(`<h1>Warm-up</h1><p>Now two circles. Move your finger on the trackpad, then decide which circle you control.</p>
     <p><span class="kbd">a</span> left &nbsp; <span class="kbd">s</span> right. You get feedback after each choice.</p>
     <p class="go">press SPACE to start</p>`); await waitKeys([" "]); showCanvas();
   const stairDone = () => n>=CFG.CAL_MAX || (sc.nRev>=CFG.CAL_REVERSALS && n>=CFG.CAL_MIN);
@@ -816,7 +816,7 @@ async function block(angle, blockIdx){
   // Block 2 says that the circle may now follow the hand differently — never how (design doc §10q).
   showScreen(`<h1>Block ${blockIdx} of 2</h1>
     ${blockIdx===2?`<p>In this block, the circle may move <b>differently</b> in relation to your hand than in the first block.</p>`:""}
-    ${CFG.EXPLORE_DUR>0?`<p>First, a single circle: move the mouse freely and watch how it follows your hand.
+    ${CFG.EXPLORE_DUR>0?`<p>First, a single circle: move your finger freely on the trackpad and watch how the circle follows it.
     There is nothing to decide.</p>`:""}
     ${blockIdx===2?IMC_LINE:""}
     <p class="go">press SPACE</p>`); await waitGo(blockIdx===2?3:null);
@@ -966,33 +966,34 @@ async function main(){
   META.consent_recontact = (await waitKeys(["1","2"]))==="1" ? 1 : 0;
   await demographics();
   document.body.classList.remove("showcursor");
-  // Device check next: the task is calibrated for a mouse (as in the lab). Prolific cannot
-  // filter for it, so we ask, log the answer and let trackpad users leave without penalty.
+  // Device check next: one movement modality, the trackpad (Simon, 2026-10-15; a mouse before build
+  // 2026-10-15e). Prolific cannot filter for it, so we ask, log the answer and let people without a
+  // trackpad leave without penalty. Codes stay 1 mouse, 2 trackpad, 3 other.
   showScreen(`<h1>Before we start</h1><p>What are you using to move the pointer?</p>
     <p><span class="kbd">1</span> a computer mouse &nbsp; <span class="kbd">2</span> a trackpad / touchpad &nbsp; <span class="kbd">3</span> something else</p>`);
   META.input_device = parseInt(await waitKeys(["1","2","3"]),10);
-  META.input_device_initial = META.input_device;   // kept: input_device is overwritten below if they switch to a mouse
-  if(META.input_device!==1){
-    showScreen(`<h1>This study needs a computer mouse</h1>
-      <p>The task measures fine hand movements and is calibrated for a mouse; a trackpad gives different results.</p>
-      <p>If you have a mouse, please plug it in now and press <span class="kbd">M</span> to continue.</p>
+  META.input_device_initial = META.input_device;   // kept: input_device is overwritten below if they switch to the trackpad
+  if(META.input_device!==2){
+    showScreen(`<h1>This study needs a trackpad</h1>
+      <p>The task measures fine hand movements, and these differ between a mouse and a trackpad, so everyone uses a trackpad.</p>
+      <p>If your computer has a trackpad (for example a laptop), please use it from now on, not a mouse, and press <span class="kbd">T</span> to continue.</p>
       <p>If not, please <b>return</b> the study on Prolific — there is no penalty for that — and close this window.</p>`);
-    await waitKeys(["m"]); META.input_device = 1;   // continued with a mouse after all
+    await waitKeys(["t"]); META.input_device = 2;   // continued with the trackpad after all
   }
   showScreen(`<h1>Control Detection Task</h1>
     <p>You will see two identical circles, one on the <b>left</b> and one on the <b>right</b>.
-    One follows your mouse more closely than the other. You have ${CFG.MOTION_DUR} seconds to explore.
+    One follows your movements on the trackpad more closely than the other. You have ${CFG.MOTION_DUR} seconds to explore.
     When the circles <b>stop</b>, say which one you controlled (<b>a</b> = left, <b>s</b> = right) —
     there is no rush, make your best guess.</p>
     ${CFG.BONUS>0?`<p><b>Payment:</b> the base payment shown on Prolific, plus a <b>bonus of up to ${money(1)}</b> that
     depends on your confidence ratings. It is explained when the ratings start.</p>`:""}
     <p>Please use <b>one screen only</b> (no second monitor) and stay in fullscreen. The task hides and
-    captures the mouse pointer; if you ever need to pause, press <span class="kbd">Esc</span>.</p>
-    <p class="click">Click anywhere on this screen with your <u>mouse</u> to begin.</p>
+    captures the pointer; if you ever need to pause, press <span class="kbd">Esc</span>.</p>
+    <p class="click">Click anywhere on this screen with your <u>trackpad</u> to begin.</p>
     <p style="font-size:1rem;color:#8a8f98">The task then switches to fullscreen.</p>
-    <p class="clickhint" style="visibility:hidden">Please click with the mouse button, not a key.</p>`);
+    <p class="clickhint" style="visibility:hidden">Please click with the trackpad, not a key.</p>`);
   showClickHintOnKey(screenEl);
-  document.body.classList.add("showcursor");   // the visible pointer says "use the mouse" too
+  document.body.classList.add("showcursor");   // the visible pointer says "click here" too
   await new Promise(r=>{ const h=()=>{ stage.removeEventListener("click",h); r(); }; stage.addEventListener("click",h); });
   document.body.classList.remove("showcursor");
   // Clear the intro right away: it used to flash up again for a moment when the pointer-lock prompt closed.
@@ -1005,7 +1006,7 @@ async function main(){
   // Pointer lock needs its own click (the fullscreen request used this one). The pause overlay
   // doubles as that prompt; it clears itself once the lock is held, or gives up after 4 refusals.
   PL_WANTED = !CFG.NOLOCK;
-  if(needPause()) fsRecover("One more click", "Click once more with your mouse. The task then hides the mouse pointer and keeps it inside the window.");
+  if(needPause()) fsRecover("One more click", "Click once more with your trackpad. The task then hides the pointer and keeps it inside the window.");
   while(needPause()) await wait(100);
   const order=shuffle([...CFG.ANGLES]);
   for(let b=0;b<order.length;b++){ await block(order[b], b+1); checkpoint(); }

@@ -46,10 +46,10 @@ trials, of the second look (`post_true_shape`, `post_left_shape`, `post_applied_
 ```
 python3 -m http.server 8000
 ```
-then open **http://localhost:8000** in Chrome. Use a real **mouse**, not a trackpad.
+then open **http://localhost:8000** in Chrome. Use a **trackpad**, not a mouse (since build 2026-10-15e).
 Quick run: **http://localhost:8000/?t1=6&t2=12** (short), or `?pid=99` to set an ID.
 
-Check by feel: shapes move, one follows your mouse, calibration converges, the
+Check by feel: shapes move, one follows your finger, calibration converges, the
 Part-B second look is clearly visible, the 1–9 confidence works, a CSV downloads
 at the end. Then run the analysis on it:
 ```
@@ -109,6 +109,10 @@ build 2026-10-15c was dropped again in 2026-10-15d).
 - **Demographics** (build 2026-10-15d): one screen after the two optional consent items asks age, gender,
   handedness and vision (`demo_age`, `demo_gender`, `demo_handedness`, `demo_vision`); every item needs an
   answer, gender has "prefer not to say". The lab version asks the first three in its start dialog.
-- **Motor task online caveat:** trackpad vs mouse / DPI / frame-rate variance. Mouse is asked for,
+- **Trackpad only** (build 2026-10-15e, design doc §10t): the device question accepts a trackpad
+  (`input_device` = 2); anyone else is asked to switch to the trackpad (T) or return the study. All
+  instructions say trackpad; the closing self-report asks whether the trackpad was used throughout.
+- **Motor task online caveat:** trackpad vs mouse / DPI / frame-rate variance. A trackpad is asked for
+  (since build 2026-10-15e; a mouse before),
   fullscreen and pointer lock enforced, `display_fps` and `low_move_ratio` logged; exclusion
   thresholds for these still need to go into the preregistration.

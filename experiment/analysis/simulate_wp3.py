@@ -247,7 +247,7 @@ def simulate_participant(p, rng, fmt, timeout_rate, track):
             w[c] = df[c].dropna().iloc[-1]
         w["bonus_quiz_attempts_evidence"] = int(rng.integers(1, 3)); w["fullscreen_exits"] = 0
         w["display_fps"] = np.nan; w["low_move_ratio"] = np.nan        # browser-only quality markers
-        w["pointer_lock_exits"] = 0; w["input_device"] = 1; w["pointer_lock"] = 1
+        w["pointer_lock_exits"] = 0; w["input_device"] = 2; w["pointer_lock"] = 1
         w["prolific_study_id"] = ""; w["prolific_session_id"] = ""
         return w.reindex(columns=cols)
     return df
