@@ -941,6 +941,25 @@ Simon went through the instruction screens one by one (document "WP3: alle Anwei
   introduced as "Last part of this block", which read like more of Part B. They are now announced as
   "Part C", with "Part B is over", "no second look from here on" and the number of trials. Trials,
   scoring and logging are unchanged.
+- **Response prompt** (Simon, 2026-10-15, build 2026-10-15a). After each motion window the prompt reads
+  "which one did you control?" instead of "which one was yours?", in line with the task's wording ("choose the
+  circle you control"); the intro screen says "say which one you controlled" accordingly.
+- **Strength trials without their own screens** (Simon, 2026-10-15, build 2026-10-15b). The separate
+  strength-calibration block (20 trials, no feedback, own instruction screen) and Part C (10 trials after
+  Part B) are gone. The 20 `calibration_strength` trials are now interleaved in the warm-up and get its
+  tick/cross feedback; they start once the 1-up-2-down has reached its small step (3 reversals), because
+  at the start value 0.85 the high strength sits on the 0.90 ceiling and would only push delta down; from
+  there each trial is a strength trial with p = .5 until all 20 are done. The 25 strength trials in Part A
+  are unchanged. Consequences: the high strength is now measured in Part A only (25 trials per mapping
+  instead of 35, and not again after Part B), and 20 more warm-up trials carry feedback. `?d3=` brings
+  Part C back. The Python simulator still models the old separate block. New columns `trial_onset_s` and
+  `row_time_s`: session clock (s since the start) at the decision look's onset and when the row was written.
+- **Mouse kinematics** (Simon chose "yes, second file", 2026-10-15, build 2026-10-15c): every look
+  (exploration, decision, second look) is written to `CDT_wp3_<pid>_<start>_kin.csv` with the per-frame hand
+  movement and what the engine needs to replay it; a replay of a pilot session reproduced `evidence_sum` on
+  every look. Same change: a rendered frame that covers no 120 Hz physics step (displays above 120 Hz) no
+  longer drops its mouse movement; it carries over to the next frame, as the comment on the physics clock
+  always claimed.
 
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 

@@ -74,7 +74,7 @@ Query parameters work the same as locally:
 
 | Parameter | Purpose |
 |---|---|
-| `?t1=6&t2=12&d0=6&d1=4&d3=3&calmin=10&calmax=15` | short run for a feel test |
+| `?calmin=2&calmax=3&d0=2&t1=2&d1=2&t2=4` | very short run for a feel test |
 | `?d0=0&d1=0&d3=0` | old design: no strength trials, fixed +1.2-logit boost |
 | `?d1=10&d2=25&d3=0` | strength trials inside Part B again, as before build 2026-10-12a |
 | `?bonus=3.00` | maximum bonus (£3; design doc §10q: paid above guessing level, full amount at perfect calibration) — **required for Prolific**: the instructions quote the amount |
