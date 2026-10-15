@@ -44,6 +44,15 @@
     font:inherit;font-size:1rem;padding:8px;box-sizing:border-box;}
   button{font:inherit;font-size:1rem;padding:8px 22px;border-radius:8px;border:1px solid #3a3e46;
     background:#22262c;color:#eceae6;margin-top:14px;}
+  /* Demographics form: questions left, answers right. Text fields stay editable under user-select:none. */
+  input,textarea{user-select:text;-webkit-user-select:text;}
+  .demo{display:grid;grid-template-columns:max-content 1fr;gap:14px 22px;align-items:baseline;text-align:left;
+    margin:22px auto 6px;max-width:680px;font-size:1.05rem;color:#cfcdc8;}
+  .demo .q{color:#eceae6;font-weight:600;}
+  .demo label{display:inline-block;margin:0 18px 4px 0;white-space:nowrap;}
+  .demo input[type=radio]{accent-color:#e0713a;}
+  .demo input[type=number]{width:70px;background:#15171c;color:#eceae6;border:1px solid #3a3e46;border-radius:6px;
+    font:inherit;padding:4px 8px;}
   #err{position:fixed;bottom:8px;left:8px;color:#c0603a;font-size:12px;font-family:monospace;}
 </style>
 </head>
@@ -109,7 +118,7 @@ const CFG = {
   NOLOCK: Q.get("nolock") === "1",
 };
 // Identifies the deployed version in the data (bump with every change to index.html or engine.js).
-const BUILD = "2026-10-15c";
+const BUILD = "2026-10-15d";
 // A Prolific link that would run without saving or without the promised bonus wastes a full
 // session per participant. Refuse to start instead; the researcher sees it on the first test.
 const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
@@ -329,8 +338,6 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
     const applied = forceApplied!==null ? forceApplied : (angle===90 ? (rnd()<0.5?90:-90) : 0);
     const eng=new Engine.TrialEngine(tSnip,dSnip,prop,applied,target,left);
     const tOn=(Date.now()-T_START)/1000;   // session clock when the circles appear
-    const kin=kinStart({trial_idx:TRIAL_IDX+1, look:acceptResponse?"decision":"second_look", angle_bias:angle,
-      applied_angle_bias:applied, prop:+prop.toFixed(4), true_shape:target, left_shape:left, pool_t:ti, pool_d:di, onset_s:+tOn.toFixed(3)});
     const squareCx = left==="square"?-Engine.OFFSET_X:Engine.OFFSET_X;
     const dotCx = left==="square"?Engine.OFFSET_X:-Engine.OFFSET_X;
     drainMotion();
@@ -374,7 +381,7 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
         // accumulator for the next one; draining it here used to drop it.
         const n=clock.steps(performance.now()/1000);
         let st=null;
-        if(n>0){ const [mx,my]=drainMotion(); kinFrame(kin,mx,my,Math.min(n,NSTEP-clock.k));
+        if(n>0){ const [mx,my]=drainMotion();
           for(let k=0;k<n && clock.k<NSTEP;k++){ st=eng.stepDelta(mx/n,my/n); clock.advance(); } }
         if(st) drawShapes(st.square,st.dot,squareCx,dotCx);
       }
@@ -427,8 +434,6 @@ function exploreTrial(angle, blockIdx){
     const applied = angle===90 ? (rnd()<0.5?90:-90) : 0;
     const eng=new Engine.TrialEngine(tSnip,dSnip,CFG.EXPLORE_PROP,applied,"square","square");
     const NSTEP=Math.round(CFG.EXPLORE_DUR/Engine.SIM_DT);
-    const kin=kinStart({look:"explore", angle_bias:angle, applied_angle_bias:applied, prop:CFG.EXPLORE_PROP,
-      true_shape:"square", left_shape:"square", pool_t:ti, pool_d:di, onset_s:+((Date.now()-T_START)/1000).toFixed(3)});
     const draw=()=>{ ctx.clearRect(0,0,canvas.width,canvas.height);
       ctx.strokeStyle="#22262c"; ctx.lineWidth=1;
       const [bx,by]=P([-Engine.BOX_HW, Engine.BOX_HH]); ctx.strokeRect(bx,by,Engine.BOX_HW*2,Engine.BOX_HH*2);
@@ -445,7 +450,7 @@ function exploreTrial(angle, blockIdx){
         if(mx!==0||my!==0) clock=new Engine.SimClock(performance.now()/1000);
         requestAnimationFrame(frame); return; }
       const n=clock.steps(performance.now()/1000);
-      if(n>0){ const [mx,my]=drainMotion(); kinFrame(kin,mx,my,Math.min(n,NSTEP-clock.k));
+      if(n>0){ const [mx,my]=drainMotion();
         for(let k=0;k<n && clock.k<NSTEP;k++){ eng.stepDelta(mx/n,my/n); clock.advance(); } }
       draw();
       if(clock.k>=NSTEP){ META[`explore_low_move_${blockIdx}`]=+eng.lowMoveRatio.toFixed(3); res(); return; }
@@ -548,6 +553,32 @@ async function bonusInstructions(){
   }
   META.bonus_quiz_attempts=attempts;
 }
+// Demographics to describe the sample (Simon, 2026-10-15): age, gender, handedness, vision, on one screen
+// with the pointer visible. Every item needs an answer; gender has "prefer not to say".
+async function demographics(){
+  const radios = (name, opts) => opts.map(([v,l])=>`<label><input type="radio" name="${name}" value="${v}"> ${l}</label>`).join("");
+  showScreen(`<h1>About you</h1>
+    <p>A few questions to describe the group of participants. They are stored with your anonymous data.</p>
+    <div class="demo">
+      <div class="q">Age</div><div><input type="number" id="demo_age" min="18" max="99" step="1"> years</div>
+      <div class="q">Gender</div><div>${radios("demo_gender",[["female","female"],["male","male"],["diverse","non-binary / diverse"],["prefer_not","prefer not to say"]])}</div>
+      <div class="q">Handedness</div><div>${radios("demo_handedness",[["right","right-handed"],["left","left-handed"],["both","both hands equally"]])}</div>
+      <div class="q">Vision</div><div>${radios("demo_vision",[["normal","normal or corrected to normal (glasses, lenses)"],["impaired","impaired"]])}</div>
+    </div>
+    <p class="clickhint" id="demo_err" style="visibility:hidden">&nbsp;</p>
+    <button id="dbtn">Continue</button>`);
+  const pick = n => { const el=document.querySelector(`input[name="${n}"]:checked`); return el ? el.value : null; };
+  for(;;){
+    await new Promise(r=>document.getElementById("dbtn").addEventListener("click", r, {once:true}));
+    const age = Number(document.getElementById("demo_age").value);
+    const ans = {demo_age: Number.isInteger(age) && age>=18 && age<=99 ? age : null,
+      demo_gender:pick("demo_gender"), demo_handedness:pick("demo_handedness"), demo_vision:pick("demo_vision")};
+    if(Object.values(ans).every(v=>v!==null)){ Object.assign(META, ans); return; }
+    const e=document.getElementById("demo_err"); e.style.visibility="visible";
+    e.textContent = ans.demo_age===null ? "Please enter your age in whole years (18 to 99) and answer every question."
+      : "Please answer every question.";
+  }
+}
 // Closing self-report. Stated to have no effect on payment, which is what makes honest answers likely;
 // the answers feed the analysis exclusions only (design doc §10m).
 async function closingQuestions(){
@@ -594,19 +625,6 @@ const META={};   // participant-level fields, written on every row
 let BLOCK_IDX=0, TRIAL_IDX=0;   // TRIAL_IDX counts decision trials over the whole session
 // Per-trial layout and momentary evidence (summed over the motion window) of a motionTrial result.
 const motionCols = r => ({left_shape:r.left, applied_angle_bias:r.applied, evidence_sum:r.sumEvidence, trial_onset_s:r.t_on});
-// Mouse kinematics (Simon, 2026-10-15): a second file per session, CDT_wp3_<pid>_<start>_kin.csv. One row
-// per look (exploration, decision, second look) with what the engine needs to replay it exactly (pool pair,
-// layout, mapping, control) and the hand movement of every rendered frame that advanced the physics, as
-// "dx:dy:n" separated by ";" (pixels, y up, before the rotation; n = 120 Hz steps the frame covered).
-const KIN=[];
-function kinStart(o){ const k=Object.assign({participant:CFG.participant, block_idx:BLOCK_IDX, frames:[]}, o); KIN.push(k); return k; }
-const kinFrame=(k,mx,my,n)=>{ k.frames.push(`${+mx.toFixed(2)}:${+my.toFixed(2)}:${n}`); };
-function kinCSV(){
-  const cols=["participant","block_idx","trial_idx","look","angle_bias","applied_angle_bias","prop","true_shape",
-    "left_shape","pool_t","pool_d","onset_s","n_frames","frames"];
-  const val=(k,c)=>c==="frames"?k.frames.join(";"):c==="n_frames"?k.frames.length:(k[c]===undefined||k[c]===null?"":k[c]);
-  return cols.join(",")+"\n"+KIN.map(k=>cols.map(c=>val(k,c)).join(",")).join("\n");
-}
 function log(o){ const r=Object.assign({participant:CFG.participant, session:1, block_idx:BLOCK_IDX, trial_idx:++TRIAL_IDX}, o);
   // every decision trial is scored; a timeout has no rating and scores 0 (same as PsychoPy)
   r.wp3_score=wp3Score(o.wp3_confidence, o.accuracy===true||o.accuracy===1); SCORES.push(r.wp3_score);
@@ -626,9 +644,10 @@ function toCSV(subset=rows){
     "trial_onset_s","row_time_s",
     "post_true_shape","post_left_shape","post_applied_angle_bias","post_evidence_sum","post_display_fps","post_low_move_ratio",
     "seed","build","started_at","duration_min","screen_w","screen_h","window_w","window_h","dpr","user_agent",
-    // consent, instruction checks and closing self-report (design doc §10m)
+    // consent, demographics, instruction checks and closing self-report (design doc §10m)
     "consent","consent_at","consent_followup","consent_recontact","imc_1","imc_2","imc_3","imc_failed",
-    "selfreport_device","selfreport_focus_1to5","selfreport_interrupted","selfreport_tech_problems","selfreport_comments","aborted","pavlovia_status","kin_saved"];
+    "demo_age","demo_gender","demo_handedness","demo_vision",
+    "selfreport_device","selfreport_focus_1to5","selfreport_interrupted","selfreport_tech_problems","selfreport_comments","aborted","pavlovia_status"];
   // Every META key must be listed here or it is silently dropped from the file: the four
   // fields after wp3_bonus were collected for weeks without ever being written.
   // Quote fields that contain a comma, quote or newline (user_agent does): unquoted they shift every later column.
@@ -723,24 +742,17 @@ window.addEventListener("keydown", e=>{
   if(CFG.COMPLETION_URL || e.key.toLowerCase()!=="d" || !rows.length) return;
   if(!fsBlock && !FINISHED) return;
   sessionMeta(); downloadCSV(fileName()+(FINISHED?"":"_partial")+".csv", toCSV());
-  if(KIN.length) downloadCSV(fileName()+(FINISHED?"":"_partial")+"_kin.csv", kinCSV());
 });
 
 // Returns "" on success, or an error string. The participant must never silently lose a
 // session: if the upload fails we say so on screen and offer the local download. The download
 // is only the fallback (and the only copy when piloting): on a successful upload Prolific
 // participants get no unexpected file.
-// The kinematics file goes first, so the main file can say whether it arrived (kin_saved). Its failure never
-// holds up the participant: the main file is what the study needs to go on.
-function kinUpload(){ return (PV.open && KIN.length) ? upload(fileName()+"_kin.csv", kinCSV()) : Promise.resolve("no session"); }
 async function saveData(){
-  const kerr = await kinUpload(); META.kin_saved = kerr ? 0 : 1;
   sessionMeta();
   const csv=toCSV(), name=fileName()+".csv";
   const err=await upload(name, csv);
   if(err) downloadCSV(name, csv);
-  // second, so a browser that asks before a second automatic download never holds back the main file
-  if(kerr && KIN.length) downloadCSV(fileName()+"_kin.csv", kinCSV());
   if(err && PV.status==="RUNNING") document.getElementById("err").textContent=err;
   return err;
 }
@@ -952,6 +964,7 @@ async function main(){
     <p>May we invite you via Prolific to further experiments? Participation is always voluntary.</p>
     <p><span class="kbd">1</span> yes &nbsp; <span class="kbd">2</span> no</p>`);
   META.consent_recontact = (await waitKeys(["1","2"]))==="1" ? 1 : 0;
+  await demographics();
   document.body.classList.remove("showcursor");
   // Device check next: the task is calibrated for a mouse (as in the lab). Prolific cannot
   // filter for it, so we ask, log the answer and let trackpad users leave without penalty.
@@ -995,7 +1008,7 @@ async function main(){
   if(needPause()) fsRecover("One more click", "Click once more with your mouse. The task then hides the mouse pointer and keeps it inside the window.");
   while(needPause()) await wait(100);
   const order=shuffle([...CFG.ANGLES]);
-  for(let b=0;b<order.length;b++){ await block(order[b], b+1); checkpoint(); kinUpload(); }
+  for(let b=0;b<order.length;b++){ await block(order[b], b+1); checkpoint(); }
   const meanScore = SCORES.length ? SCORES.reduce((a,b)=>a+b,0)/SCORES.length : 0;
   META.wp3_mean_score=+meanScore.toFixed(4); META.wp3_bonus=+(CFG.BONUS*bonusShare(meanScore)).toFixed(2);
   META.fullscreen_exits=FS_EXITS;   // >0 means part of the session ran outside fullscreen

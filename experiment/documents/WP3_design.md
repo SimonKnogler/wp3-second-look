@@ -959,7 +959,12 @@ Simon went through the instruction screens one by one (document "WP3: alle Anwei
   movement and what the engine needs to replay it; a replay of a pilot session reproduced `evidence_sum` on
   every look. Same change: a rendered frame that covers no 120 Hz physics step (displays above 120 Hz) no
   longer drops its mouse movement; it carries over to the next frame, as the comment on the physics clock
-  always claimed.
+  always claimed. **Removed again** (Simon, 2026-10-15, build 2026-10-15d: "wir brauchen die kinematics
+  eigentlich nicht"); the frame fix stays.
+- **Demographics** (Simon, 2026-10-15, build 2026-10-15d): one screen after the two optional consent items
+  asks age (18 to 99), gender (female / male / non-binary or diverse / prefer not to say), handedness
+  (right / left / both) and vision (normal or corrected / impaired); every item needs an answer. Columns
+  `demo_age`, `demo_gender`, `demo_handedness`, `demo_vision`.
 
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
