@@ -933,6 +933,14 @@ Simon went through the instruction screens one by one (document "WP3: alle Anwei
   55 % of the bonus (about £1.66 of £3.00); at 71 % hits it is about £1.10, at 78 % about £2.10. Rule,
   floor (0.75) and ceiling (0.86) are unchanged. Re-anchoring the floor (for example on the best constant
   score) was offered as "check the rule" and not chosen.
+- **Second-look reminder only once per block** (build 2026-10-13b). The line "The circle you control is
+  on the SAME SIDE as before · keep moving, no response" now appears on the first second look of each
+  block only; every second look keeps the title "SECOND LOOK at the same trial". The Part B screen states
+  the same-side rule in full before the first trial.
+- **Part C** (build 2026-10-13b). The strength trials after Part B (`wp3_task3`, `D3_N` = 10) were
+  introduced as "Last part of this block", which read like more of Part B. They are now announced as
+  "Part C", with "Part B is over", "no second look from here on" and the number of trials. Trials,
+  scoring and logging are unchanged.
 
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
