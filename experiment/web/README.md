@@ -86,7 +86,15 @@ high offset (target 85 %) and measure what that strength supports; flagged
 `trial_type = "strength"` in the CSV (`phase = calibration_strength` for the ones interleaved in the
 warm-up, with feedback, since build 2026-10-15b; `wp3_task3` for the optional run after Part B, `d3`, off
 by default), not part of the confidence model. `trial_onset_s` / `row_time_s` are the session clock (seconds
-since the start) at the onset of the decision look and when the row was written. `delta_live` is the offset in force on each trial.
+since the start) when the circles of the decision look appear and when the row was written.
+
+Mouse kinematics (build 2026-10-15c) go into a second file per session, `CDT_wp3_<pid>_<start>_kin.csv`:
+one row per look (`look` = explore / decision / second_look, `trial_idx` matching the main file) with the
+pool pair (`pool_t`, `pool_d`), layout, mapping and control, and `frames` = the hand movement of every
+rendered frame as `dx:dy:n` separated by `;` (pixels, y up, before the rotation; `n` = 120 Hz physics steps
+the frame covered). Feeding these to `Engine.TrialEngine` reproduces each look exactly (the pilot replay
+matched `evidence_sum` on every look). Uploaded after each block and at the end (`kin_saved` in the main
+file); downloaded as a second file when piloting. `delta_live` is the offset in force on each trial.
 
 ## Saving, and what still needs YOUR check
 - **Saving (design doc §10p):** after consent the task opens a Pavlovia session. While RUNNING, one file

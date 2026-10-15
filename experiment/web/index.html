@@ -109,7 +109,7 @@ const CFG = {
   NOLOCK: Q.get("nolock") === "1",
 };
 // Identifies the deployed version in the data (bump with every change to index.html or engine.js).
-const BUILD = "2026-10-15b";
+const BUILD = "2026-10-15c";
 // A Prolific link that would run without saving or without the promised bonus wastes a full
 // session per participant. Refuse to start instead; the researcher sees it on the first test.
 const CONFIG_ERRORS = Q.get("PROLIFIC_PID") ? [
@@ -328,7 +328,9 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
     const left = forceLeft || (rnd()<0.5?"square":"dot");
     const applied = forceApplied!==null ? forceApplied : (angle===90 ? (rnd()<0.5?90:-90) : 0);
     const eng=new Engine.TrialEngine(tSnip,dSnip,prop,applied,target,left);
-    const tOn=(Date.now()-T_START)/1000;   // session clock at the start of this look
+    const tOn=(Date.now()-T_START)/1000;   // session clock when the circles appear
+    const kin=kinStart({trial_idx:TRIAL_IDX+1, look:acceptResponse?"decision":"second_look", angle_bias:angle,
+      applied_angle_bias:applied, prop:+prop.toFixed(4), true_shape:target, left_shape:left, pool_t:ti, pool_d:di, onset_s:+tOn.toFixed(3)});
     const squareCx = left==="square"?-Engine.OFFSET_X:Engine.OFFSET_X;
     const dotCx = left==="square"?Engine.OFFSET_X:-Engine.OFFSET_X;
     drainMotion();
@@ -368,9 +370,12 @@ function motionTrial(prop, angle, {acceptResponse=true, dur=CFG.MOTION_DUR, forc
       // waiting. Running past the window no longer discards the trial.
       if(clock.k<NSTEP){
         rendered++;
-        const n=clock.steps(performance.now()/1000); const [mx,my]=drainMotion();
+        // A frame that covers no physics step (displays above 120 Hz) leaves its movement in the
+        // accumulator for the next one; draining it here used to drop it.
+        const n=clock.steps(performance.now()/1000);
         let st=null;
-        for(let k=0;k<n && clock.k<NSTEP;k++){ st=eng.stepDelta(mx/n,my/n); clock.advance(); }
+        if(n>0){ const [mx,my]=drainMotion(); kinFrame(kin,mx,my,Math.min(n,NSTEP-clock.k));
+          for(let k=0;k<n && clock.k<NSTEP;k++){ st=eng.stepDelta(mx/n,my/n); clock.advance(); } }
         if(st) drawShapes(st.square,st.dot,squareCx,dotCx);
       }
       const motionDone = clock.k>=NSTEP;
@@ -422,6 +427,8 @@ function exploreTrial(angle, blockIdx){
     const applied = angle===90 ? (rnd()<0.5?90:-90) : 0;
     const eng=new Engine.TrialEngine(tSnip,dSnip,CFG.EXPLORE_PROP,applied,"square","square");
     const NSTEP=Math.round(CFG.EXPLORE_DUR/Engine.SIM_DT);
+    const kin=kinStart({look:"explore", angle_bias:angle, applied_angle_bias:applied, prop:CFG.EXPLORE_PROP,
+      true_shape:"square", left_shape:"square", pool_t:ti, pool_d:di, onset_s:+((Date.now()-T_START)/1000).toFixed(3)});
     const draw=()=>{ ctx.clearRect(0,0,canvas.width,canvas.height);
       ctx.strokeStyle="#22262c"; ctx.lineWidth=1;
       const [bx,by]=P([-Engine.BOX_HW, Engine.BOX_HH]); ctx.strokeRect(bx,by,Engine.BOX_HW*2,Engine.BOX_HH*2);
@@ -437,8 +444,9 @@ function exploreTrial(angle, blockIdx){
       if(!clock){ const [mx,my]=drainMotion();
         if(mx!==0||my!==0) clock=new Engine.SimClock(performance.now()/1000);
         requestAnimationFrame(frame); return; }
-      const n=clock.steps(performance.now()/1000); const [mx,my]=drainMotion();
-      for(let k=0;k<n && clock.k<NSTEP;k++){ eng.stepDelta(mx/n,my/n); clock.advance(); }
+      const n=clock.steps(performance.now()/1000);
+      if(n>0){ const [mx,my]=drainMotion(); kinFrame(kin,mx,my,Math.min(n,NSTEP-clock.k));
+        for(let k=0;k<n && clock.k<NSTEP;k++){ eng.stepDelta(mx/n,my/n); clock.advance(); } }
       draw();
       if(clock.k>=NSTEP){ META[`explore_low_move_${blockIdx}`]=+eng.lowMoveRatio.toFixed(3); res(); return; }
       requestAnimationFrame(frame);
@@ -586,6 +594,19 @@ const META={};   // participant-level fields, written on every row
 let BLOCK_IDX=0, TRIAL_IDX=0;   // TRIAL_IDX counts decision trials over the whole session
 // Per-trial layout and momentary evidence (summed over the motion window) of a motionTrial result.
 const motionCols = r => ({left_shape:r.left, applied_angle_bias:r.applied, evidence_sum:r.sumEvidence, trial_onset_s:r.t_on});
+// Mouse kinematics (Simon, 2026-10-15): a second file per session, CDT_wp3_<pid>_<start>_kin.csv. One row
+// per look (exploration, decision, second look) with what the engine needs to replay it exactly (pool pair,
+// layout, mapping, control) and the hand movement of every rendered frame that advanced the physics, as
+// "dx:dy:n" separated by ";" (pixels, y up, before the rotation; n = 120 Hz steps the frame covered).
+const KIN=[];
+function kinStart(o){ const k=Object.assign({participant:CFG.participant, block_idx:BLOCK_IDX, frames:[]}, o); KIN.push(k); return k; }
+const kinFrame=(k,mx,my,n)=>{ k.frames.push(`${+mx.toFixed(2)}:${+my.toFixed(2)}:${n}`); };
+function kinCSV(){
+  const cols=["participant","block_idx","trial_idx","look","angle_bias","applied_angle_bias","prop","true_shape",
+    "left_shape","pool_t","pool_d","onset_s","n_frames","frames"];
+  const val=(k,c)=>c==="frames"?k.frames.join(";"):c==="n_frames"?k.frames.length:(k[c]===undefined||k[c]===null?"":k[c]);
+  return cols.join(",")+"\n"+KIN.map(k=>cols.map(c=>val(k,c)).join(",")).join("\n");
+}
 function log(o){ const r=Object.assign({participant:CFG.participant, session:1, block_idx:BLOCK_IDX, trial_idx:++TRIAL_IDX}, o);
   // every decision trial is scored; a timeout has no rating and scores 0 (same as PsychoPy)
   r.wp3_score=wp3Score(o.wp3_confidence, o.accuracy===true||o.accuracy===1); SCORES.push(r.wp3_score);
@@ -607,7 +628,7 @@ function toCSV(subset=rows){
     "seed","build","started_at","duration_min","screen_w","screen_h","window_w","window_h","dpr","user_agent",
     // consent, instruction checks and closing self-report (design doc §10m)
     "consent","consent_at","consent_followup","consent_recontact","imc_1","imc_2","imc_3","imc_failed",
-    "selfreport_device","selfreport_focus_1to5","selfreport_interrupted","selfreport_tech_problems","selfreport_comments","aborted","pavlovia_status"];
+    "selfreport_device","selfreport_focus_1to5","selfreport_interrupted","selfreport_tech_problems","selfreport_comments","aborted","pavlovia_status","kin_saved"];
   // Every META key must be listed here or it is silently dropped from the file: the four
   // fields after wp3_bonus were collected for weeks without ever being written.
   // Quote fields that contain a comma, quote or newline (user_agent does): unquoted they shift every later column.
@@ -702,17 +723,24 @@ window.addEventListener("keydown", e=>{
   if(CFG.COMPLETION_URL || e.key.toLowerCase()!=="d" || !rows.length) return;
   if(!fsBlock && !FINISHED) return;
   sessionMeta(); downloadCSV(fileName()+(FINISHED?"":"_partial")+".csv", toCSV());
+  if(KIN.length) downloadCSV(fileName()+(FINISHED?"":"_partial")+"_kin.csv", kinCSV());
 });
 
 // Returns "" on success, or an error string. The participant must never silently lose a
 // session: if the upload fails we say so on screen and offer the local download. The download
 // is only the fallback (and the only copy when piloting): on a successful upload Prolific
 // participants get no unexpected file.
+// The kinematics file goes first, so the main file can say whether it arrived (kin_saved). Its failure never
+// holds up the participant: the main file is what the study needs to go on.
+function kinUpload(){ return (PV.open && KIN.length) ? upload(fileName()+"_kin.csv", kinCSV()) : Promise.resolve("no session"); }
 async function saveData(){
+  const kerr = await kinUpload(); META.kin_saved = kerr ? 0 : 1;
   sessionMeta();
   const csv=toCSV(), name=fileName()+".csv";
   const err=await upload(name, csv);
   if(err) downloadCSV(name, csv);
+  // second, so a browser that asks before a second automatic download never holds back the main file
+  if(kerr && KIN.length) downloadCSV(fileName()+"_kin.csv", kinCSV());
   if(err && PV.status==="RUNNING") document.getElementById("err").textContent=err;
   return err;
 }
@@ -967,7 +995,7 @@ async function main(){
   if(needPause()) fsRecover("One more click", "Click once more with your mouse. The task then hides the mouse pointer and keeps it inside the window.");
   while(needPause()) await wait(100);
   const order=shuffle([...CFG.ANGLES]);
-  for(let b=0;b<order.length;b++){ await block(order[b], b+1); checkpoint(); }
+  for(let b=0;b<order.length;b++){ await block(order[b], b+1); checkpoint(); kinUpload(); }
   const meanScore = SCORES.length ? SCORES.reduce((a,b)=>a+b,0)/SCORES.length : 0;
   META.wp3_mean_score=+meanScore.toFixed(4); META.wp3_bonus=+(CFG.BONUS*bonusShare(meanScore)).toFixed(2);
   META.fullscreen_exits=FS_EXITS;   // >0 means part of the session ran outside fullscreen

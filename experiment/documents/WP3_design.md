@@ -954,6 +954,12 @@ Simon went through the instruction screens one by one (document "WP3: alle Anwei
   instead of 35, and not again after Part B), and 20 more warm-up trials carry feedback. `?d3=` brings
   Part C back. The Python simulator still models the old separate block. New columns `trial_onset_s` and
   `row_time_s`: session clock (s since the start) at the decision look's onset and when the row was written.
+- **Mouse kinematics** (Simon chose "yes, second file", 2026-10-15, build 2026-10-15c): every look
+  (exploration, decision, second look) is written to `CDT_wp3_<pid>_<start>_kin.csv` with the per-frame hand
+  movement and what the engine needs to replay it; a replay of a pilot session reproduced `evidence_sum` on
+  every look. Same change: a rendered frame that covers no 120 Hz physics step (displays above 120 Hz) no
+  longer drops its mouse movement; it carries over to the next frame, as the comment on the physics clock
+  always claimed.
 
 ## 11. Considered and rejected (2026-09-02): instructed control expectations
 
