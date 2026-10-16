@@ -190,13 +190,17 @@ def exclusion_flags(df_p):
     has = lambda c: c in df_p.columns and pd.notna(first.get(c))
     if has('imc_failed'):
         flags['failed_instruction_check'] = bool(first['imc_failed'] > IMC_FAILED_MAX)
-    not_mouse = []
+    # One movement modality: the trackpad from build 2026-10-15e on (input_device 2; the closing
+    # self-report then asks about the trackpad), a mouse before (input_device 1), design doc §10t.
+    b = first.get('build')
+    device = 1 if isinstance(b, str) and b < '2026-10-15e' else 2
+    wrong_device = []
     if has('input_device'):
-        not_mouse.append(first['input_device'] != 1)
+        wrong_device.append(first['input_device'] != device)
     if has('selfreport_device'):
-        not_mouse.append(first['selfreport_device'] != 1)
-    if not_mouse:
-        flags['not_mouse_only'] = bool(any(not_mouse))
+        wrong_device.append(first['selfreport_device'] != 1)
+    if wrong_device:
+        flags['wrong_device'] = bool(any(wrong_device))
     if has('pointer_lock'):
         flags['no_pointer_lock'] = bool(first['pointer_lock'] == 0)
     if 'display_fps' in df_p.columns and valid['display_fps'].notna().any():

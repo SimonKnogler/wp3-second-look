@@ -46,10 +46,10 @@ trials, of the second look (`post_true_shape`, `post_left_shape`, `post_applied_
 ```
 python3 -m http.server 8000
 ```
-then open **http://localhost:8000** in Chrome. Use a real **mouse**, not a trackpad.
+then open **http://localhost:8000** in Chrome. Use a **trackpad**, not a mouse (since build 2026-10-15e).
 Quick run: **http://localhost:8000/?t1=6&t2=12** (short), or `?pid=99` to set an ID.
 
-Check by feel: shapes move, one follows your mouse, calibration converges, the
+Check by feel: shapes move, one follows your finger, calibration converges, the
 Part-B second look is clearly visible, the 1–9 confidence works, a CSV downloads
 at the end. Then run the analysis on it:
 ```
@@ -87,14 +87,8 @@ high offset (target 85 %) and measure what that strength supports; flagged
 warm-up, with feedback, since build 2026-10-15b; `wp3_task3` for the optional run after Part B, `d3`, off
 by default), not part of the confidence model. `trial_onset_s` / `row_time_s` are the session clock (seconds
 since the start) when the circles of the decision look appear and when the row was written.
-
-Mouse kinematics (build 2026-10-15c) go into a second file per session, `CDT_wp3_<pid>_<start>_kin.csv`:
-one row per look (`look` = explore / decision / second_look, `trial_idx` matching the main file) with the
-pool pair (`pool_t`, `pool_d`), layout, mapping and control, and `frames` = the hand movement of every
-rendered frame as `dx:dy:n` separated by `;` (pixels, y up, before the rotation; `n` = 120 Hz physics steps
-the frame covered). Feeding these to `Engine.TrialEngine` reproduces each look exactly (the pilot replay
-matched `evidence_sum` on every look). Uploaded after each block and at the end (`kin_saved` in the main
-file); downloaded as a second file when piloting. `delta_live` is the offset in force on each trial.
+`delta_live` is the offset in force on each trial. No mouse kinematics are recorded (the second file of
+build 2026-10-15c was dropped again in 2026-10-15d).
 
 ## Saving, and what still needs YOUR check
 - **Saving (design doc §10p):** after consent the task opens a Pavlovia session. While RUNNING, one file
@@ -112,7 +106,13 @@ file); downloaded as a second file when piloting. `delta_live` is the offset in 
   WP3 title and online adaptations (`CONSENT_HTML`, `STUDY_TITLE`, `CONTACT_EMAIL` in `index.html`).
 - **Instruction checks:** three instruction screens ask for K instead of SPACE (`imc_1..3`, `imc_failed`); no
   trial is spent on them. Prolific allows a rejection after two failures; the analysis excludes on one.
-- No demographics screen: Prolific supplies age and sex in its export.
-- **Motor task online caveat:** trackpad vs mouse / DPI / frame-rate variance. Mouse is asked for,
+- **Demographics** (build 2026-10-15d): one screen after the two optional consent items asks age, gender,
+  handedness and vision (`demo_age`, `demo_gender`, `demo_handedness`, `demo_vision`); every item needs an
+  answer, gender has "prefer not to say". The lab version asks the first three in its start dialog.
+- **Trackpad only** (build 2026-10-15e, design doc §10t): the device question accepts a trackpad
+  (`input_device` = 2); anyone else is asked to switch to the trackpad (T) or return the study. All
+  instructions say trackpad; the closing self-report asks whether the trackpad was used throughout.
+- **Motor task online caveat:** trackpad vs mouse / DPI / frame-rate variance. A trackpad is asked for
+  (since build 2026-10-15e; a mouse before),
   fullscreen and pointer lock enforced, `display_fps` and `low_move_ratio` logged; exclusion
   thresholds for these still need to go into the preregistration.

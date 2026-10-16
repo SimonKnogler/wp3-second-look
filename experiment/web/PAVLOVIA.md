@@ -97,8 +97,8 @@ https://run.pavlovia.org/Knoglersimon/wp3-second-look/?PROLIFIC_PID={{%PROLIFIC_
 `index.html` reads the three Prolific ids (written into every data row) and, when
 `completion` is set, redirects there after showing the bonus for four seconds — that is
 what credits the participant. Prolific settings that matter: desktop only (Prolific cannot
-filter mouse vs. trackpad — the instructions ask for a mouse and low movement is flagged
-in the data), 18–50, no neurological/psychiatric history, ~75 min allowance (the session has about 370–450 decision trials, roughly 57 minutes). Screening on Prolific: desktop/laptop only, and ask for a computer mouse (the task asks again at the start, logs `input_device`, and lets trackpad users return the study without penalty). The task captures the pointer (Pointer Lock) and runs in fullscreen on one screen.
+filter mouse vs. trackpad — the instructions ask for a trackpad and low movement is flagged
+in the data), 18–50, no neurological/psychiatric history, ~75 min allowance (the session has about 370–450 decision trials, roughly 57 minutes). Screening on Prolific: desktop/laptop only, and say in the study description that a laptop trackpad is needed (the task asks again at the start, logs `input_device`, and lets people without a trackpad return the study without penalty; since build 2026-10-15e, a mouse before). The task captures the pointer (Pointer Lock) and runs in fullscreen on one screen.
 
 ## Everyday workflow
 
